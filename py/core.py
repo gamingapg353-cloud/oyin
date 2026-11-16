@@ -1,0 +1,201 @@
+"""Umumiy yordamchilar: yo'llar, baza (SQLite), sessiya va huquqlar."""
+import sqlite3
+from datetime import datetime
+from functools import wraps
+from pathlib import Path
+
+from flask import g, jsonify, session
+
+import config
+
+PY_DIR = Path(__file__).resolve().parent
+ROOT_DIR = PY_DIR.parent  # loyiha papkasi: index.html, panel.html, static/
+DATA_DIR = ROOT_DIR / "data"
+DB_PATH = DATA_DIR / "oyin.db"
+UPLOAD_DIR = DATA_DIR / "uploads"
+AVATAR_DIR = DATA_DIR / "avatars"
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    login         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    score         INTEGER NOT NULL DEFAULT 0,   -- owner bergan ballar
+    avatar        TEXT,                         -- data/avatars/ dagi rasm nomi
+    session_version INTEGER NOT NULL DEFAULT 0, -- parol/login almashsa oshadi -> eski sessiyalar bekor
+    created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
+
+CREATE TABLE IF NOT EXISTS game_players (
+    player_key  TEXT PRIMARY KEY,              -- 'u<id>' yoki 'owner'
+    money       REAL NOT NULL,
+    income_at   REAL NOT NULL,                 -- daromad shu vaqtgacha hisoblangan (unix soniya)
+    house_level INTEGER NOT NULL DEFAULT 0,    -- Ota hovli darajasi (0 = yo'q)
+    cars        TEXT NOT NULL DEFAULT '[]',    -- JSON: sotib olingan mashinalar
+    plot        INTEGER                        -- xaritadagi hovli joyi
+);
+
+CREATE TABLE IF NOT EXISTS homeworks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    files       TEXT NOT NULL DEFAULT '[]',   -- JSON: owner biriktirgan vazifa fayllari
+    created_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS submissions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    homework_id    INTEGER NOT NULL REFERENCES homeworks(id) ON DELETE CASCADE,
+    user_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    files          TEXT NOT NULL,                -- JSON: saqlangan fayl nomlari
+    status         TEXT NOT NULL,                -- checking | checked | pending | error
+    score          INTEGER NOT NULL DEFAULT 0,   -- reytingga qo'shiladigan ball
+    ai_probability INTEGER,                      -- AI yasagan bo'lish ehtimoli, %
+    ai_reason      TEXT,
+    feedback       TEXT,
+    mistakes       TEXT,                         -- JSON: AI topgan xatolar ro'yxati
+    error          TEXT,
+    graded_by      TEXT,                         -- ai | owner
+    created_at     TEXT NOT NULL,
+    UNIQUE (homework_id, user_id)
+);
+"""
+
+
+RATING_SQL = (
+    "SELECT u.id, u.name, u.login, u.avatar, u.created_at, "
+    "u.score + COALESCE((SELECT SUM(s.score) FROM submissions s WHERE s.user_id = u.id), 0) AS total "
+    "FROM users u ORDER BY total DESC, u.id ASC"
+)
+
+
+def now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def avatar_url(filename: str | None) -> str | None:
+    return f"/avatars/{filename}" if filename else None
+
+
+def get_setting(key: str) -> str | None:
+    row = get_db().execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def set_setting(key: str, value: str | None) -> None:
+    db = get_db()
+    if value is None:
+        db.execute("DELETE FROM settings WHERE key = ?", (key,))
+    else:
+        db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    db.commit()
+
+
+# --------------------------------------------------------------------------- #
+#  Baza
+# --------------------------------------------------------------------------- #
+def init_db() -> None:
+    DATA_DIR.mkdir(exist_ok=True)
+    UPLOAD_DIR.mkdir(exist_ok=True)
+    AVATAR_DIR.mkdir(exist_ok=True)
+    db = sqlite3.connect(DB_PATH)
+    try:
+        db.executescript(SCHEMA)
+        # Eski bazada yangi ustunlar bo'lmasa — qo'shamiz
+        columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
+        if "score" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN score INTEGER NOT NULL DEFAULT 0")
+        if "avatar" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN avatar TEXT")
+        if "session_version" not in columns:
+            db.execute("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0")
+        hw_columns = {row[1] for row in db.execute("PRAGMA table_info(homeworks)")}
+        if "files" not in hw_columns:
+            db.execute("ALTER TABLE homeworks ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
+        sub_columns = {row[1] for row in db.execute("PRAGMA table_info(submissions)")}
+        if "mistakes" not in sub_columns:
+            db.execute("ALTER TABLE submissions ADD COLUMN mistakes TEXT")
+        db.commit()
+    finally:
+        db.close()
+
+
+def get_db() -> sqlite3.Connection:
+    if "db" not in g:
+        g.db = sqlite3.connect(DB_PATH, timeout=10)
+        g.db.row_factory = sqlite3.Row
+        g.db.execute("PRAGMA foreign_keys = ON")
+    return g.db
+
+
+def close_db(_exc=None) -> None:
+    db = g.pop("db", None)
+    if db is not None:
+        db.close()
+
+
+# --------------------------------------------------------------------------- #
+#  Sessiya / huquqlar
+# --------------------------------------------------------------------------- #
+def current_user() -> dict | None:
+    """Hozir kirgan odam: {'role': 'owner' | 'user', 'name', 'login', 'avatar', 'key'} yoki None."""
+    role = session.get("role")
+    user = None
+
+    if role == "owner" and session.get("login") == config.OWNER_LOGIN:
+        user = {"role": "owner", "name": config.OWNER_NAME, "login": config.OWNER_LOGIN,
+                "avatar": avatar_url(get_setting("owner_avatar")), "key": "owner"}
+    elif role == "user":
+        row = get_db().execute(
+            "SELECT id, name, login, avatar, session_version FROM users WHERE id = ?", (session.get("uid"),)
+        ).fetchone()
+        # Owner o'chirib yuborgan yoki parol/login almashgan bo'lsa — sessiya bekor bo'ladi
+        if row and session.get("sv", 0) == row["session_version"]:
+            user = {"role": "user", "id": row["id"], "name": row["name"], "login": row["login"],
+                    "avatar": avatar_url(row["avatar"]), "key": f"u{row['id']}"}
+
+    if user is None and role:
+        session.clear()
+    return user
+
+
+def bump_session_version(user_id: int) -> int:
+    """Foydalanuvchining hamma qurilmadagi sessiyalarini bekor qiladi (parol/login almashganda)."""
+    db = get_db()
+    db.execute("UPDATE users SET session_version = session_version + 1 WHERE id = ?", (user_id,))
+    row = db.execute("SELECT session_version FROM users WHERE id = ?", (user_id,)).fetchone()
+    return row["session_version"] if row else 0
+
+
+def login_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if not current_user():
+            return jsonify(error="Avval tizimga kiring"), 401
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
+def owner_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        user = current_user()
+        if not user:
+            return jsonify(error="Avval tizimga kiring"), 401
+        if user["role"] != "owner":
+            return jsonify(error="Bu amal faqat owner uchun"), 403
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
+def text_field(data: dict, key: str) -> str:
+    value = data.get(key, "")
+    return value.strip() if isinstance(value, str) else ""

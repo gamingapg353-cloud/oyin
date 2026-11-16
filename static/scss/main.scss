@@ -1,0 +1,8 @@
+// O'yin — asosiy SCSS fayl.
+// Kompilyatsiya: python py/build_css.py  (yoki server ishga tushganda avtomatik)
+@import "variables";
+@import "base";
+@import "auth";
+@import "panel";
+@import "profile";
+@import "game";

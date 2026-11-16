@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kirish — O'yin</title>
+  <script>try { var t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ asset('css/main.css') }}">
+  <link rel="icon" href="{{ asset('favicon.svg') }}">
+</head>
+<body class="page-auth">
+  <main class="auth">
+    <section class="auth-card">
+      <div class="auth-brand">
+        <div class="brand-icon brand-icon--lg">{{ icon('gamepad', 34) }}</div>
+        <h1>O'yin</h1>
+        <p>Do'stlar bilan birga o'ynash uchun o'yinlar platformasi</p>
+      </div>
+
+      <form id="login-form" class="auth-form" novalidate>
+        <div class="segmented" role="tablist" aria-label="Kim sifatida kirasiz">
+          <button type="button" class="segmented__btn" role="tab" data-role="owner" aria-selected="false">
+            {{ icon('crown', 18) }} Owner
+          </button>
+          <button type="button" class="segmented__btn is-active" role="tab" data-role="user" aria-selected="true">
+            {{ icon('user', 18) }} Foydalanuvchi
+          </button>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="login">Login</label>
+          <div class="input">
+            {{ icon('user', 18) }}
+            <input id="login" name="login" type="text" placeholder="login" autocomplete="username"
+                   autocapitalize="none" spellcheck="false" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="password">Parol</label>
+          <div class="input input--action">
+            {{ icon('lock', 18) }}
+            <input id="password" name="password" type="password" placeholder="••••••••"
+                   autocomplete="current-password" required>
+            <button type="button" class="input__action" data-toggle-password aria-label="Parolni ko'rsatish">
+              {{ icon('eye', 18) }}{{ icon('eye-off', 18) }}
+            </button>
+          </div>
+        </div>
+
+        <p class="form-error" role="alert" hidden></p>
+
+        <button type="submit" class="btn btn--primary btn--lg btn--block">Kirish</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="{{ asset('js/common.js') }}"></script>
+  <script src="{{ asset('js/login.js') }}"></script>
+</body>
+</html>

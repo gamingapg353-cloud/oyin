@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# Baza, yuklangan fayllar, rasmlar va maxfiy kalit — faqat shu kompyuterda
+data/
+
+# Maxfiy sozlamalar (API kalit, owner paroli). Namuna: .env.example
+.env
+
+# Muharrir / vosita sozlamalari
+.claude/
+.vscode/
+.idea/

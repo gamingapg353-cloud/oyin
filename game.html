@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mahalla — O'yin</title>
+  <script>try { var t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ asset('css/main.css') }}">
+  <link rel="icon" href="{{ asset('favicon.svg') }}">
+</head>
+<body class="page-game">
+  <canvas id="world" aria-label="Mahalla xaritasi"></canvas>
+
+  <!-- Yuqori panel: orqaga, pul, kim o'ynayapti -->
+  <header class="hud hud--top">
+    <a class="hud-btn" href="/panel#games" title="Panelga qaytish" aria-label="Panelga qaytish">{{ icon('arrow-left') }}</a>
+    <div class="hud-money" title="Pulingiz">
+      <span class="hud-money__icon">{{ icon('coins', 22) }}</span>
+      <div class="hud-money__text">
+        <strong><span id="money">0</span> so'm</strong>
+        <small id="rate">+0 so'm / soat</small>
+      </div>
+    </div>
+    <div class="hud-online" title="Hozir o'yinda">
+      {{ icon('users', 18) }} <span id="online-count">1</span>
+    </div>
+  </header>
+
+  <aside class="hud-friends" id="friends" aria-label="O'yindagilar"></aside>
+  <canvas id="minimap" class="minimap" width="240" height="160" aria-label="Kichik xarita"></canvas>
+
+  <!-- Amallar -->
+  <div class="hud-actions">
+    <button type="button" class="action-btn" id="btn-house">{{ icon('home', 22) }}<span>Ota hovli</span></button>
+    <button type="button" class="action-btn" id="btn-shop">{{ icon('car', 22) }}<span>Avtosalon</span></button>
+    <button type="button" class="action-btn action-btn--primary" id="btn-ride">
+      <span class="action-btn__icon" id="ride-icon">{{ icon('car', 22) }}</span><span id="ride-label">Mashinaga o'tirish</span><kbd>E</kbd>
+    </button>
+  </div>
+
+  <!-- Telefon uchun boshqaruv -->
+  <div class="dpad" id="dpad" aria-hidden="true">
+    <button type="button" class="dpad__btn dpad__btn--up" data-dir="up" tabindex="-1">{{ icon('chevron-up', 28) }}</button>
+    <button type="button" class="dpad__btn dpad__btn--left" data-dir="left" tabindex="-1">{{ icon('chevron-left', 28) }}</button>
+    <button type="button" class="dpad__btn dpad__btn--right" data-dir="right" tabindex="-1">{{ icon('chevron-right', 28) }}</button>
+    <button type="button" class="dpad__btn dpad__btn--down" data-dir="down" tabindex="-1">{{ icon('chevron-down', 28) }}</button>
+  </div>
+
+  <p class="hud-hint" id="hint">WASD yoki strelkalar — yurish · E — mashinaga o'tirish / tushish · tangalarni tering!</p>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <div class="conn" id="conn" role="alert" hidden>{{ icon('alert', 18) }} Server bilan aloqa uzildi… qayta ulanmoqda</div>
+  <div class="loading" id="loading">{{ icon('gamepad', 34) }}<span>Mahalla yuklanmoqda…</span></div>
+
+  <!-- Ota hovli / Avtosalon oynasi -->
+  <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+  <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+    <header class="sheet__head">
+      <span class="card__icon" id="sheet-icon"></span>
+      <div>
+        <h2 id="sheet-title"></h2>
+        <p id="sheet-sub"></p>
+      </div>
+      <button type="button" class="icon-btn icon-btn--sm" id="sheet-close" aria-label="Yopish">{{ icon('x', 18) }}</button>
+    </header>
+    <div class="sheet__body" id="sheet-body"></div>
+  </section>
+
+  <template id="icons">
+    {% for name in ['home', 'car', 'coins', 'check', 'lock', 'star', 'clock', 'footprints', 'trophy', 'alert'] %}
+    <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
+    {% endfor %}
+  </template>
+
+  <script>window.APP = {{ {"role": user.role, "name": user.name}|tojson }};</script>
+  <script src="{{ asset('js/common.js') }}"></script>
+  <script src="{{ asset('js/game.js') }}"></script>
+</body>
+</html>

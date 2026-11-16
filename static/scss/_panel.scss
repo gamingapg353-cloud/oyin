@@ -1,0 +1,1056 @@
+// ------------------------------------------------------------------
+//  Panel: chap menyu, yuqori header, kontent
+// ------------------------------------------------------------------
+.layout {
+  display: grid;
+  grid-template-columns: $sidebar-w minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+// Chap menyu
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  height: 100vh;
+  padding: 22px 18px;
+  border-right: 1px solid var(--border);
+  background: var(--sidebar);
+  overflow-y: auto;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 2px 10px;
+
+  &__text {
+    display: grid;
+    line-height: 1.25;
+
+    strong {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 14px;
+    }
+  }
+}
+
+.nav {
+  display: grid;
+  gap: 6px;
+
+  &__link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 16px;
+    border-radius: $radius-sm;
+    font-size: 17px;
+    font-weight: 500;
+    transition: background-color 0.15s, color 0.15s;
+
+    .icon {
+      color: var(--muted);
+    }
+
+    &:hover {
+      background: var(--surface-2);
+    }
+
+    &.is-active {
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 600;
+
+      .icon {
+        color: var(--primary);
+      }
+    }
+  }
+}
+
+.sidebar__footer {
+  margin-top: auto;
+  padding: 0 10px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+// O'ng tomon
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 74px;
+  padding: 0 36px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+
+  &__menu {
+    display: none;
+  }
+
+  &__title {
+    font-size: 18px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+  }
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 18px 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+
+  &__text {
+    display: grid;
+    line-height: 1.2;
+
+    strong {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 12px;
+
+      &.is-owner {
+        color: var(--gold);
+        font-weight: 600;
+      }
+    }
+  }
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--avatar, var(--surface-2));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+
+  &--plain {
+    color: var(--text);
+  }
+}
+
+.content {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  padding: 30px 36px 48px;
+}
+
+.view {
+  display: grid;
+  gap: 24px;
+}
+
+// Kartochkalar
+.card {
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface-solid);
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    p {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+  }
+
+  &__icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: $radius-sm;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+}
+
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  &__icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: var(--on-primary);
+  }
+
+  h2 {
+    font-size: 19px;
+    font-weight: 700;
+  }
+
+  p {
+    color: var(--muted);
+    font-size: 15px;
+  }
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 56px 24px;
+  text-align: center;
+
+  &__icon {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    margin-bottom: 8px;
+    border-radius: 18px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+
+  h3 {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  p {
+    max-width: 420px;
+    color: var(--muted);
+  }
+
+  &--inline {
+    padding: 40px 16px;
+    color: var(--muted);
+  }
+}
+
+// Odam qo'shish + Ball berish
+.owner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(#{unquote("min(100%, 340px)")}, 1fr));
+  align-items: start;
+  gap: 24px;
+  max-width: 1120px;
+}
+
+.form-card {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+}
+
+.card__icon--gold {
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+
+// ------------------------------------------------------------------
+//  Uy vazifa
+// ------------------------------------------------------------------
+.view[data-view="homework"] {
+  max-width: 980px;
+}
+
+.hw-list {
+  display: grid;
+  gap: 18px;
+
+  &:empty {
+    display: none;
+  }
+}
+
+.hw {
+  display: grid;
+  gap: 16px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+
+    > .badge,
+    > .icon-btn {
+      margin-left: auto;
+    }
+  }
+
+  &__titles {
+    display: grid;
+    min-width: 0;
+
+    h3 {
+      font-size: 18px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+  }
+
+  &__desc {
+    color: var(--text);
+    font-size: 15px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__toggle {
+    justify-self: start;
+
+    .icon {
+      transition: transform 0.2s;
+    }
+
+    &.is-open .icon {
+      transform: rotate(180deg);
+    }
+
+    // Matn chapda, strelka o'ngda
+    span {
+      order: -1;
+    }
+  }
+}
+
+// Owner: topshiriqlar ro'yxati
+.subs {
+  display: grid;
+  gap: 12px;
+
+  &__empty {
+    padding: 8px 2px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+}
+
+.sub {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: $radius;
+  background: var(--surface-2);
+
+  &__top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+
+    .badge {
+      margin-left: auto;
+    }
+  }
+
+  &__who {
+    display: grid;
+    min-width: 0;
+    line-height: 1.3;
+
+    strong {
+      font-weight: 600;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+
+    .icon-btn {
+      margin-left: auto;
+    }
+  }
+
+  &__feedback {
+    font-size: 15px;
+  }
+
+  &__msg {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 14px;
+
+    .icon {
+      margin-top: 2px;
+    }
+
+    &--error {
+      padding: 10px 14px;
+      border-radius: $radius-sm;
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+  }
+}
+
+.mini-select {
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--field);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ai-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+
+  .icon {
+    margin-top: 2px;
+    color: var(--primary);
+  }
+
+  &--flag {
+    padding: 10px 14px;
+    border-radius: $radius-sm;
+    background: var(--danger-soft);
+    color: var(--danger);
+
+    .icon {
+      color: var(--danger);
+    }
+  }
+}
+
+.file-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  &:empty {
+    display: none;
+  }
+}
+
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 13px;
+  transition: background-color 0.15s, border-color 0.15s;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .icon {
+    width: 15px;
+    height: 15px;
+    color: var(--primary);
+  }
+
+  &:hover {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+}
+
+// Foydalanuvchi: natija
+.result {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: $radius;
+  background: var(--surface-2);
+
+  &__body {
+    display: grid;
+    flex: 1;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  @include mq($bp-sm) {
+    flex-direction: column;
+  }
+}
+
+.score-box {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 92px;
+  height: 92px;
+  border-radius: 20px;
+  background: var(--gold-soft);
+  color: var(--gold);
+  text-align: center;
+  line-height: 1.1;
+
+  strong {
+    font-size: 34px;
+    font-weight: 700;
+  }
+
+  span {
+    margin-top: -14px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+}
+
+// Foydalanuvchi: fayl yuborish
+.upload {
+  display: grid;
+  gap: 14px;
+
+  .btn {
+    justify-self: start;
+  }
+
+  &.is-busy .btn {
+    cursor: progress;
+  }
+
+  &.is-busy .btn .icon {
+    animation: pulse 1s ease-in-out infinite;
+  }
+}
+
+.dropzone {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 26px 18px;
+  border: 2px dashed var(--border-strong);
+  border-radius: $radius;
+  background: var(--field);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+
+  strong {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  small {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  &:hover,
+  &.is-over {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+
+  &:focus-within {
+    border-color: var(--primary);
+  }
+
+  &__icon {
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 46px;
+    margin-bottom: 4px;
+    border-radius: 14px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+
+  // Asl input ko'rinmaydi, lekin klaviatura bilan ishlaydi
+  &__input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+}
+
+.picked {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  &:empty {
+    display: none;
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+
+    .icon {
+      color: var(--muted);
+    }
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small {
+      margin-left: auto;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+  }
+}
+
+// AI topgan xatolar ro'yxati
+.mistakes {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--danger-soft);
+  border-radius: $radius-sm;
+  background: var(--danger-soft);
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--danger);
+    font-size: 14px;
+  }
+
+  &__list {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding-left: 22px;
+    font-size: 14px;
+
+    li::marker {
+      color: var(--danger);
+      font-weight: 700;
+    }
+  }
+}
+
+.sub__msg--ok {
+  color: var(--success);
+}
+
+.task-files {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+
+  > small {
+    color: var(--muted);
+    font-size: 13px;
+  }
+}
+
+.file-chip--task {
+  border-color: var(--primary-soft);
+  background: var(--primary-soft);
+}
+
+.optional {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.dropzone--compact {
+  padding: 16px;
+
+  .dropzone__icon {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.notice {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 14px;
+
+  &--success {
+    border: 1px solid var(--success-soft);
+    background: var(--success-soft);
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--success);
+    font-weight: 700;
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px 14px;
+    margin: 0;
+  }
+
+  dt {
+    color: var(--muted);
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .btn {
+    justify-self: start;
+  }
+}
+
+.list-card {
+  padding: 8px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 12px;
+
+    h2 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+  }
+
+  &__hint {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 14px;
+  }
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--gold-soft);
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.user-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+// Reyting qatorlari
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+
+  &.is-me {
+    border-top-color: transparent;
+    border-radius: 14px;
+    background: var(--primary-soft);
+
+    + .user-row {
+      border-top-color: transparent;
+    }
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  &__info {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+
+    small {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 13px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &__name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+
+    strong {
+      overflow: hidden;
+      font-size: 17px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .score {
+    flex-shrink: 0;
+  }
+
+  &__delete {
+    width: 40px;
+    height: 40px;
+    border-radius: $radius-sm;
+    color: var(--muted);
+
+    &:hover {
+      border-color: transparent;
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+  }
+}
+
+// O'rin belgisi: raqam yoki 1-2-3 o'rin uchun medal
+.rank {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 600;
+
+  &--1 {
+    background: #facc15;
+    color: #713f12;
+  }
+
+  &--2 {
+    background: #cbd5e1;
+    color: #334155;
+  }
+
+  &--3 {
+    background: #fb923c;
+    color: #7c2d12;
+  }
+}
+
+.me-tag {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+// ------------------------------------------------------------------
+//  Moslashuvchanlik (planshet / telefon)
+// ------------------------------------------------------------------
+@include mq($bp-md) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: $sidebar-w;
+    max-width: 84vw;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: var(--shadow);
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    display: block;
+    background: var(--backdrop);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+
+  .sidebar-open {
+    overflow: hidden;
+
+    .sidebar {
+      transform: none;
+    }
+
+    .sidebar-backdrop {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  .topbar {
+    height: 66px;
+    padding: 0 16px;
+
+    &__menu {
+      display: grid;
+    }
+  }
+
+  .content {
+    padding: 20px 16px 36px;
+  }
+}
+
+@include mq($bp-sm) {
+  .icon-btn {
+    width: 42px;
+    height: 42px;
+  }
+
+  .user-chip {
+    height: 42px;
+    padding: 0 4px;
+
+    &__text {
+      display: none;
+    }
+  }
+
+  .card {
+    padding: 18px;
+  }
+
+  .list-card {
+    padding: 4px;
+  }
+
+  .list-card__hint {
+    display: none;
+  }
+
+  .user-row {
+    gap: 10px;
+    padding: 12px 10px;
+
+    .rank,
+    .avatar,
+    &__delete {
+      width: 34px;
+      height: 34px;
+    }
+
+    .avatar {
+      font-size: 14px;
+    }
+
+    &__name strong {
+      font-size: 16px;
+    }
+  }
+}

@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>O'yin</title>
+  <script>try { var t = localStorage.getItem('theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ asset('css/main.css') }}">
+  <link rel="icon" href="{{ asset('favicon.svg') }}">
+</head>
+<body class="page-panel">
+  <div class="layout">
+    <!-- Chap menyu -->
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#games">
+        <span class="brand-icon">{{ icon('gamepad', 24) }}</span>
+        <span class="brand__text">
+          <strong>O'yin</strong>
+          <small>O'yinlar platformasi</small>
+        </span>
+      </a>
+
+      <nav class="nav" aria-label="Asosiy menyu">
+        <a class="nav__link" href="#games" data-view="games">{{ icon('gamepad') }}<span>O'yinlar</span></a>
+        <a class="nav__link" href="#homework" data-view="homework">{{ icon('book') }}<span>Uy vazifa</span></a>
+        {% if is_owner %}
+        <a class="nav__link" href="#add-user" data-view="add-user">{{ icon('user-plus') }}<span>Odam qo'shish</span></a>
+        {% endif %}
+        <a class="nav__link" href="#rating" data-view="rating">{{ icon('trophy') }}<span>Reyting</span></a>
+      </nav>
+
+      <p class="sidebar__footer">&copy; 2026 O'yin</p>
+    </aside>
+    <div class="sidebar-backdrop" data-close-sidebar></div>
+
+    <div class="main">
+      <!-- Header -->
+      <header class="topbar">
+        <button type="button" class="icon-btn topbar__menu" data-open-sidebar aria-label="Menyuni ochish">{{ icon('menu') }}</button>
+        <h1 class="topbar__title" id="view-title">O'yinlar</h1>
+
+        <div class="topbar__actions">
+          <button type="button" class="icon-btn theme-toggle" data-theme-toggle aria-label="Mavzuni almashtirish" title="Mavzuni almashtirish">
+            {{ icon('moon') }}{{ icon('sun') }}
+          </button>
+          <!-- Hisob menyusi: profil, rasm, chiqish -->
+          <div class="account" id="account">
+            <button type="button" class="user-chip" id="account-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu">
+              <span class="avatar" id="my-avatar" data-avatar="{{ user.name }}">
+                {%- if user.avatar %}<img src="{{ user.avatar }}" alt="">{% else %}{{ user.name[:1]|upper }}{% endif -%}
+              </span>
+              <span class="user-chip__text">
+                <strong>{{ user.name }}</strong>
+                {% if is_owner %}<small class="is-owner">Owner</small>{% else %}<small>Foydalanuvchi</small>{% endif %}
+              </span>
+              {{ icon('chevron-down', 16, 'user-chip__chevron') }}
+            </button>
+            <div class="menu" id="account-menu" role="menu" hidden>
+              <div class="menu__head">
+                <strong>{{ user.name }}</strong>
+                <small>{{ user.login }}</small>
+              </div>
+              {% if not is_owner %}
+              <a class="menu__item" role="menuitem" href="#profile/{{ user.id }}">{{ icon('user', 18) }} Profilim</a>
+              {% endif %}
+              <button type="button" class="menu__item" role="menuitem" data-avatar-change>{{ icon('camera', 18) }} Rasmni almashtirish</button>
+              <button type="button" class="menu__item" role="menuitem" data-avatar-remove {% if not user.avatar %}hidden{% endif %}>{{ icon('trash', 18) }} Rasmni o'chirish</button>
+              <div class="menu__sep" role="separator"></div>
+              <button type="button" class="menu__item menu__item--danger" role="menuitem" id="logout-btn">{{ icon('log-out', 18) }} Chiqish</button>
+            </div>
+          </div>
+          <input type="file" id="avatar-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+        </div>
+      </header>
+
+      <main class="content">
+        <!-- O'yinlar -->
+        <section class="view" data-view="games" data-title="O'yinlar">
+          <article class="card game-card">
+            <div class="game-card__art" aria-hidden="true">
+              <span class="game-card__sun"></span>
+              <span class="game-card__house">{{ icon('home', 54) }}</span>
+              <span class="game-card__car">{{ icon('car', 40) }}</span>
+              <span class="game-card__road"></span>
+            </div>
+            <div class="game-card__body">
+              <span class="badge badge--info">{{ icon('users', 15) }} <span>Do'stlar bilan</span></span>
+              <h2>Mahalla</h2>
+              <p>Do'stlaringiz bilan bitta mahallada yuring, ko'chadagi tangalarni tering, Ota hovlingizni sotib olib kuchaytiring va Avtosalondan mashina oling. Hovli va mashinalar <strong>har soatda pul</strong> olib keladi.</p>
+              <ul class="game-card__features">
+                <li>{{ icon('footprints', 18) }} Piyoda yoki mashinada</li>
+                <li>{{ icon('home', 18) }} Ota hovli — 5 daraja</li>
+                <li>{{ icon('car', 18) }} 4 xil mashina</li>
+                <li>{{ icon('coins', 18) }} Soatlik daromad</li>
+              </ul>
+              <div class="game-card__actions">
+                <a class="btn btn--primary btn--lg" href="/game">{{ icon('gamepad', 20) }} Kirish</a>
+                <span class="online-dot" id="game-online">O'yinda hozir: …</span>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <!-- Uy vazifa -->
+        <section class="view" data-view="homework" data-title="Uy vazifa" hidden>
+          {% if not ai_enabled %}
+          <div class="banner banner--warn">
+            {{ icon('alert', 20) }}
+            {% if is_owner %}
+            <p><strong>AI kaliti qo'yilmagan.</strong> Loyiha papkasidagi <code>.env</code> faylida <code>GEMINI_API_KEY=</code> dan keyin Gemini kalitingizni yozing — server o'zi qayta ishga tushadi. Hozircha topshiriqlarni o'zingiz baholaysiz.</p>
+            {% else %}
+            <p>Hozircha AI tekshiruvi o'chiq — yuborgan ishingizni owner o'zi tekshiradi.</p>
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {% if is_owner %}
+          <form class="card form-card hw-form" id="hw-form" novalidate>
+            <div class="card__head">
+              <span class="card__icon">{{ icon('book') }}</span>
+              <div>
+                <h2>Yangi uy vazifa</h2>
+                <p>Vazifa bering — foydalanuvchilar bajarib, fayl qilib yuklaydi. AI faylni ochib tekshiradi, 0–{{ max_score }} ball qo'yadi va xatolarini aytadi.</p>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="hw-title">Vazifa nomi</label>
+              <div class="input">
+                {{ icon('file', 18) }}
+                <input id="hw-title" name="title" type="text" placeholder="Masalan: Landing sahifa" maxlength="120" autocomplete="off" required>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="hw-description">Nima qilish kerak <span class="optional">(ixtiyoriy)</span></label>
+              <textarea class="textarea" id="hw-description" name="description" rows="3" maxlength="4000"
+                        placeholder="Masalan: HTML va CSS bilan header, 3 ta kartochka va footer'li sahifa yasang."></textarea>
+            </div>
+
+            <div class="field">
+              <span class="field__label">Vazifa fayli <span class="optional">(ixtiyoriy)</span></span>
+              <label class="dropzone dropzone--compact">
+                <input class="dropzone__input" type="file" name="files" multiple accept="{{ accept }}">
+                <span class="dropzone__icon">{{ icon('upload') }}</span>
+                <strong>Vazifani fayl qilib biriktiring</strong>
+                <small>Maket rasmi, topshiriq PDF'i yoki namuna kod — AI shunga qarab tekshiradi</small>
+              </label>
+              <ul class="picked" data-hw-picked></ul>
+            </div>
+
+            <p class="form-error" role="alert" hidden></p>
+            <button type="submit" class="btn btn--primary">{{ icon('send', 18) }} Vazifa berish</button>
+          </form>
+          {% endif %}
+
+          <div class="hw-list" id="hw-list"></div>
+          <div class="card empty" id="hw-empty" hidden>
+            <span class="empty__icon">{{ icon('book', 30) }}</span>
+            <h3>Hali uy vazifa yo'q</h3>
+            <p>{% if is_owner %}Yuqoridagi formadan birinchi vazifani bering.{% else %}Owner vazifa berganda shu yerda chiqadi.{% endif %}</p>
+          </div>
+        </section>
+
+        {% if is_owner %}
+        <!-- Odam qo'shish + ball berish (faqat owner) -->
+        <section class="view" data-view="add-user" data-title="Odam qo'shish" hidden>
+          <div class="owner-grid">
+            <form class="card form-card" id="add-user-form" novalidate>
+              <div class="card__head">
+                <span class="card__icon">{{ icon('user-plus') }}</span>
+                <div>
+                  <h2>Yangi odam qo'shish</h2>
+                  <p>Ism yozing — login va parol avtomatik shu ism bo'ladi. Xohlasangiz o'zgartiring.</p>
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="new-name">Ism</label>
+                <div class="input">
+                  {{ icon('user', 18) }}
+                  <input id="new-name" name="name" type="text" placeholder="Masalan: Umar" maxlength="64" autocomplete="off" required>
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="new-login">Login</label>
+                <div class="input">
+                  {{ icon('at-sign', 18) }}
+                  <input id="new-login" name="login" type="text" placeholder="login" maxlength="64"
+                         autocomplete="off" autocapitalize="none" spellcheck="false">
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="new-password">Parol</label>
+                <div class="input">
+                  {{ icon('lock', 18) }}
+                  <input id="new-password" name="password" type="text" placeholder="parol" maxlength="64"
+                         autocomplete="off" autocapitalize="none" spellcheck="false">
+                </div>
+              </div>
+
+              <p class="form-error" role="alert" hidden></p>
+
+              <button type="submit" class="btn btn--primary btn--block">{{ icon('user-plus', 18) }} Qo'shish</button>
+
+              <div class="notice notice--success" id="add-result" role="status" hidden>
+                <div class="notice__title">{{ icon('check', 18) }} <span data-result-title></span></div>
+                <dl>
+                  <dt>Login</dt><dd data-result-login></dd>
+                  <dt>Parol</dt><dd data-result-password></dd>
+                </dl>
+                <button type="button" class="btn btn--ghost" data-copy-result>{{ icon('copy', 16) }} <span>Nusxa olish</span></button>
+              </div>
+            </form>
+
+            <form class="card form-card" id="points-form" novalidate>
+              <div class="card__head">
+                <span class="card__icon card__icon--gold">{{ icon('star') }}</span>
+                <div>
+                  <h2>Ball berish</h2>
+                  <p>Odamni tanlang va ball bering yoki ayiring. Ball «Reyting»ga qo'shiladi.</p>
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="points-user">Kimga</label>
+                <div class="input input--select">
+                  {{ icon('user', 18) }}
+                  <select id="points-user" name="user" required>
+                    <option value="">Odamni tanlang</option>
+                  </select>
+                  {{ icon('chevron-down', 18, 'input__chevron') }}
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="field__label" for="points-amount">Necha ball</label>
+                <div class="input">
+                  {{ icon('star', 18) }}
+                  <input id="points-amount" name="amount" type="number" min="1" max="1000" step="1" value="1" inputmode="numeric" required>
+                </div>
+                <div class="chips" role="group" aria-label="Tez tanlash">
+                  <button type="button" class="chip" data-amount="1">1</button>
+                  <button type="button" class="chip" data-amount="3">3</button>
+                  <button type="button" class="chip" data-amount="5">5</button>
+                  <button type="button" class="chip" data-amount="10">10</button>
+                </div>
+              </div>
+
+              <p class="form-error" role="alert" hidden></p>
+
+              <div class="btn-row">
+                <button type="submit" class="btn btn--primary" data-sign="1">{{ icon('plus', 18) }} Ball berish</button>
+                <button type="submit" class="btn btn--outline-danger" data-sign="-1">{{ icon('minus', 18) }} Ayirish</button>
+                <button type="button" class="btn btn--danger" data-reset-points>{{ icon('trash', 18) }} Hammasini ayirish</button>
+              </div>
+
+              <div class="notice notice--success" id="points-result" role="status" hidden>
+                <div class="notice__title">{{ icon('check', 18) }} <span data-points-text></span></div>
+              </div>
+            </form>
+          </div>
+        </section>
+        {% endif %}
+
+        <!-- Reyting (hamma ko'radi) -->
+        <section class="view" data-view="rating" data-title="Reyting" hidden>
+          <div class="card list-card">
+            <div class="list-card__head">
+              <h2>O'yinchilar</h2>
+              <span class="pill" id="rating-count">0</span>
+              <span class="list-card__hint">Ballar bo'yicha</span>
+            </div>
+            <ol class="user-list" id="rating-list"></ol>
+            <p class="empty empty--inline" id="rating-empty" hidden>
+              {% if is_owner %}Hali hech kim yo'q. «Odam qo'shish» bo'limidan odam qo'shing.{% else %}Hali hech kim yo'q.{% endif %}
+            </p>
+          </div>
+        </section>
+
+        <!-- Profil (reytingda odamni bossangiz ochiladi) -->
+        <section class="view" data-view="profile" data-title="Profil" hidden>
+          <div class="page-head">
+            <a class="icon-btn" href="#rating" aria-label="Reytingga qaytish" title="Orqaga">{{ icon('arrow-left') }}</a>
+            <h2>Foydalanuvchi profili</h2>
+          </div>
+          <div class="profile" id="profile-root"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Parolni almashtirish oynasi -->
+  <dialog class="dialog" id="password-dialog" aria-labelledby="password-title">
+    <form class="dialog__body" method="dialog" novalidate>
+      <div class="dialog__head">
+        <span class="card__icon">{{ icon('lock') }}</span>
+        <div>
+          <h2 id="password-title">Parolni almashtirish</h2>
+          <p data-password-for></p>
+        </div>
+        <button type="button" class="icon-btn icon-btn--sm" data-dialog-close aria-label="Yopish">{{ icon('x', 18) }}</button>
+      </div>
+      <div class="field" data-name-field hidden>
+        <label class="field__label" for="pw-name">Ism</label>
+        <div class="input">
+          {{ icon('user', 18) }}
+          <input id="pw-name" name="name" type="text" autocomplete="off" maxlength="64">
+        </div>
+      </div>
+      <div class="field" data-login-field hidden>
+        <label class="field__label" for="pw-login">Login</label>
+        <div class="input">
+          {{ icon('at-sign', 18) }}
+          <input id="pw-login" name="login" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="64">
+        </div>
+      </div>
+      <div class="field" data-current-field>
+        <label class="field__label" for="pw-current">Hozirgi parol</label>
+        <div class="input input--action">
+          {{ icon('lock', 18) }}
+          <input id="pw-current" name="current" type="password" autocomplete="current-password" maxlength="64">
+          <button type="button" class="input__action" data-toggle-password aria-label="Parolni ko'rsatish">{{ icon('eye', 18) }}{{ icon('eye-off', 18) }}</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field__label" for="pw-new">Yangi parol</label>
+        <div class="input input--action">
+          {{ icon('lock', 18) }}
+          <input id="pw-new" name="new" type="password" autocomplete="new-password" maxlength="64">
+          <button type="button" class="input__action" data-toggle-password aria-label="Parolni ko'rsatish">{{ icon('eye', 18) }}{{ icon('eye-off', 18) }}</button>
+        </div>
+      </div>
+      <div class="field">
+        <label class="field__label" for="pw-repeat">Yangi parolni takrorlang</label>
+        <div class="input">
+          {{ icon('lock', 18) }}
+          <input id="pw-repeat" name="repeat" type="password" autocomplete="new-password" maxlength="64">
+        </div>
+      </div>
+      <p class="form-error" role="alert" hidden></p>
+      <div class="notice notice--success" data-password-done role="status" hidden>
+        <div class="notice__title">{{ icon('check', 18) }} <span>Parol almashtirildi</span></div>
+      </div>
+      <button type="submit" class="btn btn--primary btn--block">{{ icon('check', 18) }} Saqlash</button>
+    </form>
+  </dialog>
+
+  <!-- JS ishlatadigan ikonkalar -->
+  <template id="icons">
+    {% for name in ['medal', 'trash', 'book', 'upload', 'download', 'file', 'bot', 'refresh', 'alert', 'check', 'clock', 'chevron-down', 'send', 'star', 'camera', 'calendar', 'target', 'home', 'car', 'coins', 'lock', 'user', 'trophy', 'gamepad'] %}
+    <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
+    {% endfor %}
+  </template>
+
+  <script>window.APP = {{ {"role": user.role, "id": user.get('id'), "name": user.name, "avatar": user.avatar, "aiEnabled": ai_enabled, "maxScore": max_score, "accept": accept}|tojson }};</script>
+  <script src="{{ asset('js/common.js') }}"></script>
+  <script src="{{ asset('js/homework.js') }}"></script>
+  <script src="{{ asset('js/profile.js') }}"></script>
+  <script src="{{ asset('js/panel.js') }}"></script>
+</body>
+</html>
