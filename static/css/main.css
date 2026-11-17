@@ -3474,3 +3474,39 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
 .car-row .btn + .btn {
   margin-left: -4px;
 }
+
+.sale {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px dashed var(--gold);
+  border-radius: 16px;
+  background: var(--gold-soft);
+}
+
+.sale__title {
+  color: var(--gold);
+  font-size: 15px;
+}
+
+.sale > small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.sale__row {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sale__row .input {
+  flex: 1;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sale__row .btn {
+  flex-shrink: 0;
+}

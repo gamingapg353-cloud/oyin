@@ -1019,3 +1019,40 @@
 .car-row .btn + .btn {
   margin-left: -4px;
 }
+
+// Uyni sotuvga qo'yish (narx bilan)
+.sale {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 14px;
+  border: 1px dashed var(--gold);
+  border-radius: $radius;
+  background: var(--gold-soft);
+
+  &__title {
+    color: var(--gold);
+    font-size: 15px;
+  }
+
+  > small {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  &__row {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+
+    .input {
+      flex: 1;
+      min-width: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .btn {
+      flex-shrink: 0;
+    }
+  }
+}

@@ -1835,7 +1835,8 @@ import * as THREE from 'three';
       ...catalog.cars.map((c) => c.price), ...economy.plots.map((p) => p.next_price || 0)];
     const rec = sheetState.kind === 'plot' ? plotsById.get(sheetState.id) : null;
     return [JSON.stringify(sheetState), JSON.stringify(economy.plots), economy.cars.join(), me.car,
-      sheetState.kind === 'shop' ? nearShop() : '', rec ? `${rec.owner}|${rec.kind}|${rec.level}` : '-',
+      sheetState.kind === 'shop' ? nearShop() : '', rec ? `${rec.owner}|${rec.kind}|${rec.level}|${rec.price}` : '-',
+      rec && rec.price ? m >= rec.price : '',
       ...prices.map((p) => m >= p)].join('|');
   }
 
@@ -2288,7 +2289,8 @@ import * as THREE from 'three';
     body.append(list);
     body.append(el('p', 'sheet-note',
       `Yana yer olish uchun xaritadagi «Sotuvda» yozuvi bor yerga boring yoki ustiga bosing (${formatNumber(catalog.land_price)} so'm). `
-      + `Sotsangiz sarflangan pulning yarmi qaytadi. Daromad o'yinda bo'lmasangiz ham yig'iladi (${offlineCap} soatgacha).`));
+      + `Uyni sotish uchun uni oching va narx qo'ying — boshqa o'yinchi sotib olsa, pul sizga tushadi. `
+      + `Daromad o'yinda bo'lmasangiz ham yig'iladi (${offlineCap} soatgacha).`));
   }
 
   function renderSheet() {
@@ -2503,6 +2505,12 @@ import * as THREE from 'three';
       }
       mctx.fillStyle = r.owner === me.key ? '#60a5fa' : (r.level ? buildingsById[r.kind].color : '#b99561');
       mctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+      if (r.price) {
+        // Sotuvdagi uy — sariq ramka
+        mctx.strokeStyle = '#facc15';
+        mctx.lineWidth = 3 * u;
+        mctx.strokeRect(plot.x, plot.y, plot.w, plot.h);
+      }
     });
     mctx.fillStyle = '#1e3a8a';
     mctx.fillRect(world.shop.x, world.shop.y, world.shop.w, world.shop.h);
