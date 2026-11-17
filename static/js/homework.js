@@ -23,7 +23,7 @@
     if (sub.status === 'checking') return badge('info', 'clock', 'Tekshirilmoqda');
     if (sub.status === 'pending') return badge('warn', 'clock', 'Owner tekshiradi');
     if (sub.status === 'error') return badge('danger', 'alert', 'Xato');
-    if (sub.ai_flagged && sub.graded_by === 'ai') return badge('danger', 'bot', "AI yasagan bo'lishi mumkin");
+    if (sub.ai_flagged && sub.graded_by === 'ai') return badge('danger', 'bot', `AI ishlatgan — ${sub.score} ball`);
     return badge('success', 'check', sub.graded_by === 'owner' ? 'Owner baholadi' : 'Tekshirildi');
   }
 
@@ -63,6 +63,15 @@
   }
 
   // Owner biriktirgan vazifa fayllari
+  // Brauzer papkani 0 baytli "fayl" qilib beradi va uni yubora olmaydi ("Server bilan aloqa yo'q").
+  // Shuning uchun oldindan tushunarli xabar ko'rsatamiz.
+  function folderProblem(files) {
+    const bad = [...files].find((file) => file.size === 0);
+    if (!bad) return '';
+    return `«${bad.name}» — papka yoki bo'sh fayl. Papkani yuborib bo'lmaydi: uni ZIP qiling `
+      + "(papka ustida o'ng tugma → «Отправить» / «Send to» → «Сжатая ZIP-папка») yoki ichidagi fayllarni tanlang.";
+  }
+
   function taskFiles(hw) {
     if (!hw.files || !hw.files.length) return document.createDocumentFragment();
     const wrap = el('div', 'task-files');
@@ -117,7 +126,7 @@
       const note = el('p', sub.ai_flagged ? 'ai-note ai-note--flag' : 'ai-note');
       const label = isOwner && sub.ai_probability !== null && sub.ai_probability !== undefined
         ? `AI yasagan bo'lish ehtimoli: ${sub.ai_probability}%. `
-        : (sub.ai_flagged ? "AI yasagan bo'lishi mumkin. " : 'AI tekshiruvi: ');
+        : (sub.ai_flagged ? "AI ishlatilgan — reytingdan 5 ball ayirildi. " : 'AI tekshiruvi: ');
       note.append(icon('bot'), el('span', '', label + sub.ai_reason));
       frag.append(note);
     }
@@ -185,6 +194,12 @@
       event.preventDefault();
       if (!input.files.length) {
         error.textContent = 'Avval fayl tanlang';
+        error.hidden = false;
+        return;
+      }
+      const bad = folderProblem(input.files);
+      if (bad) {
+        error.textContent = bad;
         error.hidden = false;
         return;
       }
@@ -421,6 +436,12 @@
         errorEl.textContent = 'Vazifa nomini yozing';
         errorEl.hidden = false;
         form.elements.title.focus();
+        return;
+      }
+      const bad = folderProblem(fileInput.files);
+      if (bad) {
+        errorEl.textContent = bad;
+        errorEl.hidden = false;
         return;
       }
       const data = new FormData();

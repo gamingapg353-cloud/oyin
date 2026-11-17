@@ -141,6 +141,9 @@ def init_db() -> None:
             "FROM game_players WHERE plot IS NOT NULL"
         )
         db.execute("UPDATE game_players SET house_level = 0 WHERE house_level != 0")
+        # Har bino turining qavat chegarasi (game.BUILDINGS dagi "max" bilan bir xil)
+        for kind, top in {"uy": 25, "magazin": 40, "kafe": 60, "ofis": 100}.items():
+            db.execute("UPDATE game_plots SET level = ? WHERE kind = ? AND level > ?", (top, kind, top))
         # Eski mashinalar (Jajji, Shamol, Chaqmoq, Bo'ron) -> yangilari (BMW, Mercedes, Lamborghini)
         old_cars = {"jajji": "bmw", "shamol": "mercedes", "chaqmoq": "lambo", "boron": "lambo"}
         known = {"bmw", "mercedes", "lambo", "tesla"}

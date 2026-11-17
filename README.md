@@ -54,7 +54,8 @@ Kalit bo'lmasa ham sayt ishlaydi — topshiriqlarni owner o'zi baholaydi.
 - **Uy vazifa** — owner vazifa beradi (nomi; tavsif va vazifa fayli — ixtiyoriy).
   Foydalanuvchi bajarib, fayl qilib yuklaydi. AI faylni ochib tekshiradi, 0–5 ball qo'yadi —
   xato qancha ko'p bo'lsa, ball shuncha kam — va **har bir xatoni** aytadi (qaysi faylda, nima
-  noto'g'ri, qanday tuzatish kerak). Ish AI yasaganmi — shuni ham baholaydi.
+  noto'g'ri, qanday tuzatish kerak). Ish AI yasaganmi — shuni ham baholaydi: AI ishlatilgan bo'lsa,
+  o'quvchidan **5 ball ayiriladi** (−5).
   Owner bahoni qo'lda o'zgartira oladi.
 - **Odam qo'shish** (faqat owner) — yangi odam va **Ball berish**.
 - **Reyting** — hamma ko'radi. Profil: rasm, reytingdagi o'rni, joriy balans,
@@ -73,16 +74,19 @@ Kalit bo'lmasa ham sayt ishlaydi — topshiriqlarni owner o'zi baholaydi.
   **H** — signal, **M** — katta xarita (bosilgan joyga yo'l ko'rsatiladi).
   Telefonda — ekrandagi tugmalar (o'rtadagisi — sakrash/uchish) va barmoq bilan tortish.
 - Yangi o'yinchiga 75 000 so'm beriladi (BMW + birinchi uyga yetadi).
-- **Taksi**: mashinada sariq halqadagi yo'lovchiga boring — o'zi o'tiradi; yashil nurga eltsangiz pul olasiz
+- **Taksi**: mashinada tepadagi **«Yandex»** tugmasini bosing — yo'lovchilar paydo bo'ladi. Sariq halqadagi
+  yo'lovchiga boring — o'zi o'tiradi; yashil nurga eltsangiz pul olasiz
   (uzoqroq manzil — ko'proq pul, qimmat mashina — haqi ko'proq).
 - Har kimga bitta yer — **Ota hovli** — bepul. Qo'shimcha **bo'sh yerlarni sotib olish** mumkin
-  (25 000 so'm, ko'pi bilan 5 ta yer).
+  (25 000 so'm, **cheklov yo'q** — xohlagancha yer olish mumkin).
 - Har bir yerga **nima qurishni o'zingiz tanlaysiz**: **Uy, Magazin, Kafe yoki Ofis**.
-  Binolar **100 qavatgacha** ko'tariladi: qavat narxi **40 000 so'mdan** boshlanadi, 100-qavat — **300 000 so'm**.
+  Har bino turining o'z qavat chegarasi bor: **Uy — 25, Magazin — 40, Kafe — 60, Ofis — 100 qavat**.
+  Qavat narxi **40 000 so'mdan** boshlanadi, eng yuqori qavat — **300 000 so'm**.
   10, 30, 60 va 100 qavatda tomida yangi bezaklar paydo bo'ladi (antenna, vertolyot maydoni, oltin toj).
 - **Yangi qavat qo'shish uchun HTML/CSS savoliga to'g'ri javob berish kerak** (50 ta savol, `py/quiz.py`).
   Noto'g'ri javob bo'lsa pul yechilmaydi, to'g'ri javob va tushuntirish ko'rsatiladi, 15 soniyadan keyin yangi savol.
-- **Sotish**: yer va binoni sotsangiz, sarflangan pulning yarmi qaytadi (Ota hovlida — faqat bino sotiladi).
+- **Sotish**: uyingizga narx qo'yib sotuvga chiqarasiz — uni boshqa o'yinchi sotib oladi va pul sizga tushadi.
+  Owner istalgan uyni sotuvga qo'ya oladi (pul uy egasiga tushadi). Owner qavatlarni savolsiz qo'shadi.
 - **Avtosalon** — mashinalar faqat Avtosalonning o'zida sotiladi: BMW M5, Mercedes G-Class,
   Lamborghini Aventador va eng qimmati — **uchadigan Tesla** (baland binolar ustidan o'zi oshib o'tadi).
   Mashinalarning ovozi bor (dvigatel, signal), ovozni yuqoridagi tugma bilan o'chirish mumkin.

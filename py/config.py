@@ -41,5 +41,6 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 AI_MODEL = "gemini-3.8-flash"
 AI_THINKING = "low"        # qanchalik chuqur o'ylaydi: minimal | low | medium | high (past = tezroq)
-AI_THRESHOLD = 70          # "AI yasagan" ehtimoli shu foizdan yuqori bo'lsa — 0 ball
+AI_THRESHOLD = 70          # "AI yasagan" ehtimoli shu foizdan yuqori bo'lsa — jarima
+AI_PENALTY = 5             # AI ishlatgan o'quvchidan shuncha ball ayiriladi (ball = -5)
 HOMEWORK_MAX_SCORE = 5     # bitta uy vazifa uchun eng ko'p ball

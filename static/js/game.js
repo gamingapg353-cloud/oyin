@@ -37,6 +37,7 @@ import * as THREE from 'three';
   const JUMP_SPEED = 330;
   const GRAVITY = 980;
   let selectedCar = null;
+  let taxiOn = false;            // "Yandex" bosilganda yoqiladi: yo'lovchilar faqat shunda ko'rinadi
   let sheetState = null;         // {kind: 'plot', id} | {kind: 'quiz', ...} | {kind: 'shop'} | {kind: 'mine'}
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -810,7 +811,7 @@ import * as THREE from 'three';
       h.position.set(8, y + 2.2, 4);
       g.add(h);
     }
-    if (level >= catalog.max_level) {
+    if (level >= kindMax(kind)) {
       const gold = mat('#d4a017', { metalness: 0.7, roughness: 0.3 });
       g.add(box(w + 12, 7, d + 12, gold, 0, y - 1.5, 0), cyl(0.6, 7, 90, gold, w * 0.32, y + 45, -d * 0.3, 8));
       g.add(mesh(new THREE.SphereGeometry(6, 14, 10), glow('#facc15', 0.8), w * 0.32, y + 92, -d * 0.3));
@@ -1355,7 +1356,7 @@ import * as THREE from 'three';
     let target = null;
     if (ride) target = { x: ride.tx, y: ride.ty, kind: 'ride' };
     else if (guide) target = { x: guide.x, y: guide.y, kind: 'guide' };
-    else if (me.car) {
+    else if (me.car && taxiOn) {
       const n = nearestPassenger();
       if (n && n.d > 220) target = { x: n.p.x, y: n.p.y, kind: 'pass' };
     }
@@ -1465,6 +1466,7 @@ import * as THREE from 'three';
       if (Math.hypot(ride.tx - me.x, ride.ty - me.y) < catalog.taxi_drop_dist - 25) dropoff();
       return;
     }
+    if (!taxiOn) return;
     const n = nearestPassenger();
     if (n && n.d < AUTO_PICK) pickup(n.id, false);
   }
@@ -1547,6 +1549,28 @@ import * as THREE from 'three';
     $('ride-icon').replaceChildren(icon(inCar ? 'footprints' : 'car'));
     $('ride-label').textContent = inCar ? 'Piyoda yurish' : "Mashinaga o'tirish";
     $('btn-horn').hidden = !inCar;
+    if (!inCar) taxiOn = false;
+    const yandex = $('btn-yandex');
+    yandex.hidden = !inCar;
+    yandex.classList.toggle('is-on', taxiOn);
+    yandex.setAttribute('aria-pressed', String(taxiOn));
+    $('yandex-state').textContent = taxiOn ? 'Buyurtma qabul qilinmoqda' : "Taksi o'chiq — bosing";
+  }
+
+  // "Yandex" — taksi rejimi: yoqilsa yo'lovchilar paydo bo'ladi va pul ishlaysiz
+  function toggleTaxi() {
+    if (!me || !me.car) {
+      toast("Avval mashinaga o'tiring (E)", 'warn');
+      return;
+    }
+    taxiOn = !taxiOn;
+    updateRideButton();
+    if (taxiOn) {
+      sound.ding();
+      toast("Yandex yoqildi! Sariq halqadagi yo'lovchilarga boring — o'zi o'tiradi", 'success');
+    } else {
+      toast(ride ? "Yandex o'chdi. Mashinadagi yo'lovchini manziliga eltib qo'ying" : "Yandex o'chdi");
+    }
   }
 
   function setCar(id) {
@@ -1578,7 +1602,7 @@ import * as THREE from 'three';
     if (setCar(car)) {
       toast(carsById[car].flies
         ? `${carsById[car].name}dasiz. Probel — uchish!`
-        : `${carsById[car].name}dasiz. Taksi kutayotganlar paydo bo'ldi — sariq halqalarga boring`);
+        : `${carsById[car].name}dasiz. Taksida pul ishlash uchun tepadagi «Yandex» ni bosing`);
     }
   }
 
@@ -1676,7 +1700,7 @@ import * as THREE from 'three';
   }
 
   // Taksi kutayotganlar faqat mashinada (va yo'lovchi yo'q paytda) ko'rinadi
-  const showPassengers = () => Boolean(me.car) && !ride;
+  const showPassengers = () => Boolean(me.car) && taxiOn && !ride;
 
   // Yo'lovchilar mashinadagi o'yinchiga qarab qo'l silkitadi
   function animatePassengers(dt, now) {
@@ -1747,7 +1771,7 @@ import * as THREE from 'three';
       setGuide();
     }
     let best = null;
-    if (me.car && !ride) {
+    if (me.car && taxiOn && !ride) {
       const n = nearestPassenger();
       if (n && n.d < catalog.taxi_pick_dist) best = { kind: 'passenger', id: n.id, d: n.d };
     }
@@ -1860,13 +1884,14 @@ import * as THREE from 'three';
     return btn;
   }
 
-  function floorsBar(level) {
+  function floorsBar(level, kind) {
+    const top = kindMax(kind);
     const wrap = el('div', 'floors');
     const bar = el('div', 'floors__bar');
     const fill = el('span', 'floors__fill');
-    fill.style.width = `${Math.max(1, (level / catalog.max_level) * 100)}%`;
+    fill.style.width = `${Math.max(1, (level / top) * 100)}%`;
     bar.append(fill);
-    wrap.append(bar, el('small', '', `${level} / ${catalog.max_level} qavat`));
+    wrap.append(bar, el('small', '', `${level} / ${top} qavat`));
     return wrap;
   }
 
@@ -1952,18 +1977,13 @@ import * as THREE from 'three';
   // Boshqa o'yinchi sotuvga qo'ygan uyni sotib olish
   function buyListedBox(id, rec) {
     const box2 = el('div', 'offer');
-    const owned = myPlotIds().length;
     box2.append(el('small', 'eyebrow', 'Sotuvda'), el('strong', '', `${formatNumber(rec.price)} so'm`),
-      el('span', '', `${rec.level ? `${kindName(rec.kind)} (${rec.level} qavat)` : "Bo'sh yer"} binosi bilan sizniki bo'ladi. Pul ${rec.name}ga o'tadi.`));
-    if (owned >= catalog.max_plots) {
-      box2.append(el('p', 'form-error', `Sizda allaqachon ${owned} ta yer bor — ko'pi bilan ${catalog.max_plots} ta.`));
-    } else {
-      box2.append(priceButton('Sotib olish', rec.price, async () => {
+      el('span', '', `${rec.level ? `${kindName(rec.kind)} (${rec.level} qavat)` : "Bo'sh yer"} binosi bilan sizniki bo'ladi. Pul ${rec.name}ga o'tadi.`),
+      priceButton('Sotib olish', rec.price, async () => {
         const data = await plotAction(id, 'buy');
         sound.cash();
         toast(`Tabriklaymiz! ${formatNumber(data.paid)} so'mga sotib oldingiz`, 'success');
       }));
-    }
     return box2;
   }
 
@@ -1976,24 +1996,20 @@ import * as THREE from 'three';
       setHead('map-pin', `${plotTitle(id)} — sotuvda`, "Bo'sh yer: sotib oling va xohlagan binoni quring");
       const box2 = el('div', 'offer');
       box2.append(el('small', 'eyebrow', 'Narxi'), el('strong', '', `${formatNumber(catalog.land_price)} so'm`),
-        el('span', '', `Keyin Uy, Magazin, Kafe yoki Ofis qurib, ${catalog.max_level} qavatgacha ko'tarasiz`));
-      if (owned >= catalog.max_plots) {
-        box2.append(el('p', 'form-error', `Sizda allaqachon ${owned} ta yer bor — ko'pi bilan ${catalog.max_plots} ta. Kerak bo'lsa birini soting.`));
-      } else {
-        box2.append(priceButton('Yerni sotib olish', catalog.land_price, async () => {
-          await plotAction(id, 'buy');
-          sound.cash();
-          toast(`Tabriklaymiz! ${plotTitle(id)} endi sizniki`, 'success');
-        }));
-      }
-      body.append(box2, el('p', 'sheet-note', `Sizda ${owned}/${catalog.max_plots} ta yer bor.`));
+        el('span', '', `Keyin Uy, Magazin, Kafe yoki Ofis qurasiz (${floorLimitsText()})`));
+      box2.append(priceButton('Yerni sotib olish', catalog.land_price, async () => {
+        await plotAction(id, 'buy');
+        sound.cash();
+        toast(`Tabriklaymiz! ${plotTitle(id)} endi sizniki`, 'success');
+      }));
+      body.append(box2, el('p', 'sheet-note', `Sizda ${owned} ta yer bor. Yer olish cheklanmagan.`));
       return;
     }
 
     if (!mine) {
       setHead(rec.level ? KIND_ICONS[rec.kind] : 'map-pin', `${rec.name}ning yeri`, rec.home ? 'Ota hovli' : plotTitle(id));
       const info = el('div', 'house-now');
-      if (rec.level) info.append(floorsBar(rec.level));
+      if (rec.level) info.append(floorsBar(rec.level, rec.kind));
       info.append(el('strong', '', rec.level ? kindName(rec.kind) : "Bo'sh yer"),
         el('span', '', rec.level ? `${rec.level} qavat` : 'Hali hech narsa qurilmagan'));
       body.append(info);
@@ -2006,7 +2022,7 @@ import * as THREE from 'three';
     const own = economy.plots.find((p) => p.plot === id);
     const title = rec.home ? 'Ota hovli' : plotTitle(id);
     if (!rec.level) {
-      setHead('hammer', `${title} — nima quramiz?`, `Bino turini tanlang. Keyin ${catalog.max_level} qavatgacha ko'tarasiz.`);
+      setHead('hammer', `${title} — nima quramiz?`, `Bino turini tanlang: har birining qavat chegarasi bor.`);
       const grid = el('div', 'build-grid');
       catalog.buildings.forEach((b) => {
         const card = el('div', 'build-card');
@@ -2016,7 +2032,7 @@ import * as THREE from 'three';
         ic.append(icon(KIND_ICONS[b.id]));
         top.append(ic, el('strong', '', b.name));
         card.append(top, el('p', '', b.about),
-          el('span', 'build-card__income', `+${fmtRate(b.first.income)} so'm / sek`),
+          el('span', 'build-card__income', `+${fmtRate(b.first.income)} so'm / sek · ${b.max} qavatgacha`),
           priceButton('Qurish', b.first.price, async () => {
             await plotAction(id, 'build', { kind: b.id });
             sound.cash();
@@ -2032,14 +2048,14 @@ import * as THREE from 'three';
     const income = own ? own.income : 0;
     setHead(KIND_ICONS[rec.kind], `${title} — ${b.name}`, `${rec.level} qavat · +${fmtRate(income)} so'm / sek`);
     const now = el('div', 'house-now');
-    now.append(floorsBar(rec.level), el('strong', '', `${b.name} · ${rec.level} qavat`),
+    now.append(floorsBar(rec.level, rec.kind), el('strong', '', `${b.name} · ${rec.level} qavat`),
       el('span', '', `+${fmtRate(income)} so'm / sek`));
     body.append(now);
 
     if (own && own.next_price && IS_OWNER) {
       // Owner — savolsiz, bir bosishda 1 yoki 10 qavat
       const offer = el('div', 'offer');
-      const ten = Math.min(10, catalog.max_level - rec.level);
+      const ten = Math.min(10, kindMax(rec.kind) - rec.level);
       let tenPrice = 0;
       for (let lv = rec.level + 1; lv <= rec.level + ten; lv += 1) tenPrice += levelPrice(rec.kind, lv);
       offer.append(el('small', 'eyebrow', 'Yangi qavat'), el('strong', '', `${rec.level + 1}-qavat`),
@@ -2057,16 +2073,22 @@ import * as THREE from 'three';
       body.append(offer);
     } else {
       const done = el('div', 'offer offer--done');
-      done.append(icon('trophy'), el('strong', '', `${catalog.max_level} qavat — mahalladagi eng baland ${b.name.toLowerCase()}!`));
+      done.append(icon('trophy'), el('strong', '', `${b.max} qavat — ${b.name.toLowerCase()} bundan baland bo'lmaydi!`));
       body.append(done);
     }
     body.append(saleBox(id, rec, own));
   }
 
-  // Qavat narxi (serverdagi formula: 1-qavatdan 100-qavatgacha teng o'sadi)
+  // Bino turining qavat chegarasi (Uy 25, Magazin 40, Kafe 60, Ofis 100)
+  function kindMax(kind) {
+    return buildingsById[kind] ? buildingsById[kind].max : catalog.max_level;
+  }
+  const floorLimitsText = () => catalog.buildings.map((b) => `${b.name} — ${b.max}`).join(', ') + ' qavatgacha';
+
+  // Qavat narxi (serverdagi formula: 1-qavatdan tur chegarasigacha teng o'sadi)
   function levelPrice(kind, level) {
     const b = buildingsById[kind];
-    const value = b.first.price + ((b.last.price - b.first.price) * (level - 1)) / (catalog.max_level - 1);
+    const value = b.first.price + ((b.last.price - b.first.price) * (level - 1)) / (b.max - 1);
     return Math.round(value / 100) * 100;
   }
 
@@ -2259,7 +2281,7 @@ import * as THREE from 'three';
   }
 
   function renderMineSheet(body) {
-    setHead('home', 'Mulklarim', `Yerlar: ${economy.plots.length}/${catalog.max_plots} · +${fmtRate(economy.rate)} so'm / sek`);
+    setHead('home', 'Mulklarim', `Yerlar: ${economy.plots.length} ta · +${fmtRate(economy.rate)} so'm / sek`);
     const list = el('div', 'car-list');
     economy.plots.forEach((p) => {
       const row = el('div', 'car-row');
@@ -2308,6 +2330,7 @@ import * as THREE from 'three';
   $('btn-shop').addEventListener('click', () => openSheet({ kind: 'shop' }));
   $('btn-ride').addEventListener('click', toggleRide);
   $('btn-horn').addEventListener('click', honk);
+  $('btn-yandex').addEventListener('click', toggleTaxi);
   $('prompt').addEventListener('click', interact);
   $('taxi-cancel').addEventListener('click', cancelCard);
   $('sheet-close').addEventListener('click', closeSheet);
@@ -2419,7 +2442,7 @@ import * as THREE from 'three';
     btn.addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
   });
   // HUD tugmalari bosilgandan keyin fokusni o'yinga qaytaramiz (Probel tugmani qayta bosmasin)
-  document.querySelectorAll('.hud-actions .action-btn, #prompt, #btn-sound, #taxi-cancel').forEach((btn) => {
+  document.querySelectorAll('.hud-actions .action-btn, #prompt, #btn-sound, #btn-yandex, #taxi-cancel').forEach((btn) => {
     btn.addEventListener('click', () => btn.blur());
   });
 

@@ -4,7 +4,7 @@ AI topshirilgan fayllarni ochib ko'radi va:
   1) ishni 0..HOMEWORK_MAX_SCORE ball bilan baholaydi — xato qancha ko'p bo'lsa, ball shuncha kam;
   2) har bir xatoni aniq aytadi (qaysi faylda, nima noto'g'ri, qanday tuzatish kerak);
   3) ish AI (ChatGPT, Gemini, Copilot...) yordamida yasalgan bo'lish ehtimolini (%) aytadi.
-Ehtimol AI_THRESHOLD dan yuqori bo'lsa — ball 0 bo'ladi.
+Ehtimol AI_THRESHOLD dan yuqori bo'lsa — ball -AI_PENALTY (-5) bo'ladi.
 
 Eslatma: "AI yasaganmi?" degan baho 100% aniq emas. Shubhali holatlarni owner
 o'zi ko'rib chiqib, bahoni qo'lda o'zgartirishi mumkin.
@@ -209,7 +209,7 @@ Return:
 - ai_probability: an integer from 0 to 100, how likely it is that the work was produced by an AI tool (ChatGPT, Gemini, Copilot and similar) instead of being written by the student.
   Signs of AI: tutorial-style comments explaining every line, polished boilerplate far beyond the assignment or a beginner's level, perfectly uniform formatting everywhere, leftover chat phrases ("Here is the code", "Sure!", markdown code fences inside a file), generic placeholder text.
   Signs of the student's own work: personal names and wording, uneven style, small mistakes or typos, simple solutions that match the assignment.
-  Be calibrated: clean, correct code from a beginner is not proof of AI. Give {threshold} or more only when several strong signs agree, because that level sets the score to 0.
+  Be calibrated: clean, correct code from a beginner is not proof of AI. Give {threshold} or more only when several strong signs agree, because that level takes points away from the student.
 - ai_reason: one or two sentences explaining ai_probability.
 
 Write mistakes, feedback and ai_reason in Uzbek (Latin script), simply and kindly."""
@@ -299,7 +299,7 @@ def check(title: str, description: str, files: list[tuple[str, bytes]],
     probability = _clamp(out.ai_probability, 0, 100)
     score = _clamp(out.score, 0, max_score)
     if probability >= config.AI_THRESHOLD:
-        score = 0
+        score = -config.AI_PENALTY  # AI ishlatgan — reytingdan 5 ball ayiriladi
     mistakes = [m.strip() for m in out.mistakes if isinstance(m, str) and m.strip()][:15]
     return Grade(score=score, ai_probability=probability, ai_reason=out.ai_reason.strip(),
                  feedback=out.feedback.strip(), mistakes=mistakes)

@@ -1,9 +1,10 @@
 """Mahalla — do'stlar bilan o'ynaladigan 3D o'yin.
 
 Odam bo'lib piyoda yoki mashinada yurasiz. Pulni taksida ishlaysiz: yo'lovchini olib,
-manziliga eltasiz. Har kimning o'z yeri (Ota hovli) bor, qo'shimcha yerlarni sotib olish
-va sotish mumkin. Har bir yerga nima qurishni o'zingiz tanlaysiz — Uy, Magazin, Kafe yoki
-Ofis — va 100 qavatgacha ko'tarasiz (har qavat uchun HTML/CSS savoli). Binolar har soniyada
+manziliga eltasiz (taksini "Yandex" tugmasi yoqadi). Har kimning o'z yeri (Ota hovli) bor,
+qo'shimcha yerlarni cheksiz sotib olish va narx qo'yib boshqa o'yinchiga sotish mumkin. Har bir
+yerga nima qurishni o'zingiz tanlaysiz — Uy (25 qavatgacha), Magazin (40), Kafe (60) yoki
+Ofis (100) — har qavat uchun HTML/CSS savoli beriladi. Binolar har soniyada
 pul olib keladi. Mashinalar faqat Avtosalonda sotiladi: BMW, Mercedes, Lamborghini va uchadigan Tesla.
 
 Kim qayerda turgani, yo'lovchilar — server xotirasida (qayta ishga tushsa tozalanadi),
@@ -29,25 +30,25 @@ bp = Blueprint("game", __name__)
 START_MONEY = 75000         # yangi o'yinchi puli (BMW + birinchi uyga yetadi)
 OFFLINE_CAP_HOURS = 24      # o'yinga kirmasangiz ham shuncha soatgacha daromad yig'iladi
 LAND_PRICE = 25000          # qo'shimcha bo'sh yer narxi (Ota hovli — bepul)
-MAX_PLOTS = 5               # bitta o'yinchi ko'pi bilan nechta yerga ega bo'la oladi
 QUIZ_COOLDOWN = 15          # noto'g'ri javobdan keyin yangi savolgacha kutish (soniya)
 MIN_SALE_PRICE = 1000       # sotuvga qo'yiladigan eng past narx
 MAX_SALE_PRICE = 10 ** 18   # va eng balandi
 OWNER_MAX_STEP = 10         # owner savolsiz bir bosishda shuncha qavat qo'sha oladi
-MAX_LEVEL = 100             # qavatlar soni
-MAX_PRICE = 300000          # 100-qavat narxi
+MAX_LEVEL = 100             # eng baland bino (Ofis) qavatlari
+MAX_PRICE = 300000          # har turning eng yuqori qavati narxi
 
-# Bino turlari: 1-qavat narxi (base) dan 100-qavat narxi (MAX_PRICE) gacha teng o'sadi.
+# Bino turlari: har birining o'z qavat chegarasi (max) bor — Uy pastroq, Ofis 100 qavatgacha.
+# 1-qavat narxi (base) dan eng yuqori qavat narxi (MAX_PRICE) gacha teng o'sadi.
 # Har qavat o'z daromadini qo'shadi: qavat narxi / payback (so'm/soniya),
 # ya'ni qavat payback soniyada o'zini oqlaydi.
 BUILDINGS = {
-    "uy": {"name": "Uy", "color": "#d97757", "base": 40000, "payback": 10800,
+    "uy": {"name": "Uy", "color": "#d97757", "base": 40000, "payback": 10800, "max": 25,
            "about": "Turar joy. Eng arzoni."},
-    "magazin": {"name": "Magazin", "color": "#22c55e", "base": 50000, "payback": 10000,
+    "magazin": {"name": "Magazin", "color": "#22c55e", "base": 50000, "payback": 10000, "max": 40,
                 "about": "Pastda do'kon, tepada xonadonlar."},
-    "kafe": {"name": "Kafe", "color": "#f59e0b", "base": 60000, "payback": 9500,
+    "kafe": {"name": "Kafe", "color": "#f59e0b", "base": 60000, "payback": 9500, "max": 60,
              "about": "Pastda kafe, tepada mehmonxona. Daromadi yaxshi."},
-    "ofis": {"name": "Ofis", "color": "#3b82f6", "base": 70000, "payback": 9000,
+    "ofis": {"name": "Ofis", "color": "#3b82f6", "base": 70000, "payback": 9000, "max": MAX_LEVEL,
              "about": "Shisha osmono'par: qimmatroq, lekin eng ko'p pul keltiradi."},
 }
 BUILDING_ORDER = ["uy", "magazin", "kafe", "ofis"]
@@ -76,13 +77,18 @@ TAXI_RESPAWN_SECONDS = 4
 SHOP_RADIUS = 200            # Avtosalon eshigidan shu masofada mashina sotib olinadi
 
 
-def _price(base: int, level: int) -> int:
-    value = base + (MAX_PRICE - base) * (level - 1) / (MAX_LEVEL - 1)
+def max_level(kind: str | None) -> int:
+    """Shu bino turining eng ko'p qavatlari."""
+    return BUILDINGS[kind]["max"] if kind in BUILDINGS else MAX_LEVEL
+
+
+def _price(base: int, level: int, top: int) -> int:
+    value = base + (MAX_PRICE - base) * (level - 1) / (top - 1)
     return int(round(value / 100.0)) * 100
 
 
 # PRICES[kind][L] — L-qavat narxi, INVESTED[kind][L] — 1..L qavatlarga jami sarflangan pul
-PRICES = {k: [0] + [_price(b["base"], lv) for lv in range(1, MAX_LEVEL + 1)] for k, b in BUILDINGS.items()}
+PRICES = {k: [0] + [_price(b["base"], lv, b["max"]) for lv in range(1, b["max"] + 1)] for k, b in BUILDINGS.items()}
 INVESTED = {}
 for _kind, _prices in PRICES.items():
     _total, INVESTED[_kind] = 0, [0]
@@ -99,7 +105,7 @@ def level_price(kind: str, level: int) -> int:
 def invested(kind: str | None, level: int) -> int:
     if not kind or kind not in BUILDINGS or level < 1:
         return 0
-    return INVESTED[kind][min(level, MAX_LEVEL)]
+    return INVESTED[kind][min(level, max_level(kind))]
 
 
 def level_income(kind: str | None, level: int) -> float:
@@ -114,12 +120,12 @@ CATALOG = {
         {"id": kind, "name": BUILDINGS[kind]["name"], "about": BUILDINGS[kind]["about"],
          "color": BUILDINGS[kind]["color"],
          "first": {"price": level_price(kind, 1), "income": level_income(kind, 1)},
-         "last": {"price": level_price(kind, MAX_LEVEL), "income": level_income(kind, MAX_LEVEL)}}
+         "max": max_level(kind),
+         "last": {"price": level_price(kind, max_level(kind)), "income": level_income(kind, max_level(kind))}}
         for kind in BUILDING_ORDER
     ],
     "cars": CARS,
     "land_price": LAND_PRICE,
-    "max_plots": MAX_PLOTS,
     "max_level": MAX_LEVEL,
     "quiz_cooldown": QUIZ_COOLDOWN,
     "min_sale_price": MIN_SALE_PRICE,
@@ -391,7 +397,7 @@ def economy_json(db, row) -> dict:
     for p in my_plots(db, row["player_key"]):
         home = p["plot"] == row["plot"]
         level = p["level"]
-        nxt = level + 1 if p["kind"] and level < MAX_LEVEL else None
+        nxt = level + 1 if p["kind"] and level < max_level(p["kind"]) else None
         plots.append({
             "plot": p["plot"], "kind": p["kind"], "level": level, "home": home,
             "income": level_income(p["kind"], level),
@@ -626,9 +632,6 @@ def _buy_listed(db, buyer: str, plot_id: int) -> int:
         seller = plot["owner_key"]
         if seller == buyer:
             raise GameError("Bu yer o'zingizniki")
-        count = db.execute("SELECT COUNT(*) FROM game_plots WHERE owner_key = ?", (buyer,)).fetchone()[0]
-        if count >= MAX_PLOTS:
-            raise GameError(f"Ko'pi bilan {MAX_PLOTS} ta yer olish mumkin")
         price = plot["sale_price"]
         now = time.time()
         b = db.execute("SELECT * FROM game_players WHERE player_key = ?", (buyer,)).fetchone()
@@ -676,9 +679,6 @@ def api_buy_plot(plot_id: int):
         def change(_row, money):
             if db.execute("SELECT 1 FROM game_plots WHERE plot = ?", (plot_id,)).fetchone():
                 raise GameError("Bu yer allaqachon sotilgan")
-            count = db.execute("SELECT COUNT(*) FROM game_plots WHERE owner_key = ?", (key,)).fetchone()[0]
-            if count >= MAX_PLOTS:
-                raise GameError(f"Ko'pi bilan {MAX_PLOTS} ta yer olish mumkin")
             if money < LAND_PRICE:
                 raise GameError("Pul yetarli emas")
             return -LAND_PRICE, lambda: db.execute(
@@ -763,8 +763,9 @@ def _upgrade_check(db, key: str, plot_id: int, money: float) -> int:
     plot = _owned_plot(db, key, plot_id)
     if not plot["kind"] or plot["level"] < 1:
         raise GameError("Avval bino quring")
-    if plot["level"] >= MAX_LEVEL:
-        raise GameError(f"Bino {MAX_LEVEL} qavat — eng baland")
+    top = max_level(plot["kind"])
+    if plot["level"] >= top:
+        raise GameError(f"{BUILDINGS[plot['kind']]['name']} {top} qavatdan baland bo'lmaydi")
     price = level_price(plot["kind"], plot["level"] + 1)
     if money < price:
         raise GameError("Pul yetarli emas")
@@ -814,7 +815,7 @@ def _owner_upgrade(plot_id: int, data: dict):
         _upgrade_check(db, key, plot_id, money)  # bino bormi, 100 qavat emasmi, birinchi qavatga pul yetadimi
         plot = _owned_plot(db, key, plot_id)
         level, total = plot["level"], 0
-        while level - plot["level"] < count and level < MAX_LEVEL:
+        while level - plot["level"] < count and level < max_level(plot["kind"]):
             price = level_price(plot["kind"], level + 1)
             if money - total < price:
                 break
