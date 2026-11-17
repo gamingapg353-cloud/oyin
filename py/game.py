@@ -20,7 +20,7 @@ from flask import Blueprint, jsonify, redirect, render_template, request, url_fo
 
 import config
 import quiz
-from core import current_user, get_db, login_required
+from core import avatar_url, current_user, get_db, get_setting, login_required
 
 bp = Blueprint("game", __name__)
 
@@ -312,6 +312,7 @@ def forget_player(key: str) -> None:
     with _lock:
         _live.pop(key, None)
         _rides.pop(key, None)
+        _gifts.pop(key, None)
     db = get_db()
     db.execute("DELETE FROM game_players WHERE player_key = ?", (key,))
     db.execute("DELETE FROM game_plots WHERE owner_key = ?", (key,))
@@ -533,12 +534,78 @@ def api_sync():
         _live[key] = {"x": x, "y": y, "h": height if (flying or not car) else 0, "dir": direction,
                       "car": car, "t": now, "name": user["name"], "avatar": user["avatar"]}
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
+        gifts = _gifts.pop(key, [])
 
     response = {"economy": economy_json(db, row), "passengers": passengers, "ride": ride,
-                "players": players, "plots": plots_list(db)}
+                "players": players, "plots": plots_list(db), "gifts": gifts}
     if corrected:
         response["correct"] = {"x": x, "y": y}
     return jsonify(response)
+
+
+# --------------------------------------------------------------------------- #
+#  Odamlar ro'yxati va pul berish
+# --------------------------------------------------------------------------- #
+_gifts: dict[str, list] = {}  # player_key -> hali ko'rsatilmagan "X sizga Y so'm berdi" xabarlari
+MAX_GIFT = 10 ** 18
+
+
+def _all_people(db) -> list[dict]:
+    """Saytdagi hamma odamlar (owner + foydalanuvchilar) — o'yinga kirmagan bo'lsa ham."""
+    people = [{"key": "owner", "name": config.OWNER_NAME, "avatar": avatar_url(get_setting("owner_avatar"))}]
+    for r in db.execute("SELECT id, name, avatar FROM users ORDER BY name COLLATE NOCASE"):
+        people.append({"key": f"u{r['id']}", "name": r["name"], "avatar": avatar_url(r["avatar"])})
+    return people
+
+
+@bp.get("/api/game/people")
+@login_required
+def api_people():
+    me = player_key(current_user())
+    db = get_db()
+    now = time.time()
+    with _lock:
+        online = {k for k, p in _live.items() if now - p["t"] < ONLINE_SECONDS}
+    people = [{**p, "online": p["key"] in online, "me": p["key"] == me} for p in _all_people(db)]
+    people.sort(key=lambda p: (not p["me"], not p["online"], p["name"].lower()))
+    return jsonify(people=people)
+
+
+@bp.post("/api/game/give")
+@login_required
+def api_give():
+    """Boshqa odamga o'z pulingizdan berish."""
+    user = current_user()
+    me = player_key(user)
+    data = request.get_json(silent=True) or {}
+    to, amount = data.get("to"), data.get("amount")
+    if isinstance(amount, bool) or not isinstance(amount, int) or not 1 <= amount <= MAX_GIFT:
+        return jsonify(error="Qancha berishingizni yozing (butun son)"), 400
+    if to == me:
+        return jsonify(error="O'zingizga pul berib bo'lmaydi"), 400
+    db = get_db()
+    target = next((p for p in _all_people(db) if p["key"] == to), None)
+    if target is None:
+        return jsonify(error="Bunday odam yo'q"), 404
+    ensure_player(db, me)
+    ensure_player(db, to)
+    with _econ_lock:
+        now = time.time()
+        a = db.execute("SELECT * FROM game_players WHERE player_key = ?", (me,)).fetchone()
+        b = db.execute("SELECT * FROM game_players WHERE player_key = ?", (to,)).fetchone()
+        a_money = money_now(a, player_rate(db, a), now)
+        if a_money < amount:
+            return jsonify(error="Pul yetarli emas"), 400
+        b_money = money_now(b, player_rate(db, b), now)
+        db.execute("UPDATE game_players SET money = ?, income_at = ? WHERE player_key = ?", (a_money - amount, now, me))
+        db.execute("UPDATE game_players SET money = ?, income_at = ? WHERE player_key = ?", (b_money + amount, now, to))
+        db.commit()
+    with _lock:
+        inbox = _gifts.setdefault(to, [])
+        inbox.append({"from": user["name"], "amount": amount})
+        del inbox[:-20]
+    row = db.execute("SELECT * FROM game_players WHERE player_key = ?", (me,)).fetchone()
+    return jsonify(economy=economy_json(db, row), to=target["name"], amount=amount)
 
 
 # --------------------------------------------------------------------------- #

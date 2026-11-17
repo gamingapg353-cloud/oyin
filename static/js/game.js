@@ -1854,6 +1854,9 @@ import * as THREE from 'three';
     if (!sheetState) return '';
     // Savol-javob oynasi faqat javob berilganda qayta chiziladi (har sinxronda emas)
     if (sheetState.kind === 'quiz') return `quiz|${sheetState.quiz.token}|${JSON.stringify(sheetState.result)}`;
+    // Odamlar va pul berish oynalari sinxronda qayta chizilmaydi (yozilgan summa o'chib ketmasin)
+    if (sheetState.kind === 'people') return `people|${sheetState.list ? sheetState.list.length : '-'}`;
+    if (sheetState.kind === 'give') return `give|${sheetState.person.key}`;
     const m = money();
     const prices = [catalog.land_price, ...catalog.buildings.map((b) => b.first.price),
       ...catalog.cars.map((c) => c.price), ...economy.plots.map((p) => p.next_price || 0)];
@@ -2280,6 +2283,117 @@ import * as THREE from 'three';
       + 'yashil nurga eltsangiz pul olasiz. Teslada Probel — uchish/qo\'nish.'));
   }
 
+  // ---------------- Odamlar: ro'yxat va pul berish ----------------
+  function avatarEl(p) {
+    const av = el('span', 'avatar');
+    if (p.avatar) {
+      const img = el('img');
+      img.src = p.avatar;
+      img.alt = '';
+      av.append(img);
+    } else {
+      av.textContent = p.name.charAt(0).toUpperCase();
+      av.style.setProperty('--avatar', avatarColor(p.name));
+    }
+    return av;
+  }
+
+  async function openPeople() {
+    const st = { kind: 'people', list: null };
+    openSheet(st);
+    try {
+      const data = await api('/api/game/people');
+      if (sheetState !== st) return;
+      st.list = data.people;
+      renderSheet();
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+
+  function renderPeopleSheet(body, st) {
+    const list = st.list || [];
+    const online = list.filter((p) => p.online).length;
+    setHead('users', 'Odamlar', st.list ? `${online} ta o'yinda · jami ${list.length} ta` : 'Yuklanmoqda…');
+    if (!st.list) return;
+    const box2 = el('div', 'people');
+    list.forEach((p) => {
+      const row = el('div', 'person');
+      const info = el('div', 'person__info');
+      info.append(el('strong', '', p.me ? `${p.name} (Siz)` : p.name),
+        el('small', p.online ? 'person__on' : '', p.online ? "O'yinda" : "O'yinda emas"));
+      row.append(avatarEl(p), info);
+      if (!p.me) {
+        const give = el('button', 'btn btn--primary');
+        give.type = 'button';
+        give.append(icon('coins'), el('span', '', 'Pul berish'));
+        give.addEventListener('click', () => openSheet({ kind: 'give', person: p, draft: '' }));
+        row.append(give);
+      }
+      box2.append(row);
+    });
+    body.append(box2, el('p', 'sheet-note', "Odamni tanlang va qancha pul berishingizni yozing. Pul sizning hisobingizdan o'tadi."));
+  }
+
+  function renderGiveSheet(body, st) {
+    const p = st.person;
+    setHead('coins', `${p.name}ga pul berish`, `Sizda ${formatNumber(money())} so'm bor`);
+    const box2 = el('div', 'sale');
+    box2.append(el('strong', 'sale__title', 'Qancha berasiz?'));
+    const row = el('div', 'sale__row');
+    const input = el('input', 'input');
+    input.type = 'text';
+    input.inputMode = 'numeric';
+    input.placeholder = "masalan 10 000";
+    input.setAttribute('aria-label', "Summa (so'm)");
+    input.value = st.draft || '';
+    input.addEventListener('input', () => { st.draft = input.value; });
+    const send = el('button', 'btn btn--primary');
+    send.type = 'button';
+    send.append(icon('check'), el('span', '', 'Berish'));
+    const chips = el('div', 'chips');
+    [1000, 10000, 100000, 1000000].forEach((v) => {
+      const c = el('button', 'chip', formatNumber(v));
+      c.type = 'button';
+      c.addEventListener('click', () => { input.value = formatNumber(v); st.draft = input.value; input.focus(); });
+      chips.append(c);
+    });
+    const submit = async () => {
+      const amount = Number(String(input.value).replace(/\D/g, ''));
+      if (!amount) {
+        toast('Summani yozing', 'warn');
+        input.focus();
+        return;
+      }
+      if (amount > money()) {
+        toast('Pul yetarli emas', 'warn');
+        return;
+      }
+      send.disabled = true;
+      try {
+        const data = await api('/api/game/give', { method: 'POST', body: { to: p.key, amount } });
+        localVersion += 1;
+        setEconomy(data.economy);
+        sound.cash();
+        toast(`${data.to}ga ${formatNumber(data.amount)} so'm berdingiz`, 'success');
+        openPeople();
+      } catch (err) {
+        if (!handleAuthError(err)) toast(err.message, 'warn');
+        send.disabled = false;
+      }
+    };
+    send.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    row.append(input, send);
+    box2.append(row, chips);
+    const back = el('button', 'link-btn');
+    back.type = 'button';
+    back.append(icon('users'), el('span', '', "Odamlar ro'yxatiga qaytish"));
+    back.addEventListener('click', openPeople);
+    body.append(box2, back);
+    setTimeout(() => input.focus(), 0);
+  }
+
   function renderMineSheet(body) {
     setHead('home', 'Mulklarim', `Yerlar: ${economy.plots.length} ta · +${fmtRate(economy.rate)} so'm / sek`);
     const list = el('div', 'car-list');
@@ -2323,10 +2437,13 @@ import * as THREE from 'three';
     if (sheetState.kind === 'plot') renderPlotSheet(body, sheetState.id);
     else if (sheetState.kind === 'quiz') renderQuizSheet(body, sheetState);
     else if (sheetState.kind === 'shop') renderShopSheet(body);
+    else if (sheetState.kind === 'people') renderPeopleSheet(body, sheetState);
+    else if (sheetState.kind === 'give') renderGiveSheet(body, sheetState);
     else renderMineSheet(body);
   }
 
   $('btn-mine').addEventListener('click', () => openSheet({ kind: 'mine' }));
+  $('btn-online').addEventListener('click', openPeople);
   $('btn-shop').addEventListener('click', () => openSheet({ kind: 'shop' }));
   $('btn-ride').addEventListener('click', toggleRide);
   $('btn-horn').addEventListener('click', honk);
@@ -2442,7 +2559,7 @@ import * as THREE from 'three';
     btn.addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
   });
   // HUD tugmalari bosilgandan keyin fokusni o'yinga qaytaramiz (Probel tugmani qayta bosmasin)
-  document.querySelectorAll('.hud-actions .action-btn, #prompt, #btn-sound, #btn-yandex, #taxi-cancel').forEach((btn) => {
+  document.querySelectorAll('.hud-actions .action-btn, #prompt, #btn-sound, #btn-yandex, #btn-online, #taxi-cancel').forEach((btn) => {
     btn.addEventListener('click', () => btn.blur());
   });
 
@@ -2598,6 +2715,11 @@ import * as THREE from 'three';
       setRide(data.ride);
     }
     setPlayers(data.players);
+    // Kimdir pul bergan bo'lsa — xabar
+    (data.gifts || []).forEach((g) => {
+      sound.cash();
+      toast(`${g.from} sizga ${formatNumber(g.amount)} so'm berdi!`, 'success');
+    });
   }
 
   async function syncLoop() {

@@ -31,9 +31,9 @@
       <span class="hud-yandex__logo">Y</span>
       <span class="hud-yandex__text"><strong>Yandex</strong><small id="yandex-state">Taksi o'chiq — bosing</small></span>
     </button>
-    <div class="hud-online" title="Hozir o'yinda">
+    <button type="button" class="hud-online" id="btn-online" title="Odamlar — pul berish">
       {{ icon('users', 18) }} <span id="online-count">1</span>
-    </div>
+    </button>
     <button type="button" class="hud-btn" id="btn-sound" title="Ovozni o'chirish" aria-label="Ovoz" aria-pressed="false">{{ icon('volume') }}</button>
   </header>
 
@@ -97,7 +97,7 @@
   <template id="icons">
     {% for name in ['home', 'car', 'coins', 'check', 'lock', 'star', 'clock', 'footprints', 'trophy', 'alert',
                     'store', 'coffee', 'building', 'map-pin', 'hammer', 'arrow-up', 'trash', 'user',
-                    'volume', 'volume-x', 'navigation', 'plane', 'megaphone'] %}
+                    'volume', 'volume-x', 'navigation', 'plane', 'megaphone', 'users', 'x'] %}
     <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
     {% endfor %}
   </template>

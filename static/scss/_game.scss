@@ -1119,3 +1119,79 @@
     }
   }
 }
+
+// Odamlar tugmasi (yuqorida) — bosilsa ro'yxat ochiladi
+button.hud-online {
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-solid);
+  }
+}
+
+// Odamlar ro'yxati
+.people {
+  display: grid;
+  gap: 8px;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: $radius;
+
+  .avatar {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+
+  &__info {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+
+    strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+  }
+
+  &__on {
+    color: var(--success) !important;
+
+    &::before {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      content: "";
+    }
+  }
+
+  .btn {
+    flex-shrink: 0;
+    height: 40px;
+    font-size: 14px;
+  }
+}
+
+.sale .chips {
+  margin-top: 4px;
+}

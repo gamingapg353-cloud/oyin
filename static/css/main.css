@@ -3571,3 +3571,77 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
     display: none;
   }
 }
+
+button.hud-online {
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.hud-online:hover {
+  background: var(--surface-solid);
+}
+
+.people {
+  display: grid;
+  gap: 8px;
+}
+
+.person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.person .avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+}
+
+.person__info {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.person__info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person__info small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.person__on {
+  color: var(--success) !important;
+}
+
+.person__on::before {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  content: "";
+}
+
+.person .btn {
+  flex-shrink: 0;
+  height: 40px;
+  font-size: 14px;
+}
+
+.sale .chips {
+  margin-top: 4px;
+}
