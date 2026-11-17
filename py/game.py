@@ -1,10 +1,13 @@
-"""Mahalla — do'stlar bilan o'ynaladigan o'yin.
+"""Mahalla — do'stlar bilan o'ynaladigan 3D o'yin.
 
-Piyoda yoki mashinada yurasiz, ko'chadagi tangalarni terasiz, Ota hovlini sotib olib
-kuchaytirasiz va Avtosalondan mashina olasiz. Hovli va mashinalar har soatda pul olib keladi.
+Odam bo'lib piyoda yoki mashinada yurasiz. Pulni taksida ishlaysiz: yo'lovchini olib,
+manziliga eltasiz. Har kimning o'z yeri (Ota hovli) bor, qo'shimcha yerlarni sotib olish
+va sotish mumkin. Har bir yerga nima qurishni o'zingiz tanlaysiz — Uy, Magazin, Kafe yoki
+Ofis — va 100 qavatgacha ko'tarasiz (har qavat uchun HTML/CSS savoli). Binolar har soniyada
+pul olib keladi. Mashinalar faqat Avtosalonda sotiladi: BMW, Mercedes, Lamborghini va uchadigan Tesla.
 
-Kim qayerda turgani — server xotirasida (qayta ishga tushsa tozalanadi),
-pul, hovli va mashinalar — bazada.
+Kim qayerda turgani, yo'lovchilar — server xotirasida (qayta ishga tushsa tozalanadi),
+pul, yerlar, binolar va mashinalar — bazada.
 """
 import json
 import math
@@ -15,71 +18,168 @@ import time
 from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 
 import config
-from core import avatar_url, current_user, get_db, login_required
+import quiz
+from core import current_user, get_db, login_required
 
 bp = Blueprint("game", __name__)
 
 # --------------------------------------------------------------------------- #
 #  Iqtisod
 # --------------------------------------------------------------------------- #
-START_MONEY = 1500          # yangi o'yinchi puli
-COIN_VALUE = 50            # bitta tanga
-OFFLINE_CAP_HOURS = 24     # o'yinga kirmasangiz ham shuncha soatgacha daromad yig'iladi
+START_MONEY = 75000         # yangi o'yinchi puli (BMW + birinchi uyga yetadi)
+OFFLINE_CAP_HOURS = 24      # o'yinga kirmasangiz ham shuncha soatgacha daromad yig'iladi
+LAND_PRICE = 25000          # qo'shimcha bo'sh yer narxi (Ota hovli — bepul)
+MAX_PLOTS = 5               # bitta o'yinchi ko'pi bilan nechta yerga ega bo'la oladi
+QUIZ_COOLDOWN = 15          # noto'g'ri javobdan keyin yangi savolgacha kutish (soniya)
+MIN_SALE_PRICE = 1000       # sotuvga qo'yiladigan eng past narx
+MAX_SALE_PRICE = 10 ** 18   # va eng balandi
+OWNER_MAX_STEP = 10         # owner savolsiz bir bosishda shuncha qavat qo'sha oladi
+MAX_LEVEL = 100             # qavatlar soni
+MAX_PRICE = 300000          # 100-qavat narxi
 
-HOUSE_LEVELS = [  # Ota hovli darajalari (daromad — o'sha darajadagi soatlik pul)
-    {"level": 1, "name": "Eski hovli", "price": 1000, "income": 600},
-    {"level": 2, "name": "Ta'mirlangan hovli", "price": 4000, "income": 1800},
-    {"level": 3, "name": "Yangi uy", "price": 12000, "income": 4500},
-    {"level": 4, "name": "Ikki qavatli uy", "price": 30000, "income": 10000},
-    {"level": 5, "name": "Hashamatli hovli", "price": 80000, "income": 24000},
-]
+# Bino turlari: 1-qavat narxi (base) dan 100-qavat narxi (MAX_PRICE) gacha teng o'sadi.
+# Har qavat o'z daromadini qo'shadi: qavat narxi / payback (so'm/soniya),
+# ya'ni qavat payback soniyada o'zini oqlaydi.
+BUILDINGS = {
+    "uy": {"name": "Uy", "color": "#d97757", "base": 40000, "payback": 10800,
+           "about": "Turar joy. Eng arzoni."},
+    "magazin": {"name": "Magazin", "color": "#22c55e", "base": 50000, "payback": 10000,
+                "about": "Pastda do'kon, tepada xonadonlar."},
+    "kafe": {"name": "Kafe", "color": "#f59e0b", "base": 60000, "payback": 9500,
+             "about": "Pastda kafe, tepada mehmonxona. Daromadi yaxshi."},
+    "ofis": {"name": "Ofis", "color": "#3b82f6", "base": 70000, "payback": 9000,
+             "about": "Shisha osmono'par: qimmatroq, lekin eng ko'p pul keltiradi."},
+}
+BUILDING_ORDER = ["uy", "magazin", "kafe", "ofis"]
 
-CARS = [  # Avtosalon
-    {"id": "jajji", "name": "Jajji", "price": 2500, "income": 400, "speed": 1.5, "color": "#f59e0b"},
-    {"id": "shamol", "name": "Shamol", "price": 9000, "income": 1200, "speed": 1.8, "color": "#22c55e"},
-    {"id": "chaqmoq", "name": "Chaqmoq", "price": 25000, "income": 3000, "speed": 2.1, "color": "#3b82f6"},
-    {"id": "boron", "name": "Bo'ron", "price": 60000, "income": 7000, "speed": 2.5, "color": "#ef4444"},
+# Mashinalar (faqat Avtosalonda). fare — taksi haqi koeffitsienti.
+CARS = [
+    {"id": "bmw", "name": "BMW M5", "price": 30000, "speed": 1.7, "fare": 1.0,
+     "color": "#1d4ed8", "style": "sedan"},
+    {"id": "mercedes", "name": "Mercedes G-Class", "price": 90000, "speed": 1.9, "fare": 1.3,
+     "color": "#111827", "style": "suv"},
+    {"id": "lambo", "name": "Lamborghini Aventador", "price": 250000, "speed": 2.4, "fare": 1.7,
+     "color": "#facc15", "style": "super"},
+    {"id": "tesla", "name": "Tesla (uchadigan)", "price": 1000000, "speed": 3.0, "fare": 2.2,
+     "color": "#e5e7eb", "style": "fly", "flies": True},
 ]
-CARS_BY_ID = {car["id"]: car for car in CARS}
+CARS_BY_ID = {car["id"]: car for car in CARS}  # eski mashinalar core.init_db da ko'chiriladi
+
+# Taksi
+TAXI_WAITING = 10            # bir vaqtda kutib turgan yo'lovchilar
+TAXI_BASE_FARE = 300
+TAXI_PER_UNIT = 0.6          # masofa birligi uchun so'm
+TAXI_MIN_TRIP = 700          # manzil kamida shuncha uzoqda
+TAXI_PICK_DIST = 110
+TAXI_DROP_DIST = 130
+TAXI_RESPAWN_SECONDS = 4
+SHOP_RADIUS = 200            # Avtosalon eshigidan shu masofada mashina sotib olinadi
+
+
+def _price(base: int, level: int) -> int:
+    value = base + (MAX_PRICE - base) * (level - 1) / (MAX_LEVEL - 1)
+    return int(round(value / 100.0)) * 100
+
+
+# PRICES[kind][L] — L-qavat narxi, INVESTED[kind][L] — 1..L qavatlarga jami sarflangan pul
+PRICES = {k: [0] + [_price(b["base"], lv) for lv in range(1, MAX_LEVEL + 1)] for k, b in BUILDINGS.items()}
+INVESTED = {}
+for _kind, _prices in PRICES.items():
+    _total, INVESTED[_kind] = 0, [0]
+    for _p in _prices[1:]:
+        _total += _p
+        INVESTED[_kind].append(_total)
+
+
+def level_price(kind: str, level: int) -> int:
+    """level-qavat narxi (yuzlikka yaxlitlangan)."""
+    return PRICES[kind][level]
+
+
+def invested(kind: str | None, level: int) -> int:
+    if not kind or kind not in BUILDINGS or level < 1:
+        return 0
+    return INVESTED[kind][min(level, MAX_LEVEL)]
+
+
+def level_income(kind: str | None, level: int) -> float:
+    """level qavatli binoning daromadi, so'm/soniya (har qavat o'z hissasini qo'shadi)."""
+    if not kind or kind not in BUILDINGS or level < 1:
+        return 0.0
+    return round(invested(kind, level) / BUILDINGS[kind]["payback"], 2)
+
+
+CATALOG = {
+    "buildings": [
+        {"id": kind, "name": BUILDINGS[kind]["name"], "about": BUILDINGS[kind]["about"],
+         "color": BUILDINGS[kind]["color"],
+         "first": {"price": level_price(kind, 1), "income": level_income(kind, 1)},
+         "last": {"price": level_price(kind, MAX_LEVEL), "income": level_income(kind, MAX_LEVEL)}}
+        for kind in BUILDING_ORDER
+    ],
+    "cars": CARS,
+    "land_price": LAND_PRICE,
+    "max_plots": MAX_PLOTS,
+    "max_level": MAX_LEVEL,
+    "quiz_cooldown": QUIZ_COOLDOWN,
+    "min_sale_price": MIN_SALE_PRICE,
+    "taxi_pick_dist": TAXI_PICK_DIST,
+    "taxi_drop_dist": TAXI_DROP_DIST,
+    "shop_radius": SHOP_RADIUS,
+}
 
 # --------------------------------------------------------------------------- #
 #  Xarita (server va brauzer bir xil xaritadan foydalanadi)
 # --------------------------------------------------------------------------- #
-WORLD_W, WORLD_H = 2400, 1600
+WORLD_W, WORLD_H = 4800, 2400
 ROAD = 80
-H_ROADS = [380, 1140]          # gorizontal yo'llar (yuqori cheti, y)
-V_ROADS = [380, 1160, 1940]    # vertikal yo'llar (chap cheti, x)
+H_ROADS = [380, 1140, 1900]                       # gorizontal yo'llar (yuqori cheti, y)
+V_ROADS = [380, 1160, 1940, 2720, 3500, 4280]     # vertikal yo'llar (chap cheti, x)
 
-WALK_SPEED = 190               # piyoda tezlik (px/soniya); mashina — shundan necha barobar
-PICK_RADIUS = 46
-COIN_COUNT = 28
-COIN_RESPAWN_SECONDS = 8
+WALK_SPEED = 190               # piyoda tezlik (birlik/soniya); mashina — shundan necha barobar
 ONLINE_SECONDS = 6
+FLY_HEIGHT = 1100              # uchadigan mashina eng baland ucha oladigan joy (100 qavatli binodan baland)
+FLY_CRUISE = 160               # odatdagi uchish balandligi
 
 
 def _make_plots() -> list[dict]:
-    """Hovli joylari: 18 ta, yo'l bo'yida. gate — darvoza qaysi tomonda."""
+    """Yerlar. Tartib o'zgarmasin: o'yinchilarning yer raqamlari shunga bog'liq.
+    Birinchi 24 tasi — eski xaritadagi yerlar, keyingilari — kengaytirilgan qismdagilar."""
     plots = []
-    for row_y, gate in ((480, "top"), (950, "bottom"), (190, "bottom")):
-        for block_x in (470, 1250):
+
+    def row(row_y: int, gate: str, blocks):
+        for block_x in blocks:
             for i in range(3):
-                plots.append({"x": block_x + i * 230, "y": row_y, "w": 220, "h": 170, "gate": gate})
+                plots.append({"id": len(plots), "x": block_x + i * 230, "y": row_y,
+                              "w": 220, "h": 170, "gate": gate})
+
+    old_rows = ((480, "top"), (950, "bottom"), (190, "bottom"), (1240, "top"))
+    for row_y, gate in old_rows:
+        row(row_y, gate, (470, 1250))
+    # Kengaytirilgan xarita: o'ngdagi bloklar (2030-blokning o'rtasida — bog')
+    for row_y, gate in old_rows:
+        blocks = (2810, 3590) if row_y in (480, 950) else (2030, 2810, 3590)
+        row(row_y, gate, blocks)
+    # Pastki yangi yo'l (y=1900) bo'yidagi qatorlar
+    for row_y, gate in ((1710, "bottom"), (1990, "top")):
+        row(row_y, gate, (470, 1250, 2030, 2810, 3590))
     return plots
 
 
 PLOTS = _make_plots()
 SHOP = {"x": 40, "y": 560, "w": 300, "h": 190, "door": {"x": 190, "y": 790}}   # Avtosalon
-FOUNTAIN = {"x": 2140, "y": 730, "w": 140, "h": 140}                            # bog'dagi favvora
-POND = {"x": 640, "y": 1300, "w": 360, "h": 190}                                # ko'l
+FOUNTAIN = {"x": 2300, "y": 730, "w": 140, "h": 140}                            # bog'dagi favvora
+POND = {"x": 40, "y": 1290, "w": 300, "h": 200}                                 # ko'l
 
 
-def house_rect(plot: dict) -> dict:
-    y = plot["y"] + 16 if plot["gate"] == "bottom" else plot["y"] + 64
-    return {"x": plot["x"] + 40, "y": y, "w": 140, "h": 90}
+def building_rect(plot: dict) -> dict:
+    """Bino egallaydigan joy (darvozadan uzoqroqda, old tomoni darvozaga qaragan)."""
+    y = plot["y"] + 15 if plot["gate"] == "bottom" else plot["y"] + 55
+    return {"x": plot["x"] + 35, "y": y, "w": 150, "h": 100}
 
 
 def plot_spawn(plot: dict) -> dict:
-    """Hovli darvozasi oldidagi yo'l."""
+    """Yer darvozasi oldidagi yo'l."""
     y = plot["y"] + plot["h"] + 40 if plot["gate"] == "bottom" else plot["y"] - 40
     return {"x": plot["x"] + plot["w"] / 2, "y": y}
 
@@ -92,16 +192,19 @@ def _overlaps(px: float, py: float, rect: dict, pad: float = 0) -> bool:
 BLOCKED_AREAS = PLOTS + [SHOP, FOUNTAIN, POND]
 
 
-def _on_road(x: float, y: float) -> bool:
-    return any(r <= y <= r + ROAD for r in H_ROADS) or any(r <= x <= r + ROAD for r in V_ROADS)
+def _on_road(x: float, y: float, pad: float = 0) -> bool:
+    return (any(r - pad <= y <= r + ROAD + pad for r in H_ROADS)
+            or any(r - pad <= x <= r + ROAD + pad for r in V_ROADS))
 
 
 def _make_trees() -> list[dict]:
     rng = random.Random(7)
     trees = []
-    while len(trees) < 70:
+    attempts = 0
+    while len(trees) < 170 and attempts < 30000:
+        attempts += 1
         x, y = rng.uniform(30, WORLD_W - 30), rng.uniform(30, WORLD_H - 30)
-        if _on_road(x, y) or any(_overlaps(x, y, a, 40) for a in BLOCKED_AREAS):
+        if _on_road(x, y, 16) or any(_overlaps(x, y, a, 40) for a in BLOCKED_AREAS):
             continue
         if any(math.hypot(x - t["x"], y - t["y"]) < 70 for t in trees):
             continue
@@ -111,61 +214,82 @@ def _make_trees() -> list[dict]:
 
 WORLD_DATA = {
     "w": WORLD_W, "h": WORLD_H, "road": ROAD, "h_roads": H_ROADS, "v_roads": V_ROADS,
-    "plots": PLOTS, "shop": SHOP, "fountain": FOUNTAIN, "pond": POND, "trees": _make_trees(),
-    "default_spawn": {"x": 1200, "y": 800},
+    "plots": PLOTS, "buildings": [building_rect(p) for p in PLOTS],
+    "shop": SHOP, "fountain": FOUNTAIN, "pond": POND, "trees": _make_trees(),
+    "default_spawn": {"x": 1200, "y": 800}, "fly_height": FLY_HEIGHT, "fly_cruise": FLY_CRUISE,
 }
 
 # --------------------------------------------------------------------------- #
 #  Jonli holat (xotirada)
 # --------------------------------------------------------------------------- #
 _lock = threading.Lock()
-_live: dict[str, dict] = {}      # player_key -> {x, y, dir, car, t, name, avatar}
-_coins: dict[int, tuple] = {}    # coin_id -> (x, y)
-_respawn: list[float] = []
-_next_coin = 1
+_live: dict[str, dict] = {}      # player_key -> {x, y, h, dir, car, t, name, avatar}
+_quizzes: dict[str, dict] = {}   # player_key -> javob kutilayotgan savol (to'g'ri javob faqat serverda)
+_quiz_recent: dict[str, list] = {}   # player_key -> yaqinda berilgan savollar (takrorlanmasin)
+_quiz_cooldown: dict[str, float] = {}  # player_key -> noto'g'ri javobdan keyin kutish tugash vaqti
+QUIZ_TTL = 600                   # savolga 10 daqiqa ichida javob berish kerak
+
+_passengers: dict[int, dict] = {}  # yo'lovchi id -> {x, y, tx, ty, fare}
+_rides: dict[str, dict] = {}       # player_key -> olib ketilayotgan yo'lovchi
+_passenger_respawn: list[float] = []
+_next_passenger = 1
 _rng = random.Random()
 
 
-def _random_coin_spot() -> tuple:
+def _sidewalk_spot() -> tuple:
+    """Yo'l chetidagi tasodifiy joy (yo'lovchi turadigan yoki tushadigan)."""
     while True:
-        x, y = _rng.uniform(40, WORLD_W - 40), _rng.uniform(40, WORLD_H - 40)
-        if not any(_overlaps(x, y, a, 24) for a in BLOCKED_AREAS):
+        # Yo'lning chekkasi (yo'l ichida, trotuar yonida)
+        if _rng.random() < 0.5:
+            r = _rng.choice(H_ROADS)
+            x = _rng.uniform(60, WORLD_W - 60)
+            y = r + 10 if _rng.random() < 0.5 else r + ROAD - 10
+        else:
+            r = _rng.choice(V_ROADS)
+            y = _rng.uniform(60, WORLD_H - 60)
+            x = r + 10 if _rng.random() < 0.5 else r + ROAD - 10
+        if not any(_overlaps(x, y, a, 6) for a in BLOCKED_AREAS):
             return round(x), round(y)
 
 
-def _add_coin() -> None:
-    global _next_coin
-    _coins[_next_coin] = _random_coin_spot()
-    _next_coin += 1
+def _add_passenger() -> None:
+    global _next_passenger
+    x, y = _sidewalk_spot()
+    while True:
+        tx, ty = _sidewalk_spot()
+        dist = math.hypot(tx - x, ty - y)
+        if dist >= TAXI_MIN_TRIP:
+            break
+    _passengers[_next_passenger] = {"x": x, "y": y, "tx": tx, "ty": ty,
+                                    "fare": int(TAXI_BASE_FARE + dist * TAXI_PER_UNIT)}
+    _next_passenger += 1
 
 
-def _tick_coins(now: float) -> None:
-    """Tangalar yetishmasa qo'shadi (lock ichida chaqiriladi)."""
-    if not _coins and not _respawn:
-        for _ in range(COIN_COUNT):
-            _add_coin()
-    due = [t for t in _respawn if t <= now]
+def _tick_passengers(now: float) -> None:
+    """Yo'lovchilar yetishmasa qo'shadi (lock ichida chaqiriladi)."""
+    while len(_passengers) + len(_passenger_respawn) < TAXI_WAITING:
+        _add_passenger()
+    due = [t for t in _passenger_respawn if t <= now]
     for _ in due:
-        _add_coin()
-    _respawn[:] = [t for t in _respawn if t > now]
+        _add_passenger()
+    _passenger_respawn[:] = [t for t in _passenger_respawn if t > now]
 
 
-def _dist_to_segment(px: float, py: float, ax: float, ay: float, bx: float, by: float) -> float:
-    """Nuqtadan kesmagacha masofa — tez yurganda ham yo'ldagi tanga hisoblanadi."""
-    dx, dy = bx - ax, by - ay
-    length2 = dx * dx + dy * dy
-    t = 0.0 if length2 == 0 else max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / length2))
-    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+def _passenger_list() -> list[dict]:
+    return [{"id": pid, "x": p["x"], "y": p["y"], "fare": p["fare"]} for pid, p in _passengers.items()]
 
 
-def _coin_list() -> list[dict]:
-    return [{"id": cid, "x": x, "y": y} for cid, (x, y) in _coins.items()]
+def _ride_json(key: str) -> dict | None:
+    ride = _rides.get(key)
+    if not ride:
+        return None
+    return {"id": ride["id"], "tx": ride["tx"], "ty": ride["ty"], "fare": ride["fare"]}
 
 
 def _others(me: str, now: float) -> list[dict]:
     return [
         {"key": key, "name": p["name"], "avatar": p["avatar"], "x": p["x"], "y": p["y"],
-         "dir": p["dir"], "car": p["car"]}
+         "h": p.get("h", 0), "dir": p["dir"], "car": p["car"], "taxi": key in _rides}
         for key, p in _live.items()
         if key != me and now - p["t"] < ONLINE_SECONDS
     ]
@@ -178,11 +302,13 @@ def online_count() -> int:
 
 
 def forget_player(key: str) -> None:
-    """Foydalanuvchi o'chirilganda: xotira va bazadan olib tashlash."""
+    """Foydalanuvchi o'chirilganda: xotira va bazadan olib tashlash (yerlari bo'shaydi)."""
     with _lock:
         _live.pop(key, None)
+        _rides.pop(key, None)
     db = get_db()
     db.execute("DELETE FROM game_players WHERE player_key = ?", (key,))
+    db.execute("DELETE FROM game_plots WHERE owner_key = ?", (key,))
     db.commit()
 
 
@@ -192,20 +318,29 @@ def forget_player(key: str) -> None:
 _econ_lock = threading.Lock()
 
 
+class GameError(Exception):
+    """Xarid amalga oshmadi (pul yetmaydi va h.k.)."""
+
+
 def player_key(user: dict) -> str:
     return user["key"]
 
 
-def income_rate(house_level: int, cars: list) -> int:
-    rate = HOUSE_LEVELS[house_level - 1]["income"] if house_level else 0
-    return rate + sum(CARS_BY_ID[c]["income"] for c in cars if c in CARS_BY_ID)
+def my_plots(db, key: str) -> list:
+    return db.execute(
+        "SELECT plot, kind, level, sale_price FROM game_plots WHERE owner_key = ? ORDER BY bought_at, plot", (key,)
+    ).fetchall()
 
 
-def money_now(row, now: float | None = None) -> float:
+def player_rate(db, row) -> float:
+    """Daromad, so'm/soniya (faqat binolardan)."""
+    return round(sum(level_income(p["kind"], p["level"]) for p in my_plots(db, row["player_key"])), 2)
+
+
+def money_now(row, rate: float, now: float | None = None) -> float:
     now = time.time() if now is None else now
     elapsed = min(max(now - row["income_at"], 0), OFFLINE_CAP_HOURS * 3600)
-    rate = income_rate(row["house_level"], json.loads(row["cars"]))
-    return row["money"] + rate * elapsed / 3600
+    return row["money"] + rate * elapsed
 
 
 def ensure_player(db, key: str):
@@ -213,52 +348,64 @@ def ensure_player(db, key: str):
     if row:
         return row
     with _econ_lock:
-        used = {r["plot"] for r in db.execute("SELECT plot FROM game_players WHERE plot IS NOT NULL")}
-        plot = next((i for i in range(len(PLOTS)) if i not in used), None)
-        db.execute(
+        # Yangi o'yinchiga bitta bo'sh yer — Ota hovli (bepul)
+        used = {r["plot"] for r in db.execute("SELECT plot FROM game_plots")}
+        home = next((p["id"] for p in PLOTS if p["id"] not in used), None)
+        now = time.time()
+        cur = db.execute(
             "INSERT OR IGNORE INTO game_players (player_key, money, income_at, plot) VALUES (?, ?, ?, ?)",
-            (key, START_MONEY, time.time(), plot),
+            (key, START_MONEY, now, home),
         )
+        if cur.rowcount and home is not None:
+            db.execute(
+                "INSERT OR IGNORE INTO game_plots (plot, owner_key, kind, level, bought_at) "
+                "VALUES (?, ?, NULL, 0, ?)", (home, key, now),
+            )
         db.commit()
     return db.execute("SELECT * FROM game_players WHERE player_key = ?", (key,)).fetchone()
-
-
-class GameError(Exception):
-    """Xarid amalga oshmadi (pul yetmaydi va h.k.)."""
 
 
 def apply_change(db, key: str, change):
     """Yig'ilgan daromadni pulga qo'shib, o'zgarishni yozadi.
 
-    change(row, money) -> (delta, house_level | None, cars | None) yoki GameError.
+    change(row, money) -> (delta, mutate | None) yoki GameError.
+    mutate() — bazadagi boshqa o'zgarishlar (yer, bino, mashina).
     Hammasi bitta lock ichida — tugma ikki marta bosilsa ham pul bir marta yechiladi.
     """
     with _econ_lock:
         row = db.execute("SELECT * FROM game_players WHERE player_key = ?", (key,)).fetchone()
         now = time.time()
-        money = money_now(row, now)
-        delta, house_level, cars = change(row, money)
-        db.execute(
-            "UPDATE game_players SET money = ?, income_at = ?, house_level = ?, cars = ? WHERE player_key = ?",
-            (money + delta, now,
-             row["house_level"] if house_level is None else house_level,
-             row["cars"] if cars is None else json.dumps(cars), key),
-        )
+        money = money_now(row, player_rate(db, row), now)
+        delta, mutate = change(row, money)
+        if mutate:
+            mutate()
+        db.execute("UPDATE game_players SET money = ?, income_at = ? WHERE player_key = ?",
+                   (money + delta, now, key))
         db.commit()
         return db.execute("SELECT * FROM game_players WHERE player_key = ?", (key,)).fetchone()
 
 
-def economy_json(row) -> dict:
-    level = row["house_level"]
-    cars = json.loads(row["cars"])
+def economy_json(db, row) -> dict:
+    rate = player_rate(db, row)
+    plots = []
+    for p in my_plots(db, row["player_key"]):
+        home = p["plot"] == row["plot"]
+        level = p["level"]
+        nxt = level + 1 if p["kind"] and level < MAX_LEVEL else None
+        plots.append({
+            "plot": p["plot"], "kind": p["kind"], "level": level, "home": home,
+            "income": level_income(p["kind"], level),
+            "next_price": level_price(p["kind"], nxt) if nxt else None,
+            "next_income": level_income(p["kind"], nxt) if nxt else None,
+            "price": p["sale_price"],  # sotuvga qo'yilgan narx (None — sotuvda emas)
+            "invested": invested(p["kind"], level) + (0 if home else LAND_PRICE),
+        })
     return {
-        "money": math.floor(money_now(row)),
-        "rate": income_rate(level, cars),
-        "house_level": level,
-        "house": HOUSE_LEVELS[level - 1] if level else None,
-        "next_house": HOUSE_LEVELS[level] if level < len(HOUSE_LEVELS) else None,
-        "cars": cars,
-        "plot": row["plot"],
+        "money": math.floor(money_now(row, rate)),
+        "rate": rate,
+        "cars": json.loads(row["cars"]),
+        "home": row["plot"],
+        "plots": plots,
     }
 
 
@@ -267,21 +414,33 @@ def summary_for(db, key: str) -> dict | None:
     row = db.execute("SELECT * FROM game_players WHERE player_key = ?", (key,)).fetchone()
     if row is None:
         return None
-    data = economy_json(row)
+    data = economy_json(db, row)
     data["car_names"] = [CARS_BY_ID[c]["name"] for c in data["cars"] if c in CARS_BY_ID]
+    data["buildings"] = [
+        {"name": BUILDINGS[p["kind"]]["name"], "level": p["level"], "home": p["home"]}
+        if p["kind"] else {"name": "Bo'sh yer", "level": 0, "home": p["home"]}
+        for p in data["plots"]
+    ]
     return data
 
 
-def houses_list(db) -> list[dict]:
+def plots_list(db) -> list[dict]:
     rows = db.execute(
-        "SELECT g.player_key, g.plot, g.house_level, u.name FROM game_players g "
-        "LEFT JOIN users u ON g.player_key = 'u' || u.id WHERE g.plot IS NOT NULL"
+        "SELECT g.plot, g.owner_key, g.kind, g.level, g.sale_price, u.name, p.plot AS home_plot FROM game_plots g "
+        "LEFT JOIN users u ON g.owner_key = 'u' || u.id "
+        "LEFT JOIN game_players p ON p.player_key = g.owner_key"
     ).fetchall()
     return [
-        {"key": r["player_key"], "plot": r["plot"], "level": r["house_level"],
-         "name": config.OWNER_NAME if r["player_key"] == "owner" else (r["name"] or "?")}
+        {"plot": r["plot"], "owner": r["owner_key"], "kind": r["kind"], "level": r["level"],
+         "home": r["home_plot"] == r["plot"], "price": r["sale_price"],
+         "name": config.OWNER_NAME if r["owner_key"] == "owner" else (r["name"] or "?")}
         for r in rows
     ]
+
+
+def _live_pos(key: str, now: float):
+    p = _live.get(key)
+    return p if p and now - p["t"] < ONLINE_SECONDS else None
 
 
 # --------------------------------------------------------------------------- #
@@ -308,22 +467,22 @@ def api_state():
     key = player_key(user)
     db = get_db()
     row = ensure_player(db, key)
-    plot = row["plot"]
-    spawn = plot_spawn(PLOTS[plot]) if plot is not None else WORLD_DATA["default_spawn"]
+    home = row["plot"]
+    spawn = plot_spawn(PLOTS[home]) if home is not None and home < len(PLOTS) else WORLD_DATA["default_spawn"]
     now = time.time()
     with _lock:
-        _tick_coins(now)
-        coins, players = _coin_list(), _others(key, now)
+        _tick_passengers(now)
+        passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
     return jsonify(
         me={"key": key, "name": user["name"], "avatar": user["avatar"], "spawn": spawn},
-        economy=economy_json(row),
+        economy=economy_json(db, row),
         world=WORLD_DATA,
-        catalog={"houses": HOUSE_LEVELS, "cars": CARS},
-        houses=houses_list(db),
-        coins=coins,
+        catalog=CATALOG,
+        plots=plots_list(db),
+        passengers=passengers,
+        ride=ride,
         players=players,
         walk_speed=WALK_SPEED,
-        coin_value=COIN_VALUE,
         offline_cap_hours=OFFLINE_CAP_HOURS,
     )
 
@@ -331,83 +490,389 @@ def api_state():
 @bp.post("/api/game/sync")
 @login_required
 def api_sync():
-    """Brauzer har ~0.15 soniyada joylashuvini yuboradi, boshqalarni va tangalarni oladi."""
+    """Brauzer har ~0.15 soniyada joylashuvini yuboradi, boshqalarni va yo'lovchilarni oladi."""
     user = current_user()
     key = player_key(user)
     data = request.get_json(silent=True) or {}
     try:
         x, y = float(data.get("x")), float(data.get("y"))
         direction = float(data.get("dir") or 0)
+        height = float(data.get("h") or 0)  # sakrash / uchish balandligi
     except (TypeError, ValueError):
         return jsonify(error="Noto'g'ri joylashuv"), 400
-    if not all(math.isfinite(v) for v in (x, y, direction)):
+    if not all(math.isfinite(v) for v in (x, y, direction, height)):
         return jsonify(error="Noto'g'ri joylashuv"), 400
 
     db = get_db()
     row = ensure_player(db, key)
     owned = json.loads(row["cars"])
     car = data.get("car") if data.get("car") in owned else None
+    flying = bool(car and CARS_BY_ID[car].get("flies"))
+    height = min(max(height, 0), FLY_HEIGHT + 20 if flying else 120)
     x = min(max(x, 10), WORLD_W - 10)
     y = min(max(y, 10), WORLD_H - 10)
-    picks = [c for c in (data.get("pick") or [])[:10] if isinstance(c, int) and not isinstance(c, bool)]
 
     now = time.time()
     corrected = False
-    picked = 0
     with _lock:
-        _tick_coins(now)
+        _tick_passengers(now)
         prev = _live.get(key)
-        start = (x, y)
         if prev and now - prev["t"] < 5:
-            start = (prev["x"], prev["y"])
             # Juda tez "sakrash" bo'lsa — eski joyiga qaytaramiz
             dt = min(now - prev["t"], 1.0)
             speeds = [CARS_BY_ID[c]["speed"] for c in (car, prev["car"]) if c in CARS_BY_ID]
             limit = WALK_SPEED * max(speeds + [1]) * dt * 1.6 + 40
             if math.hypot(x - prev["x"], y - prev["y"]) > limit:
                 x, y, corrected = prev["x"], prev["y"], True
-        _live[key] = {"x": x, "y": y, "dir": direction, "car": car, "t": now,
-                      "name": user["name"], "avatar": user["avatar"]}
-        for cid in picks:
-            coin = _coins.get(cid)
-            if coin and _dist_to_segment(coin[0], coin[1], *start, x, y) <= PICK_RADIUS:
-                del _coins[cid]
-                _respawn.append(now + COIN_RESPAWN_SECONDS)
-                picked += 1
-        coins, players = _coin_list(), _others(key, now)
+        _live[key] = {"x": x, "y": y, "h": height if (flying or not car) else 0, "dir": direction,
+                      "car": car, "t": now, "name": user["name"], "avatar": user["avatar"]}
+        passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
 
-    if picked:
-        row = apply_change(db, key, lambda _row, _money: (picked * COIN_VALUE, None, None))
-    response = {"economy": economy_json(row), "coins": coins, "players": players,
-                "houses": houses_list(db), "picked": picked}
+    response = {"economy": economy_json(db, row), "passengers": passengers, "ride": ride,
+                "players": players, "plots": plots_list(db)}
     if corrected:
         response["correct"] = {"x": x, "y": y}
     return jsonify(response)
 
 
-@bp.post("/api/game/house")
+# --------------------------------------------------------------------------- #
+#  Taksi
+# --------------------------------------------------------------------------- #
+@bp.post("/api/game/taxi/pickup")
 @login_required
-def api_upgrade_house():
+def api_taxi_pickup():
+    key = player_key(current_user())
+    pid = (request.get_json(silent=True) or {}).get("id")
+    now = time.time()
+    with _lock:
+        me = _live_pos(key, now)
+        if not me or not me["car"]:
+            return jsonify(error="Taksi uchun mashinada bo'lish kerak"), 400
+        if key in _rides:
+            return jsonify(error="Sizda allaqachon yo'lovchi bor"), 400
+        passenger = _passengers.get(pid) if isinstance(pid, int) else None
+        if passenger is None:
+            return jsonify(error="Bu yo'lovchini boshqa taksi olib ketdi"), 409
+        if math.hypot(passenger["x"] - me["x"], passenger["y"] - me["y"]) > TAXI_PICK_DIST + 30:
+            return jsonify(error="Yo'lovchiga yaqinroq boring"), 400
+        del _passengers[pid]
+        _passenger_respawn.append(now + TAXI_RESPAWN_SECONDS)
+        _rides[key] = {"id": pid, **passenger, "t": now}
+        ride = _ride_json(key)
+    return jsonify(ride=ride)
+
+
+@bp.post("/api/game/taxi/dropoff")
+@login_required
+def api_taxi_dropoff():
+    key = player_key(current_user())
+    now = time.time()
+    with _lock:
+        ride = _rides.get(key)
+        me = _live_pos(key, now)
+        if not ride:
+            return jsonify(error="Sizda yo'lovchi yo'q"), 400
+        if not me or not me["car"]:
+            return jsonify(error="Yo'lovchini mashinada olib boring"), 400
+        if math.hypot(ride["tx"] - me["x"], ride["ty"] - me["y"]) > TAXI_DROP_DIST + 30:
+            return jsonify(error="Manzilga hali yetib kelmadingiz"), 400
+        _rides.pop(key, None)
+        earned = int(ride["fare"] * CARS_BY_ID[me["car"]]["fare"])
+    db = get_db()
+    ensure_player(db, key)
+    row = apply_change(db, key, lambda _row, _money: (earned, None))
+    return jsonify(earned=earned, economy=economy_json(db, row))
+
+
+@bp.post("/api/game/taxi/cancel")
+@login_required
+def api_taxi_cancel():
+    key = player_key(current_user())
+    with _lock:
+        _rides.pop(key, None)
+    return jsonify(ok=True)
+
+
+# --------------------------------------------------------------------------- #
+#  Yerlar va binolar
+# --------------------------------------------------------------------------- #
+def _plot_action(plot_id: int, change_for, extra=None):
+    """Umumiy: yer ustidagi amal (sotib olish, qurish, sotish)."""
+    if not 0 <= plot_id < len(PLOTS):
+        return jsonify(error="Bunday yer yo'q"), 404
     key = player_key(current_user())
     db = get_db()
     ensure_player(db, key)
-
-    def upgrade(row, money):
-        level = row["house_level"]
-        if level >= len(HOUSE_LEVELS):
-            raise GameError("Ota hovli eng yuqori darajada")
-        price = HOUSE_LEVELS[level]["price"]
-        if money < price:
-            raise GameError("Pul yetarli emas")
-        return -price, level + 1, None
-
     try:
-        row = apply_change(db, key, upgrade)
+        row = apply_change(db, key, change_for(db, key))
     except GameError as err:
         return jsonify(error=str(err)), 400
-    return jsonify(economy=economy_json(row), houses=houses_list(db))
+    return jsonify(economy=economy_json(db, row), plots=plots_list(db), **(extra or {}))
 
 
+def _owned_plot(db, key: str, plot_id: int):
+    plot = db.execute("SELECT * FROM game_plots WHERE plot = ?", (plot_id,)).fetchone()
+    if plot is None or plot["owner_key"] != key:
+        raise GameError("Bu yer sizniki emas")
+    return plot
+
+
+def _buy_listed(db, buyer: str, plot_id: int) -> int:
+    """Boshqa o'yinchi sotuvga qo'ygan yerni (binosi bilan) sotib olish: pul sotuvchiga o'tadi."""
+    with _econ_lock:
+        plot = db.execute("SELECT * FROM game_plots WHERE plot = ?", (plot_id,)).fetchone()
+        if plot is None or plot["sale_price"] is None:
+            raise GameError("Bu yer sotuvda emas")
+        seller = plot["owner_key"]
+        if seller == buyer:
+            raise GameError("Bu yer o'zingizniki")
+        count = db.execute("SELECT COUNT(*) FROM game_plots WHERE owner_key = ?", (buyer,)).fetchone()[0]
+        if count >= MAX_PLOTS:
+            raise GameError(f"Ko'pi bilan {MAX_PLOTS} ta yer olish mumkin")
+        price = plot["sale_price"]
+        now = time.time()
+        b = db.execute("SELECT * FROM game_players WHERE player_key = ?", (buyer,)).fetchone()
+        s = db.execute("SELECT * FROM game_players WHERE player_key = ?", (seller,)).fetchone()
+        # Yer egasi almashishidan oldin ikkalasining yig'ilgan daromadini hisoblab qo'yamiz
+        b_money = money_now(b, player_rate(db, b), now)
+        if b_money < price:
+            raise GameError("Pul yetarli emas")
+        db.execute("UPDATE game_players SET money = ?, income_at = ? WHERE player_key = ?", (b_money - price, now, buyer))
+        if s is not None:
+            s_money = money_now(s, player_rate(db, s), now)
+            db.execute("UPDATE game_players SET money = ?, income_at = ? WHERE player_key = ?", (s_money + price, now, seller))
+        db.execute("UPDATE game_plots SET owner_key = ?, sale_price = NULL, bought_at = ? WHERE plot = ?",
+                   (buyer, now, plot_id))
+        if s is not None and s["plot"] == plot_id:
+            # Sotuvchi Ota hovlisini sotdi — keyingi yeri (bo'lsa) Ota hovli bo'ladi
+            nxt = db.execute("SELECT plot FROM game_plots WHERE owner_key = ? ORDER BY bought_at, plot LIMIT 1",
+                             (seller,)).fetchone()
+            db.execute("UPDATE game_players SET plot = ? WHERE player_key = ?", (nxt[0] if nxt else None, seller))
+        if b["plot"] is None:
+            db.execute("UPDATE game_players SET plot = ? WHERE player_key = ?", (plot_id, buyer))
+        db.commit()
+        return price
+
+
+@bp.post("/api/game/plots/<int:plot_id>/buy")
+@login_required
+def api_buy_plot(plot_id: int):
+    """Bo'sh yerni (LAND_PRICE) yoki boshqa o'yinchi sotuvga qo'ygan yerni sotib olish."""
+    if not 0 <= plot_id < len(PLOTS):
+        return jsonify(error="Bunday yer yo'q"), 404
+    key = player_key(current_user())
+    db = get_db()
+    ensure_player(db, key)
+    listed = db.execute("SELECT owner_key, sale_price FROM game_plots WHERE plot = ?", (plot_id,)).fetchone()
+    if listed is not None and listed["sale_price"] is not None and listed["owner_key"] != key:
+        try:
+            paid = _buy_listed(db, key, plot_id)
+        except GameError as err:
+            return jsonify(error=str(err)), 400
+        row = db.execute("SELECT * FROM game_players WHERE player_key = ?", (key,)).fetchone()
+        return jsonify(economy=economy_json(db, row), plots=plots_list(db), paid=paid)
+
+    def change_for(db, key):
+        def change(_row, money):
+            if db.execute("SELECT 1 FROM game_plots WHERE plot = ?", (plot_id,)).fetchone():
+                raise GameError("Bu yer allaqachon sotilgan")
+            count = db.execute("SELECT COUNT(*) FROM game_plots WHERE owner_key = ?", (key,)).fetchone()[0]
+            if count >= MAX_PLOTS:
+                raise GameError(f"Ko'pi bilan {MAX_PLOTS} ta yer olish mumkin")
+            if money < LAND_PRICE:
+                raise GameError("Pul yetarli emas")
+            return -LAND_PRICE, lambda: db.execute(
+                "INSERT INTO game_plots (plot, owner_key, kind, level, bought_at) VALUES (?, ?, NULL, 0, ?)",
+                (plot_id, key, time.time()),
+            )
+        return change
+    return _plot_action(plot_id, change_for)
+
+
+@bp.post("/api/game/plots/<int:plot_id>/build")
+@login_required
+def api_build(plot_id: int):
+    kind = (request.get_json(silent=True) or {}).get("kind")
+    if kind not in BUILDINGS:
+        return jsonify(error="Bino turini tanlang"), 400
+
+    def change_for(db, key):
+        def change(_row, money):
+            plot = _owned_plot(db, key, plot_id)
+            if plot["level"] > 0:
+                raise GameError("Bu yerda bino bor")
+            price = level_price(kind, 1)
+            if money < price:
+                raise GameError("Pul yetarli emas")
+            return -price, lambda: db.execute(
+                "UPDATE game_plots SET kind = ?, level = 1 WHERE plot = ?", (kind, plot_id))
+        return change
+    return _plot_action(plot_id, change_for)
+
+
+def _listing_plot(plot_id: int):
+    """Sotuvga qo'yish/olish: yer egasi yoki owner (har kimning yerini) qila oladi."""
+    if not 0 <= plot_id < len(PLOTS):
+        return None, None, (jsonify(error="Bunday yer yo'q"), 404)
+    user = current_user()
+    key = player_key(user)
+    db = get_db()
+    ensure_player(db, key)
+    plot = db.execute("SELECT * FROM game_plots WHERE plot = ?", (plot_id,)).fetchone()
+    if plot is None:
+        return None, None, (jsonify(error="Bu yer hech kimniki emas"), 400)
+    if plot["owner_key"] != key and user["role"] != "owner":
+        return None, None, (jsonify(error="Bu yer sizniki emas"), 400)
+    return db, key, None
+
+
+def _listing_response(db, key: str):
+    row = db.execute("SELECT * FROM game_players WHERE player_key = ?", (key,)).fetchone()
+    return jsonify(economy=economy_json(db, row), plots=plots_list(db))
+
+
+@bp.post("/api/game/plots/<int:plot_id>/list")
+@login_required
+def api_list_plot(plot_id: int):
+    """Uyni (yerni binosi bilan) narx qo'yib sotuvga chiqarish. Uni boshqa o'yinchi sotib oladi."""
+    price = (request.get_json(silent=True) or {}).get("price")
+    if isinstance(price, bool) or not isinstance(price, int) or not MIN_SALE_PRICE <= price <= MAX_SALE_PRICE:
+        return jsonify(error=f"Narx {MIN_SALE_PRICE:,} so'mdan kam bo'lmasin".replace(",", " ")), 400
+    db, key, err = _listing_plot(plot_id)
+    if err:
+        return err
+    db.execute("UPDATE game_plots SET sale_price = ? WHERE plot = ?", (price, plot_id))
+    db.commit()
+    return _listing_response(db, key)
+
+
+@bp.post("/api/game/plots/<int:plot_id>/unlist")
+@login_required
+def api_unlist_plot(plot_id: int):
+    """Sotuvdan olib qo'yish."""
+    db, key, err = _listing_plot(plot_id)
+    if err:
+        return err
+    db.execute("UPDATE game_plots SET sale_price = NULL WHERE plot = ?", (plot_id,))
+    db.commit()
+    return _listing_response(db, key)
+
+
+def _upgrade_check(db, key: str, plot_id: int, money: float) -> int:
+    """Yangi qavat qo'shish mumkinmi? Mumkin bo'lsa — narxini qaytaradi, aks holda GameError."""
+    plot = _owned_plot(db, key, plot_id)
+    if not plot["kind"] or plot["level"] < 1:
+        raise GameError("Avval bino quring")
+    if plot["level"] >= MAX_LEVEL:
+        raise GameError(f"Bino {MAX_LEVEL} qavat — eng baland")
+    price = level_price(plot["kind"], plot["level"] + 1)
+    if money < price:
+        raise GameError("Pul yetarli emas")
+    return price
+
+
+@bp.post("/api/game/plots/<int:plot_id>/quiz")
+@login_required
+def api_quiz(plot_id: int):
+    """Yangi qavat qo'shishdan oldin HTML/CSS savoli beriladi."""
+    if not 0 <= plot_id < len(PLOTS):
+        return jsonify(error="Bunday yer yo'q"), 404
+    key = player_key(current_user())
+    db = get_db()
+    row = ensure_player(db, key)
+    now = time.time()
+    wait = _quiz_cooldown.get(key, 0) - now
+    if wait > 0:
+        return jsonify(error=f"{math.ceil(wait)} soniyadan keyin yangi savol olasiz", wait=math.ceil(wait)), 429
+    try:
+        _upgrade_check(db, key, plot_id, money_now(row, player_rate(db, row), now))
+    except GameError as err:
+        return jsonify(error=str(err)), 400
+
+    with _lock:
+        recent = _quiz_recent.setdefault(key, [])
+        item = quiz.issue(exclude=set(recent))
+        recent.append(item["qid"])
+        del recent[:-15]
+        token = f"{int(now * 1000)}-{item['qid']}"
+        _quizzes[key] = {**item, "token": token, "plot": plot_id, "t": now}
+    return jsonify(quiz={"token": token, "topic": item["topic"], "question": item["question"],
+                         "options": item["options"]})
+
+
+def _owner_upgrade(plot_id: int, data: dict):
+    """Owner savolsiz qavat qo'shadi (bir bosishda 10 tagacha)."""
+    count = data.get("count", 1)
+    if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= OWNER_MAX_STEP:
+        return jsonify(error=f"Qavatlar soni 1 dan {OWNER_MAX_STEP} gacha bo'lishi kerak"), 400
+    key = "owner"
+    db = get_db()
+    ensure_player(db, key)
+    added = {}
+
+    def change(_row, money):
+        _upgrade_check(db, key, plot_id, money)  # bino bormi, 100 qavat emasmi, birinchi qavatga pul yetadimi
+        plot = _owned_plot(db, key, plot_id)
+        level, total = plot["level"], 0
+        while level - plot["level"] < count and level < MAX_LEVEL:
+            price = level_price(plot["kind"], level + 1)
+            if money - total < price:
+                break
+            total += price
+            level += 1
+        added["floors"] = level - plot["level"]
+        return -total, lambda: db.execute("UPDATE game_plots SET level = ? WHERE plot = ?", (level, plot_id))
+
+    try:
+        row = apply_change(db, key, change)
+    except GameError as err:
+        return jsonify(error=str(err)), 400
+    return jsonify(correct=True, added=added["floors"], economy=economy_json(db, row), plots=plots_list(db))
+
+
+@bp.post("/api/game/plots/<int:plot_id>/upgrade")
+@login_required
+def api_upgrade(plot_id: int):
+    """Yangi qavat faqat savolga to'g'ri javob berilsa qo'shiladi (owner — savolsiz)."""
+    if not 0 <= plot_id < len(PLOTS):
+        return jsonify(error="Bunday yer yo'q"), 404
+    user = current_user()
+    data = request.get_json(silent=True) or {}
+    if user["role"] == "owner":
+        return _owner_upgrade(plot_id, data)
+    key = player_key(user)
+    answer = data.get("answer")
+    now = time.time()
+    with _lock:
+        pending = _quizzes.get(key)
+        if (not pending or pending["token"] != data.get("quiz") or pending["plot"] != plot_id
+                or now - pending["t"] > QUIZ_TTL):
+            return jsonify(error="Avval savolga javob bering (savol eskirgan bo'lishi mumkin)"), 400
+        _quizzes.pop(key, None)  # har bir savolga bitta urinish
+
+    correct_text = pending["options"][pending["correct"]]
+    if isinstance(answer, bool) or not isinstance(answer, int) or answer != pending["correct"]:
+        _quiz_cooldown[key] = now + QUIZ_COOLDOWN
+        return jsonify(correct=False, right_answer=correct_text, right_index=pending["correct"],
+                       explain=pending["explain"], wait=QUIZ_COOLDOWN)
+
+    db = get_db()
+    ensure_player(db, key)
+
+    def change(_row, money):
+        price = _upgrade_check(db, key, plot_id, money)
+        return -price, lambda: db.execute("UPDATE game_plots SET level = level + 1 WHERE plot = ?", (plot_id,))
+
+    try:
+        row = apply_change(db, key, change)
+    except GameError as err:
+        return jsonify(error=str(err)), 400
+    return jsonify(correct=True, explain=pending["explain"], economy=economy_json(db, row), plots=plots_list(db))
+
+
+# --------------------------------------------------------------------------- #
+#  Avtosalon
+# --------------------------------------------------------------------------- #
 @bp.post("/api/game/cars/<car_id>")
 @login_required
 def api_buy_car(car_id: str):
@@ -415,19 +880,27 @@ def api_buy_car(car_id: str):
     car = CARS_BY_ID.get(car_id)
     if car is None:
         return jsonify(error="Bunday mashina yo'q"), 404
+    now = time.time()
+    with _lock:
+        me = _live_pos(key, now)
+        door = SHOP["door"]
+        near = me is not None and math.hypot(me["x"] - door["x"], me["y"] - door["y"]) <= SHOP_RADIUS
+    if not near:
+        return jsonify(error="Mashina faqat Avtosalonda sotiladi — Avtosalonga boring"), 400
     db = get_db()
     ensure_player(db, key)
 
-    def buy(row, money):
+    def change(row, money):
         cars = json.loads(row["cars"])
         if car_id in cars:
             raise GameError("Bu mashina sizda bor")
         if money < car["price"]:
             raise GameError("Pul yetarli emas")
-        return -car["price"], None, cars + [car_id]
+        return -car["price"], lambda: db.execute(
+            "UPDATE game_players SET cars = ? WHERE player_key = ?", (json.dumps(cars + [car_id]), key))
 
     try:
-        row = apply_change(db, key, buy)
+        row = apply_change(db, key, change)
     except GameError as err:
         return jsonify(error=str(err)), 400
-    return jsonify(economy=economy_json(row))
+    return jsonify(economy=economy_json(db, row))

@@ -1,4 +1,5 @@
 """Umumiy yordamchilar: yo'llar, baza (SQLite), sessiya va huquqlar."""
+import json
 import sqlite3
 from datetime import datetime
 from functools import wraps
@@ -36,9 +37,18 @@ CREATE TABLE IF NOT EXISTS game_players (
     player_key  TEXT PRIMARY KEY,              -- 'u<id>' yoki 'owner'
     money       REAL NOT NULL,
     income_at   REAL NOT NULL,                 -- daromad shu vaqtgacha hisoblangan (unix soniya)
-    house_level INTEGER NOT NULL DEFAULT 0,    -- Ota hovli darajasi (0 = yo'q)
+    house_level INTEGER NOT NULL DEFAULT 0,    -- eski (game_plots ga ko'chirilgan)
     cars        TEXT NOT NULL DEFAULT '[]',    -- JSON: sotib olingan mashinalar
-    plot        INTEGER                        -- xaritadagi hovli joyi
+    plot        INTEGER                        -- Ota hovli — bepul berilgan birinchi yer
+);
+
+CREATE TABLE IF NOT EXISTS game_plots (
+    plot        INTEGER PRIMARY KEY,           -- xaritadagi yer raqami
+    owner_key   TEXT NOT NULL,                 -- 'u<id>' yoki 'owner'
+    kind        TEXT,                          -- uy | magazin | kafe | ofis (NULL = bo'sh yer)
+    level       INTEGER NOT NULL DEFAULT 0,
+    bought_at   REAL NOT NULL,
+    sale_price  INTEGER                        -- sotuvga qo'yilgan narx (NULL = sotuvda emas)
 );
 
 CREATE TABLE IF NOT EXISTS homeworks (
@@ -121,6 +131,28 @@ def init_db() -> None:
         sub_columns = {row[1] for row in db.execute("PRAGMA table_info(submissions)")}
         if "mistakes" not in sub_columns:
             db.execute("ALTER TABLE submissions ADD COLUMN mistakes TEXT")
+        plot_columns = {row[1] for row in db.execute("PRAGMA table_info(game_plots)")}
+        if "sale_price" not in plot_columns:
+            db.execute("ALTER TABLE game_plots ADD COLUMN sale_price INTEGER")
+        # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)
+        db.execute(
+            "INSERT OR IGNORE INTO game_plots (plot, owner_key, kind, level, bought_at) "
+            "SELECT plot, player_key, CASE WHEN house_level > 0 THEN 'uy' END, house_level, income_at "
+            "FROM game_players WHERE plot IS NOT NULL"
+        )
+        db.execute("UPDATE game_players SET house_level = 0 WHERE house_level != 0")
+        # Eski mashinalar (Jajji, Shamol, Chaqmoq, Bo'ron) -> yangilari (BMW, Mercedes, Lamborghini)
+        old_cars = {"jajji": "bmw", "shamol": "mercedes", "chaqmoq": "lambo", "boron": "lambo"}
+        known = {"bmw", "mercedes", "lambo", "tesla"}
+        for key, cars_json in db.execute("SELECT player_key, cars FROM game_players").fetchall():
+            cars = json.loads(cars_json or "[]")
+            new = []
+            for car in cars:
+                car = old_cars.get(car, car)
+                if car in known and car not in new:
+                    new.append(car)
+            if new != cars:
+                db.execute("UPDATE game_players SET cars = ? WHERE player_key = ?", (json.dumps(new), key))
         db.commit()
     finally:
         db.close()

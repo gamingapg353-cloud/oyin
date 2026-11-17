@@ -63,16 +63,31 @@ Kalit bo'lmasa ham sayt ishlaydi — topshiriqlarni owner o'zi baholaydi.
   - **Owner hammaning** profilini ko'radi va **login hamda parolini almashtira oladi**.
 - **Yuqori o'ng burchakdagi hisob** — bosilsa menyu: Profilim, Rasmni almashtirish, Rasmni o'chirish, Chiqish.
 
-## «Mahalla» o'yini
+## «Mahalla» o'yini (3D)
 
+- **3D** shahar (Three.js), **katta xarita** (4800 × 2400, 84 ta yer): yo'llar, daraxtlar, bog', ko'l, Avtosalon.
 - Do'stlar bilan bitta xaritada: kim o'ynayotgani ko'rinadi.
-- **Piyoda** yoki **mashinada** yurish: WASD / strelkalar, mashinaga o'tirish-tushish — **E**.
-  Telefonda — ekrandagi tugmalar.
-- Ko'chadagi **tangalarni** tering (har biri 50 so'm). Kim birinchi yetib borsa — o'shaniki.
-- **Ota hovli** — sotib olib 5 darajagacha kuchaytirasiz.
-- **Avtosalon** — 4 xil mashina (Jajji, Shamol, Chaqmoq, Bo'ron).
-- Hovli va mashinalar **har soatda pul** olib keladi (o'yinda bo'lmasangiz ham, 24 soatgacha).
-- Narx va daromadlarni `py/game.py` dagi `HOUSE_LEVELS` va `CARS` ro'yxatlarida o'zgartirasiz.
+- **Odam bo'lib** (qo'l-oyog'i qimirlaydi) yoki **mashinada** yurasiz:
+  WASD / strelkalar — yurish, **Probel — sakrash** (Teslada — uchish/qo'nish), sichqoncha bilan tortish — kamera,
+  g'ildirak — yaqin/uzoq, **E** — mashinaga o'tirish/tushish, **F** — yaqindagi yer/bino/yo'lovchi,
+  **H** — signal, **M** — katta xarita (bosilgan joyga yo'l ko'rsatiladi).
+  Telefonda — ekrandagi tugmalar (o'rtadagisi — sakrash/uchish) va barmoq bilan tortish.
+- Yangi o'yinchiga 75 000 so'm beriladi (BMW + birinchi uyga yetadi).
+- **Taksi**: mashinada sariq halqadagi yo'lovchiga boring — o'zi o'tiradi; yashil nurga eltsangiz pul olasiz
+  (uzoqroq manzil — ko'proq pul, qimmat mashina — haqi ko'proq).
+- Har kimga bitta yer — **Ota hovli** — bepul. Qo'shimcha **bo'sh yerlarni sotib olish** mumkin
+  (25 000 so'm, ko'pi bilan 5 ta yer).
+- Har bir yerga **nima qurishni o'zingiz tanlaysiz**: **Uy, Magazin, Kafe yoki Ofis**.
+  Binolar **100 qavatgacha** ko'tariladi: qavat narxi **40 000 so'mdan** boshlanadi, 100-qavat — **300 000 so'm**.
+  10, 30, 60 va 100 qavatda tomida yangi bezaklar paydo bo'ladi (antenna, vertolyot maydoni, oltin toj).
+- **Yangi qavat qo'shish uchun HTML/CSS savoliga to'g'ri javob berish kerak** (50 ta savol, `py/quiz.py`).
+  Noto'g'ri javob bo'lsa pul yechilmaydi, to'g'ri javob va tushuntirish ko'rsatiladi, 15 soniyadan keyin yangi savol.
+- **Sotish**: yer va binoni sotsangiz, sarflangan pulning yarmi qaytadi (Ota hovlida — faqat bino sotiladi).
+- **Avtosalon** — mashinalar faqat Avtosalonning o'zida sotiladi: BMW M5, Mercedes G-Class,
+  Lamborghini Aventador va eng qimmati — **uchadigan Tesla** (baland binolar ustidan o'zi oshib o'tadi).
+  Mashinalarning ovozi bor (dvigatel, signal), ovozni yuqoridagi tugma bilan o'chirish mumkin.
+- Binolar **har soniyada pul** olib keladi (o'yinda bo'lmasangiz ham, 24 soatgacha).
+- Narx va daromadlarni `py/game.py` dagi `BUILDINGS`, `CARS`, `LAND_PRICE`, `MAX_PLOTS`, `TAXI_*` da o'zgartirasiz.
 
 ## Fayllar
 
@@ -82,11 +97,12 @@ ishga_tushirish.bat Ikki marta bosib ishga tushirish
 .env.example        .env namunasi
 index.html          Kirish sahifasi
 panel.html          Panel (O'yinlar, Uy vazifa, Odam qo'shish, Reyting, Profil)
-game.html           Mahalla o'yini
+game.html           Mahalla o'yini (3D)
 py/                 Python qismi
   app.py              Server: sahifalar, kirish, odamlar, ball, reyting
   accounts.py         Profil, rasm (avatar), parol
-  game.py             Mahalla o'yini: xarita, pul, hovli, mashinalar, do'stlar
+  game.py             Mahalla o'yini: xarita, pul, yerlar, binolar, mashinalar, do'stlar
+  quiz.py             HTML/CSS savollari (yangi qavat uchun)
   homework.py         Uy vazifa API
   ai_check.py         AI tekshiruvchi (Google Gemini)
   core.py             Baza (SQLite), sessiya, huquqlar
@@ -98,6 +114,7 @@ static/
   scss/             SCSS manba fayllari  <- dizaynni shu yerda o'zgartiring
   css/              Kompilyatsiya qilingan main.css
   js/               common.js, login.js, panel.js, homework.js, profile.js, game.js
+  vendor/three/     Three.js 0.187 (3D kutubxona, MIT litsenziya)
 data/               Baza, yuklangan fayllar, rasmlar (avtomatik yaratiladi)
 ```
 

@@ -2485,7 +2485,7 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   touch-action: none;
 }
 
-.toast, .hud-hint, .dpad__btn, .action-btn, .hud-friends, .hud-online, .hud-money, .hud-btn {
+.taxi-card, .prompt, .toast, .hud-hint, .dpad__btn, .action-btn, .hud-friends, .hud-online, .hud-money, .hud-btn {
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
@@ -2631,20 +2631,42 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   bottom: 14px;
   left: 14px;
   z-index: 10;
-  width: 192px;
-  height: 128px;
+  width: 240px;
+  height: 120px;
   border: 2px solid rgba(255, 255, 255, 0.7);
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  cursor: zoom-in;
 }
 
 @media (hover: none), (max-width: 560px) {
   .minimap {
     top: 74px;
     bottom: auto;
-    width: 132px;
-    height: 88px;
+    width: 150px;
+    height: 75px;
   }
+}
+
+.minimap.is-big {
+  top: 50%;
+  bottom: auto;
+  left: 50%;
+  z-index: 36;
+  width: min(94vw, 1100px);
+  height: auto;
+  aspect-ratio: 2 / 1;
+  border-width: 3px;
+  border-radius: 18px;
+  cursor: crosshair;
+  transform: translate(-50%, -50%);
+}
+
+.map-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  background: var(--backdrop);
 }
 
 .hud-actions {
@@ -2802,7 +2824,7 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   position: absolute;
   top: 74px;
   left: 50%;
-  z-index: 30;
+  z-index: 45;
   max-width: calc(100% - 28px);
   padding: 10px 18px;
   border-radius: 999px;
@@ -2827,7 +2849,7 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   position: absolute;
   top: 74px;
   left: 50%;
-  z-index: 31;
+  z-index: 46;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -3086,4 +3108,369 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.prompt {
+  position: absolute;
+  bottom: 92px;
+  left: 50%;
+  z-index: 12;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100% - 28px);
+  padding: 10px 18px 10px 10px;
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  transform: translateX(-50%);
+  animation: toast-in 0.2s ease;
+}
+
+.prompt kbd {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font: inherit;
+  font-weight: 800;
+}
+
+.prompt span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prompt:hover {
+  background: var(--surface-solid);
+}
+
+@media (hover: none) {
+  .prompt {
+    bottom: auto;
+    top: 128px;
+  }
+  .prompt kbd {
+    display: none;
+  }
+}
+
+.build-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 560px) {
+  .build-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.build-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--kind);
+  border-radius: 16px;
+  background: var(--surface-2);
+}
+
+.build-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.build-card__top strong {
+  font-size: 16px;
+}
+
+.build-card__icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--kind);
+  color: #ffffff;
+}
+
+.build-card p {
+  min-height: 38px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.build-card__income {
+  color: var(--success);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.build-card .btn {
+  height: 42px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.link-btn--danger {
+  justify-self: center;
+  color: var(--danger);
+}
+
+.dpad {
+  grid-template-areas: ". up ." "left jump right" ". down .";
+}
+
+.dpad__btn--jump {
+  grid-area: jump;
+  border-color: transparent;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.dpad__btn--jump.is-down, .dpad__btn--jump:active {
+  filter: brightness(1.1);
+  transform: scale(0.94);
+}
+
+.quiz-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.quiz {
+  display: grid;
+  gap: 12px;
+}
+
+.quiz__topic {
+  justify-self: start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.quiz__topic--html {
+  background: rgba(234, 88, 12, 0.15);
+  color: #ea580c;
+}
+
+.quiz__topic--css {
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--primary);
+}
+
+.quiz__q {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.quiz__options {
+  display: grid;
+  gap: 8px;
+}
+
+.quiz__opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.quiz__opt code {
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.quiz__opt:not(:disabled):hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.quiz__opt:disabled {
+  cursor: default;
+}
+
+.quiz__opt.is-chosen {
+  border-color: var(--primary);
+}
+
+.quiz__opt.is-right {
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+
+.quiz__opt.is-wrong {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.quiz__letter {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--surface-solid);
+  font-weight: 800;
+}
+
+.is-right .quiz__letter {
+  background: var(--success);
+  color: #ffffff;
+}
+
+.is-wrong .quiz__letter {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.quiz__result {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.quiz__result.is-right {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.quiz__result.is-wrong {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.quiz__result p {
+  color: var(--text);
+}
+
+.taxi-card {
+  position: absolute;
+  top: 124px;
+  left: 50%;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(380px, calc(100% - 28px));
+  padding: 8px 8px 8px 10px;
+  border-radius: 16px;
+  transform: translateX(-50%);
+  animation: toast-in 0.2s ease;
+}
+
+.taxi-card[hidden] {
+  display: none;
+}
+
+.taxi-card__icon {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--success);
+  color: #ffffff;
+}
+
+.taxi-card--guide .taxi-card__icon {
+  background: var(--primary);
+}
+
+.taxi-card__text {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.taxi-card__text strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.taxi-card__text small {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (hover: none), (max-width: 560px) {
+  .taxi-card {
+    top: 162px;
+  }
+}
+
+.floors {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.floors__bar {
+  overflow: hidden;
+  width: min(320px, 100%);
+  height: 10px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.floors__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--gold), var(--success));
+}
+
+.floors small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.car-row__price {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.car-row .btn + .btn {
+  margin-left: -4px;
 }

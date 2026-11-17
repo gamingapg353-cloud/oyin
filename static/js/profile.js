@@ -227,7 +227,7 @@
     headIcon.append(icon('gamepad'));
     const titles = el('div');
     titles.append(el('h2', '', "Mahalla o'yini"),
-      el('p', '', g ? 'Pul, Ota hovli va mashinalar' : "Hali o'yinga kirmagan"));
+      el('p', '', g ? 'Pul, yerlar, binolar va mashinalar' : "Hali o'yinga kirmagan"));
     head.append(headIcon, titles);
     card.append(head);
     if (!g) return card;
@@ -244,9 +244,11 @@
     };
     grid.append(
       item('coins', 'Pul', `${formatNumber(g.money)} so'm`),
-      item('home', 'Ota hovli', g.house ? `${g.house.name} (${g.house_level}-daraja)` : "Hali yo'q"),
+      item('home', `Yerlar va binolar (${g.buildings.length} ta)`, g.buildings.length
+        ? g.buildings.map((b) => (b.level ? `${b.name} (${b.level} qavat)` : b.name) + (b.home ? ' — Ota hovli' : '')).join(', ')
+        : "Hali yo'q"),
       item('car', 'Mashinalar', g.car_names.length ? g.car_names.join(', ') : "Hali yo'q"),
-      item('clock', 'Daromad', `+${formatNumber(g.rate)} so'm / soat`),
+      item('clock', 'Daromad', `+${String(Math.round(g.rate * 10) / 10).replace('.', ',')} so'm / sek`),
     );
     card.append(grid);
     return card;

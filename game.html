@@ -10,9 +10,12 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="{{ asset('css/main.css') }}">
   <link rel="icon" href="{{ asset('favicon.svg') }}">
+  <script type="importmap">
+    { "imports": { "three": "{{ asset('vendor/three/three.module.js') }}" } }
+  </script>
 </head>
 <body class="page-game">
-  <canvas id="world" aria-label="Mahalla xaritasi"></canvas>
+  <canvas id="world" aria-label="Mahalla — 3D xarita"></canvas>
 
   <!-- Yuqori panel: orqaga, pul, kim o'ynayapti -->
   <header class="hud hud--top">
@@ -21,20 +24,38 @@
       <span class="hud-money__icon">{{ icon('coins', 22) }}</span>
       <div class="hud-money__text">
         <strong><span id="money">0</span> so'm</strong>
-        <small id="rate">+0 so'm / soat</small>
+        <small id="rate">+0 so'm / sek</small>
       </div>
     </div>
     <div class="hud-online" title="Hozir o'yinda">
       {{ icon('users', 18) }} <span id="online-count">1</span>
     </div>
+    <button type="button" class="hud-btn" id="btn-sound" title="Ovozni o'chirish" aria-label="Ovoz" aria-pressed="false">{{ icon('volume') }}</button>
   </header>
 
   <aside class="hud-friends" id="friends" aria-label="O'yindagilar"></aside>
-  <canvas id="minimap" class="minimap" width="240" height="160" aria-label="Kichik xarita"></canvas>
+  <div class="map-backdrop" id="map-backdrop" hidden></div>
+  <canvas id="minimap" class="minimap" width="480" height="240" title="Xarita — bosing yoki M: kattalashtirish" aria-label="Xarita"></canvas>
+
+  <!-- Taksi: yo'lovchi manzili / yo'l ko'rsatkich -->
+  <section class="taxi-card" id="taxi" hidden aria-live="polite">
+    <span class="taxi-card__icon" id="taxi-icon"></span>
+    <div class="taxi-card__text">
+      <strong id="taxi-title"></strong>
+      <small id="taxi-sub"></small>
+    </div>
+    <button type="button" class="icon-btn icon-btn--sm" id="taxi-cancel" aria-label="Bekor qilish">{{ icon('x', 18) }}</button>
+  </section>
+
+  <!-- Yaqin turgan yer / Avtosalon / yo'lovchi -->
+  <button type="button" class="prompt" id="prompt" hidden>
+    <kbd>F</kbd><span id="prompt-text"></span>
+  </button>
 
   <!-- Amallar -->
   <div class="hud-actions">
-    <button type="button" class="action-btn" id="btn-house">{{ icon('home', 22) }}<span>Ota hovli</span></button>
+    <button type="button" class="action-btn" id="btn-horn" hidden>{{ icon('megaphone', 22) }}<span>Signal</span><kbd>H</kbd></button>
+    <button type="button" class="action-btn" id="btn-mine">{{ icon('home', 22) }}<span>Mulklarim</span></button>
     <button type="button" class="action-btn" id="btn-shop">{{ icon('car', 22) }}<span>Avtosalon</span></button>
     <button type="button" class="action-btn action-btn--primary" id="btn-ride">
       <span class="action-btn__icon" id="ride-icon">{{ icon('car', 22) }}</span><span id="ride-label">Mashinaga o'tirish</span><kbd>E</kbd>
@@ -45,16 +66,17 @@
   <div class="dpad" id="dpad" aria-hidden="true">
     <button type="button" class="dpad__btn dpad__btn--up" data-dir="up" tabindex="-1">{{ icon('chevron-up', 28) }}</button>
     <button type="button" class="dpad__btn dpad__btn--left" data-dir="left" tabindex="-1">{{ icon('chevron-left', 28) }}</button>
+    <button type="button" class="dpad__btn dpad__btn--jump" data-jump tabindex="-1" aria-label="Sakrash / uchish">{{ icon('arrow-up', 26) }}</button>
     <button type="button" class="dpad__btn dpad__btn--right" data-dir="right" tabindex="-1">{{ icon('chevron-right', 28) }}</button>
     <button type="button" class="dpad__btn dpad__btn--down" data-dir="down" tabindex="-1">{{ icon('chevron-down', 28) }}</button>
   </div>
 
-  <p class="hud-hint" id="hint">WASD yoki strelkalar — yurish · E — mashinaga o'tirish / tushish · tangalarni tering!</p>
+  <p class="hud-hint" id="hint">WASD — yurish · Probel — sakrash (Teslada — uchish) · E — mashina · F — yer/yo'lovchi · H — signal · M — katta xarita · sichqoncha — kamera</p>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <div class="conn" id="conn" role="alert" hidden>{{ icon('alert', 18) }} Server bilan aloqa uzildi… qayta ulanmoqda</div>
   <div class="loading" id="loading">{{ icon('gamepad', 34) }}<span>Mahalla yuklanmoqda…</span></div>
 
-  <!-- Ota hovli / Avtosalon oynasi -->
+  <!-- Yer / Avtosalon / Mulklarim oynasi -->
   <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
   <section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
     <header class="sheet__head">
@@ -69,13 +91,15 @@
   </section>
 
   <template id="icons">
-    {% for name in ['home', 'car', 'coins', 'check', 'lock', 'star', 'clock', 'footprints', 'trophy', 'alert'] %}
+    {% for name in ['home', 'car', 'coins', 'check', 'lock', 'star', 'clock', 'footprints', 'trophy', 'alert',
+                    'store', 'coffee', 'building', 'map-pin', 'hammer', 'arrow-up', 'trash', 'user',
+                    'volume', 'volume-x', 'navigation', 'plane', 'megaphone'] %}
     <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
     {% endfor %}
   </template>
 
   <script>window.APP = {{ {"role": user.role, "name": user.name}|tojson }};</script>
   <script src="{{ asset('js/common.js') }}"></script>
-  <script src="{{ asset('js/game.js') }}"></script>
+  <script type="module" src="{{ asset('js/game.js') }}"></script>
 </body>
 </html>
