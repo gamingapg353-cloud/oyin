@@ -237,6 +237,7 @@ _quiz_cooldown: dict[str, float] = {}  # player_key -> noto'g'ri javobdan keyin 
 QUIZ_TTL = 600                   # savolga 10 daqiqa ichida javob berish kerak
 
 _passengers: dict[int, dict] = {}  # yo'lovchi id -> {x, y, tx, ty, fare}
+_seats: dict[str, str] = {}      # yo'lovchi -> haydovchi (do'stning mashinasida)
 _rides: dict[str, dict] = {}       # player_key -> olib ketilayotgan yo'lovchi
 _passenger_respawn: list[float] = []
 _next_passenger = 1
@@ -296,7 +297,8 @@ def _ride_json(key: str) -> dict | None:
 def _others(me: str, now: float) -> list[dict]:
     return [
         {"key": key, "name": p["name"], "avatar": p["avatar"], "x": p["x"], "y": p["y"],
-         "h": p.get("h", 0), "dir": p["dir"], "car": p["car"], "taxi": key in _rides}
+         "h": p.get("h", 0), "dir": p["dir"], "car": p["car"], "taxi": key in _rides,
+         "seat": _seats.get(key)}  # kimning mashinasida yo'lovchi bo'lib o'tiribdi
         for key, p in _live.items()
         if key != me and now - p["t"] < ONLINE_SECONDS
     ]
@@ -314,6 +316,7 @@ def forget_player(key: str) -> None:
         _live.pop(key, None)
         _rides.pop(key, None)
         _gifts.pop(key, None)
+        _seats.pop(key, None)
     db = get_db()
     db.execute("DELETE FROM game_players WHERE player_key = ?", (key,))
     db.execute("DELETE FROM game_plots WHERE owner_key = ?", (key,))
@@ -528,26 +531,81 @@ def api_sync():
 
     now = time.time()
     corrected = False
+    seat = None
     with _lock:
         _tick_passengers(now)
         prev = _live.get(key)
-        if prev and now - prev["t"] < 5:
+        driver_key = _seats.get(key)
+        if driver_key:
+            # Do'stning mashinasida: joylashuv — haydovchiniki (o'zi yurmaydi)
+            d = _live_pos(driver_key, now)
+            if d and d["car"] and not _seats.get(driver_key):
+                x, y, direction, car = d["x"], d["y"], d["dir"], None
+                height = d.get("h", 0)
+                seat = {"driver": driver_key, "name": d["name"]}
+            else:
+                _seats.pop(key, None)  # haydovchi tushdi yoki o'yindan chiqdi
+                if d:
+                    x, y = d["x"] + 40, d["y"]
+                corrected = True
+        elif prev and now - prev["t"] < 5:
             # Juda tez "sakrash" bo'lsa — eski joyiga qaytaramiz
             dt = min(now - prev["t"], 1.0)
             speeds = [CARS_BY_ID[c]["speed"] for c in (car, prev["car"]) if c in CARS_BY_ID]
             limit = WALK_SPEED * max(speeds + [1]) * dt * 1.6 + 40
             if math.hypot(x - prev["x"], y - prev["y"]) > limit:
                 x, y, corrected = prev["x"], prev["y"], True
-        _live[key] = {"x": x, "y": y, "h": height if (flying or not car) else 0, "dir": direction,
+        _live[key] = {"x": x, "y": y, "h": height if (flying or not car or seat) else 0, "dir": direction,
                       "car": car, "t": now, "name": user["name"], "avatar": user["avatar"]}
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
         gifts = _gifts.pop(key, [])
 
     response = {"economy": economy_json(db, row), "passengers": passengers, "ride": ride,
-                "players": players, "plots": plots_list(db), "gifts": gifts}
+                "players": players, "plots": plots_list(db), "gifts": gifts, "seat": seat}
     if corrected:
         response["correct"] = {"x": x, "y": y}
     return jsonify(response)
+
+
+# --------------------------------------------------------------------------- #
+#  Do'stning mashinasiga yo'lovchi bo'lib o'tirish
+# --------------------------------------------------------------------------- #
+SEAT_DIST = 120          # mashinaga shuncha yaqin bo'lsa o'tirish mumkin
+SEATS_PER_CAR = 3        # haydovchidan tashqari
+
+
+@bp.post("/api/game/seat")
+@login_required
+def api_seat():
+    key = player_key(current_user())
+    driver = (request.get_json(silent=True) or {}).get("driver")
+    now = time.time()
+    with _lock:
+        me, d = _live_pos(key, now), _live_pos(driver, now) if isinstance(driver, str) else None
+        if driver == key:
+            return jsonify(error="O'z mashinangizga yo'lovchi bo'lib o'tira olmaysiz"), 400
+        if not me:
+            return jsonify(error="Avval o'yinga kiring"), 400
+        if me["car"]:
+            return jsonify(error="Avval o'z mashinangizdan tushing (E)"), 400
+        if not d or not d["car"] or _seats.get(driver):
+            return jsonify(error="Bu odam hozir mashinada emas"), 400
+        if math.hypot(d["x"] - me["x"], d["y"] - me["y"]) > SEAT_DIST + 30:
+            return jsonify(error="Mashinaga yaqinroq boring"), 400
+        if sum(1 for v in _seats.values() if v == driver) >= SEATS_PER_CAR:
+            return jsonify(error="Mashinada joy qolmagan"), 409
+        _seats[key] = driver
+        _rides.pop(key, None)
+    return jsonify(seat={"driver": driver, "name": d["name"]})
+
+
+@bp.post("/api/game/unseat")
+@login_required
+def api_unseat():
+    key = player_key(current_user())
+    with _lock:
+        _seats.pop(key, None)
+    return jsonify(ok=True)
 
 
 # --------------------------------------------------------------------------- #

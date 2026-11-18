@@ -1492,9 +1492,19 @@ import * as THREE from 'three';
       }
       Object.assign(o, {
         tx: p.x, ty: p.y, th: p.h || 0, dir: p.dir, car: p.car, taxi: p.taxi, name: p.name, avatar: p.avatar,
+        seat: p.seat || null,
       });
-      setRigLabel(o.rig, p.name, p.avatar);
     });
+    // Mashinadagi yo'lovchilar soni haydovchi ismi yonida: "Jasur (+2)"
+    const riders = new Map();
+    list.forEach((p) => { if (p.seat) riders.set(p.seat, (riders.get(p.seat) || 0) + 1); });
+    if (me.seat) riders.set(me.seat.driver, (riders.get(me.seat.driver) || 0) + 1);
+    list.forEach((p) => {
+      const n = riders.get(p.key) || 0;
+      setRigLabel(others.get(p.key).rig, n ? `${p.name} (+${n})` : p.name, p.avatar);
+    });
+    const mine = riders.get(me.key) || 0;
+    setRigLabel(me.rig, mine ? `Siz (+${mine})` : 'Siz', me.avatar);
     [...others.keys()].forEach((key) => {
       if (!seen.has(key)) {
         removeRig(others.get(key).rig);
@@ -1547,7 +1557,8 @@ import * as THREE from 'three';
   function updateRideButton() {
     const inCar = Boolean(me && me.car);
     $('ride-icon').replaceChildren(icon(inCar ? 'footprints' : 'car'));
-    $('ride-label').textContent = inCar ? 'Piyoda yurish' : "Mashinaga o'tirish";
+    $('ride-label').textContent = me && me.seat ? 'Mashinadan tushish' : (inCar ? 'Piyoda yurish' : "Mashinaga o'tirish");
+    if (me && me.seat) $('ride-icon').replaceChildren(icon('footprints'));
     $('btn-horn').hidden = !inCar;
     if (!inCar) taxiOn = false;
     const yandex = $('btn-yandex');
@@ -1587,8 +1598,44 @@ import * as THREE from 'three';
     return true;
   }
 
+  // Do'stning mashinasiga yo'lovchi bo'lib o'tirish / tushish
+  async function seatIn(driverKey) {
+    try {
+      const data = await api('/api/game/seat', { method: 'POST', body: { driver: driverKey } });
+      localVersion += 1;
+      me.seat = data.seat;
+      releaseAll();
+      sound.door();
+      updateRideButton();
+      toast(`${data.seat.name}ning mashinasidasiz. Tushish — E`, 'success');
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+
+  async function seatOut() {
+    const name = me.seat ? me.seat.name : '';
+    me.seat = null;
+    localVersion += 1;
+    me.x = clamp(me.x + 40, 20, world.w - 20); // mashina yoniga tushamiz
+    me.h = 0;
+    me.vh = 0;
+    sound.door();
+    updateRideButton();
+    toast(`${name}ning mashinasidan tushdingiz`);
+    try {
+      await api('/api/game/unseat', { method: 'POST' });
+    } catch (err) {
+      handleAuthError(err);
+    }
+  }
+
   function toggleRide() {
     if (!me) return;
+    if (me.seat) {
+      seatOut();
+      return;
+    }
     if (me.car) {
       if (setCar(null)) toast(ride ? "Piyodasiz. Yo'lovchi mashinada kutyapti" : 'Endi piyodasiz');
       return;
@@ -1633,6 +1680,22 @@ import * as THREE from 'three';
   }
 
   function step(dt) {
+    if (me.seat) {
+      // Do'stning mashinasida: haydovchi bilan birga yuramiz, o'zimiz ko'rinmaymiz
+      const d = others.get(me.seat.driver);
+      if (d) {
+        me.x = d.x;
+        me.y = d.y;
+        me.h = d.h || 0;
+        me.dir = d.dir;
+      }
+      me.moving = false;
+      me.throttle = 0;
+      me.rig.root.visible = false;
+      stepOthers(dt);
+      return;
+    }
+    me.rig.root.visible = true;
     let ix = 0;
     let iy = 0;
     if (!sheetState) {
@@ -1686,8 +1749,11 @@ import * as THREE from 'three';
       if (me.h === 0) me.vh = 0;
     }
     updateRig(me.rig, me, dt, me.moving);
+    stepOthers(dt);
+  }
 
-    // Do'stlar silliq harakatlanadi
+  // Do'stlar silliq harakatlanadi (yo'lovchi bo'lib o'tirganlar ko'rinmaydi)
+  function stepOthers(dt) {
     const k = Math.min(1, dt * 10);
     others.forEach((p) => {
       const ox = p.x;
@@ -1695,6 +1761,7 @@ import * as THREE from 'three';
       p.x += (p.tx - p.x) * k;
       p.y += (p.ty - p.y) * k;
       p.h = (p.h || 0) + ((p.th || 0) - (p.h || 0)) * Math.min(1, dt * 14);
+      p.rig.root.visible = !p.seat;
       updateRig(p.rig, p, dt, Math.hypot(p.x - ox, p.y - oy) > 0.2);
     });
   }
@@ -1724,7 +1791,8 @@ import * as THREE from 'three';
   let camReady = false;
   function updateCamera(dt) {
     const car = carInfo();
-    const lift = car && car.flies ? me.h : 0; // uchganda kamera ham ko'tariladi (sakrashda emas)
+    // uchganda kamera ham ko'tariladi (sakrashda emas); do'stning uchayotgan mashinasida ham
+    const lift = (car && car.flies) || me.seat ? me.h : 0;
     const target = new THREE.Vector3(me.x, 24 + lift, me.y);
     const horiz = Math.cos(cam.pitch) * cam.dist;
     const want = new THREE.Vector3(
@@ -1770,8 +1838,21 @@ import * as THREE from 'three';
       toast(`Yetib keldingiz: ${guide.label}`, 'success');
       setGuide();
     }
+    if (me.seat) {
+      nearTarget = null;
+      $('prompt').hidden = true;
+      return;
+    }
     let best = null;
-    if (me.car && taxiOn && !ride) {
+    if (!me.car && me.h < 40) {
+      // Do'stning mashinasi yonida — unga o'tirish
+      others.forEach((p, key) => {
+        if (!p.car || p.seat) return;
+        const d = Math.hypot(p.x - me.x, p.y - me.y);
+        if (d < 110 && (!best || d < best.d)) best = { kind: 'seat', key, name: p.name, d };
+      });
+    }
+    if (!best && me.car && taxiOn && !ride) {
       const n = nearestPassenger();
       if (n && n.d < catalog.taxi_pick_dist) best = { kind: 'passenger', id: n.id, d: n.d };
     }
@@ -1792,7 +1873,9 @@ import * as THREE from 'three';
       return;
     }
     let text = 'Avtosalon — mashina sotib olish';
-    if (best.kind === 'passenger') {
+    if (best.kind === 'seat') {
+      text = `${best.name}ning mashinasiga o'tirish`;
+    } else if (best.kind === 'passenger') {
       const p = passengers.get(best.id);
       text = `Yo'lovchini olish — ${formatNumber(p.fare * carInfo().fare)} so'm`;
     } else if (best.kind === 'plot') {
@@ -1808,7 +1891,8 @@ import * as THREE from 'three';
 
   function interact() {
     if (!nearTarget) return;
-    if (nearTarget.kind === 'passenger') pickup(nearTarget.id, true);
+    if (nearTarget.kind === 'seat') seatIn(nearTarget.key);
+    else if (nearTarget.kind === 'passenger') pickup(nearTarget.id, true);
     else if (nearTarget.kind === 'shop') openSheet({ kind: 'shop' });
     else openSheet({ kind: 'plot', id: nearTarget.id });
   }
@@ -2490,7 +2574,7 @@ import * as THREE from 'three';
   }
 
   function jump() {
-    if (!me || sheetState) return;
+    if (!me || sheetState || me.seat) return;
     if (me.car) {
       toggleFly(); // Teslada — uchish/qo'nish
       return;
@@ -2713,6 +2797,13 @@ import * as THREE from 'three';
       setEconomy(data.economy);
       setPassengers(data.passengers);
       setRide(data.ride);
+      if (data.seat) me.seat = data.seat;
+      else if (me.seat) {
+        // Haydovchi mashinadan tushdi yoki o'yindan chiqdi
+        toast(`${me.seat.name} mashinadan tushdi — siz ham tushdingiz`);
+        me.seat = null;
+        updateRideButton();
+      }
     }
     setPlayers(data.players);
     // Kimdir pul bergan bo'lsa — xabar
@@ -2796,7 +2887,7 @@ import * as THREE from 'three';
       offlineCap = s.offline_cap_hours;
       me = {
         ...s.me, x: s.me.spawn.x, y: s.me.spawn.y, h: 0, vh: 0, dir: -Math.PI / 2, car: null,
-        moving: false, fly: false, throttle: 0, taxi: false,
+        moving: false, fly: false, throttle: 0, taxi: false, seat: null,
       };
       me.rig = makeRig(me.name, me.avatar, true);
 
