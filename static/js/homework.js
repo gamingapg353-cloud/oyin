@@ -72,7 +72,20 @@
       + "(papka ustida o'ng tugma → «Отправить» / «Send to» → «Сжатая ZIP-папка») yoki ichidagi fayllarni tanlang.";
   }
 
-  function taskFiles(hw) {
+  // Vazifa havolasi (masalan, Figma maketi) — yangi oynada ochiladi
+  function taskLink(hw) {
+    if (!hw.link || !/^https?:\/\//i.test(hw.link)) return document.createDocumentFragment();
+    const a = el('a', 'btn btn--ghost hw__link');
+    a.href = hw.link;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    let host = '';
+    try { host = new URL(hw.link).hostname.replace(/^www\./, ''); } catch { /* e'tiborsiz */ }
+    a.append(icon('link'), el('span', '', host.includes('figma.com') ? 'Figma maketini ochish' : `Havolani ochish (${host})`));
+    return a;
+  }
+
+    function taskFiles(hw) {
     if (!hw.files || !hw.files.length) return document.createDocumentFragment();
     const wrap = el('div', 'task-files');
     wrap.append(el('small', '', 'Vazifa fayli:'));
@@ -258,7 +271,7 @@
     const card = el('article', 'card hw');
     card.append(homeworkHead(hw, formatDate(hw.created_at), statusBadge(sub)));
     if (hw.description) card.append(el('p', 'hw__desc', hw.description));
-    card.append(taskFiles(hw));
+    card.append(taskLink(hw), taskFiles(hw));
 
     if (sub && sub.status !== 'error') {
       const result = el('div', 'result');
@@ -365,7 +378,7 @@
     const del = iconButton('trash', "Vazifani o'chirish", 'icon-btn--sm icon-btn--danger');
     card.append(homeworkHead(hw, `${formatDate(hw.created_at)} · ${hw.submission_count} ta topshirildi`, del));
     if (hw.description) card.append(el('p', 'hw__desc', hw.description));
-    card.append(taskFiles(hw));
+    card.append(taskLink(hw), taskFiles(hw));
 
     const toggle = textButton('chevron-down', `Topshiriqlar (${hw.submission_count})`, 'btn btn--ghost hw__toggle');
     const subs = el('div', 'subs');
@@ -463,6 +476,14 @@
       const data = new FormData();
       data.append('title', title);
       data.append('description', description);
+      const link = form.elements.link ? form.elements.link.value.trim() : '';
+      if (link && !/^https?:\/\/\S+$/i.test(link)) {
+        errorEl.textContent = "Havola https:// bilan boshlansin (masalan, Figma linki)";
+        errorEl.hidden = false;
+        form.elements.link.focus();
+        return;
+      }
+      if (link) data.append('link', link);
       [...fileInput.files].forEach((file) => data.append('files', file));
       submitBtn.disabled = true;
       try {

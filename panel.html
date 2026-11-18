@@ -143,6 +143,14 @@
             </div>
 
             <div class="field">
+              <label class="field__label" for="hw-link">Havola <span class="optional">(ixtiyoriy — masalan, Figma maketi)</span></label>
+              <div class="input">
+                {{ icon('link', 18) }}
+                <input id="hw-link" name="link" type="url" inputmode="url" placeholder="https://www.figma.com/design/..." maxlength="500" autocomplete="off">
+              </div>
+            </div>
+
+            <div class="field">
               <span class="field__label">Vazifa fayli <span class="optional">(ixtiyoriy)</span></span>
               <label class="dropzone dropzone--compact">
                 <input class="dropzone__input" type="file" name="files" multiple accept="{{ accept }}">
@@ -360,7 +368,7 @@
   <!-- JS ishlatadigan ikonkalar -->
   <template id="icons">
     {% for name in ['medal', 'trash', 'book', 'upload', 'download', 'file', 'bot', 'refresh', 'alert', 'check', 'clock', 'chevron-down', 'send', 'star', 'camera', 'calendar', 'target', 'home', 'car', 'coins', 'lock', 'user', 'trophy', 'gamepad',
-                  'target', 'x', 'sparkles', 'plus', 'arrow-left'] %}
+                  'target', 'x', 'sparkles', 'plus', 'arrow-left', 'link'] %}
     <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
     {% endfor %}
   </template>

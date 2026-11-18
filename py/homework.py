@@ -1,6 +1,7 @@
 """Uy vazifa: owner vazifa beradi, foydalanuvchi bajarib fayl qilib yuklaydi, AI tekshirib ball qo'yadi."""
 import json
 import shutil
+from urllib.parse import urlparse
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
@@ -15,6 +16,7 @@ bp = Blueprint("homework", __name__)
 MAX_FILES = 10
 MAX_TITLE = 120
 MAX_DESCRIPTION = 4000
+MAX_LINK = 500
 
 
 # --------------------------------------------------------------------------- #
@@ -68,6 +70,7 @@ def save_files(folder: Path, files) -> None:
 
 def homework_json(row) -> dict:
     return {"id": row["id"], "title": row["title"], "description": row["description"],
+            "link": row["link"] if "link" in row.keys() else "",
             "files": json.loads(row["files"] or "[]"), "created_at": row["created_at"]}
 
 
@@ -105,7 +108,7 @@ def run_check(sub_id: int) -> None:
     """Topshiriqni AI bilan tekshiradi va natijani bazaga yozadi."""
     db = get_db()
     row = db.execute(
-        "SELECT s.files, h.id AS hw_id, h.title, h.description, h.files AS hw_files FROM submissions s "
+        "SELECT s.files, h.id AS hw_id, h.title, h.description, h.link, h.files AS hw_files FROM submissions s "
         "JOIN homeworks h ON h.id = s.homework_id WHERE s.id = ?", (sub_id,)
     ).fetchone()
     if row is None:
@@ -124,7 +127,10 @@ def run_check(sub_id: int) -> None:
                   for name in json.loads(row["hw_files"] or "[]")
                   if (homework_dir(row["hw_id"]) / name).is_file()]
     try:
-        grade = ai_check.check(row["title"], row["description"], files, task_files)
+        description = row["description"]
+        if row["link"]:
+            description += f"\n\nMaket havolasi (o'quvchi shu maket bo'yicha ishlagan): {row['link']}"
+        grade = ai_check.check(row["title"], description, files, task_files)
     except (ai_check.AICheckError, ai_check.FileError) as err:
         db.execute("UPDATE submissions SET status = 'error', error = ? WHERE id = ?", (str(err), sub_id))
         db.commit()
@@ -178,14 +184,20 @@ def create_homework():
         return jsonify(error="Vazifa nomini yozing"), 400
     if len(title) > MAX_TITLE or len(description) > MAX_DESCRIPTION:
         return jsonify(error=f"Nomi {MAX_TITLE}, tavsifi {MAX_DESCRIPTION} belgidan oshmasin"), 400
+    # Havola (masalan, Figma maketi) — faqat http(s), boshqa sxemalar (javascript: va h.k.) xavfli
+    link = text_field(data, "link")
+    if link:
+        parsed = urlparse(link)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc or len(link) > MAX_LINK or any(c.isspace() for c in link):
+            return jsonify(error="Havola https:// bilan boshlanadigan to'g'ri manzil bo'lsin (masalan, Figma linki)"), 400
     files, error = read_uploads("files")
     if error:
         return error
 
     db = get_db()
     cur = db.execute(
-        "INSERT INTO homeworks (title, description, files, created_at) VALUES (?, ?, ?, ?)",
-        (title, description, json.dumps([name for name, _ in files]), now_iso()),
+        "INSERT INTO homeworks (title, description, link, files, created_at) VALUES (?, ?, ?, ?, ?)",
+        (title, description, link, json.dumps([name for name, _ in files]), now_iso()),
     )
     hw_id = cur.lastrowid
     if files:

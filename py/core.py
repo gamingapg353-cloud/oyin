@@ -185,6 +185,8 @@ def init_db() -> None:
         hw_columns = {row[1] for row in db.execute("PRAGMA table_info(homeworks)")}
         if "files" not in hw_columns:
             db.execute("ALTER TABLE homeworks ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
+        if "link" not in hw_columns:  # vazifa havolasi (masalan, Figma maketi)
+            db.execute("ALTER TABLE homeworks ADD COLUMN link TEXT NOT NULL DEFAULT ''")
         sub_columns = {row[1] for row in db.execute("PRAGMA table_info(submissions)")}
         if "mistakes" not in sub_columns:
             db.execute("ALTER TABLE submissions ADD COLUMN mistakes TEXT")

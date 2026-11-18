@@ -954,6 +954,17 @@ a {
   overflow-wrap: anywhere;
 }
 
+.hw__link {
+  justify-self: start;
+  max-width: 100%;
+}
+
+.hw__link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .hw__toggle {
   justify-self: start;
 }

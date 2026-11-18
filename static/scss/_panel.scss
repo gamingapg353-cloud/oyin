@@ -358,6 +358,18 @@
     overflow-wrap: anywhere;
   }
 
+  // Figma maketi va boshqa havolalar
+  &__link {
+    justify-self: start;
+    max-width: 100%;
+
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
   &__toggle {
     justify-self: start;
 
