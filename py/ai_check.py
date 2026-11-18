@@ -266,38 +266,46 @@ def check(title: str, description: str, files: list[tuple[str, bytes]],
     if config.AI_THINKING:  # o'ylash darajasi: past bo'lsa tezroq javob beradi
         options["thinking_config"] = types.ThinkingConfig(thinking_level=config.AI_THINKING.upper())
 
-    # Server band bo'lsa (429/500/503/504) o'zi 5 martagacha, tobora uzoqroq kutib qayta urinadi
+    # Server band bo'lsa (429/500/503/504) har model 2 marta urinadi; baribir band bo'lsa — zaxira modelga o'tamiz
     client = genai.Client(api_key=key, http_options=types.HttpOptions(
         timeout=120_000,
-        retry_options=types.HttpRetryOptions(attempts=5, initial_delay=3.0, max_delay=30.0,
+        retry_options=types.HttpRetryOptions(attempts=2, initial_delay=2.0, max_delay=10.0,
                                              http_status_codes=[429, 500, 502, 503, 504]),
     ))
-    try:
-        response = client.models.generate_content(
-            model=config.AI_MODEL,
-            contents=_to_parts(blocks),
-            config=types.GenerateContentConfig(**options),
-        )
-    except genai_errors.ClientError as err:
-        message = (err.message or "").lower()
-        if err.code in (401, 403) or "api key" in message or "api_key" in message:
-            raise AICheckError("API kalit noto'g'ri. .env faylidagi GEMINI_API_KEY ni tekshiring.") from None
-        if err.code == 429:
-            raise AICheckError("AI limiti tugadi yoki so'rovlar juda ko'p. Birozdan keyin «Qayta tekshirish»ni bosing.",
-                               transient=True) from None
-        if err.code == 404:
-            raise AICheckError(f"«{config.AI_MODEL}» modeli topilmadi. py/config.py dagi AI_MODEL ni tekshiring.") from None
-        raise AICheckError(f"AI so'rovni qabul qilmadi ({err.code}): {err.message}") from None
-    except genai_errors.ServerError as err:
-        raise AICheckError(f"Gemini serveri hozir band ({err.code}). Birozdan keyin «Qayta tekshirish»ni bosing — "
-                           "faylni qayta yuklash shart emas.", transient=True) from None
-    except genai_errors.APIError as err:
-        raise AICheckError(f"AI xatosi ({err.code}). Birozdan keyin «Qayta tekshirish»ni bosing.", transient=True) from None
-    except Exception as err:  # internet yo'q, vaqt tugadi va h.k.
-        raise AICheckError(
-            f"AI serveriga ulanib bo'lmadi ({type(err).__name__}). Birozdan keyin «Qayta tekshirish»ni bosing.",
-            transient=True,
-        ) from None
+    models = [config.AI_MODEL] + [m for m in getattr(config, "AI_FALLBACK_MODELS", []) if m != config.AI_MODEL]
+    response = None
+    last_busy = None
+    for model in models:
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=_to_parts(blocks),
+                config=types.GenerateContentConfig(**options),
+            )
+            break
+        except genai_errors.ClientError as err:
+            message = (err.message or "").lower()
+            if err.code in (401, 403) or "api key" in message or "api_key" in message:
+                raise AICheckError("API kalit noto'g'ri. .env faylidagi GEMINI_API_KEY ni tekshiring.") from None
+            if err.code in (404, 429):
+                last_busy = err  # model yo'q yoki limiti tugagan — keyingisini sinaymiz
+                continue
+            raise AICheckError(f"AI so'rovni qabul qilmadi ({err.code}): {err.message}") from None
+        except genai_errors.ServerError as err:
+            last_busy = err  # bu model band — keyingisini sinaymiz
+            continue
+        except genai_errors.APIError as err:
+            raise AICheckError(f"AI xatosi ({err.code}). Birozdan keyin «Qayta tekshirish»ni bosing.", transient=True) from None
+        except Exception as err:  # internet yo'q, vaqt tugadi va h.k.
+            raise AICheckError(
+                f"AI serveriga ulanib bo'lmadi ({type(err).__name__}). Birozdan keyin «Qayta tekshirish»ni bosing.",
+                transient=True,
+            ) from None
+    if response is None:
+        code = getattr(last_busy, "code", "?")
+        raise AICheckError(f"Gemini serverlari hozir band ({code}) — barcha {len(models)} model sinab ko'rildi. "
+                           "Birozdan keyin «Qayta tekshirish»ni bosing — faylni qayta yuklash shart emas.",
+                           transient=True)
 
     feedback = getattr(response, "prompt_feedback", None)
     if feedback is not None and getattr(feedback, "block_reason", None):

@@ -40,6 +40,8 @@ PORT = 5000
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 AI_MODEL = "gemini-3.8-flash"
+# Asosiy model band (503) yoki topilmasa — navbat bilan shular sinaladi
+AI_FALLBACK_MODELS = ["gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
 AI_THINKING = "low"        # qanchalik chuqur o'ylaydi: minimal | low | medium | high (past = tezroq)
 AI_THRESHOLD = 70          # "AI yasagan" ehtimoli shu foizdan yuqori bo'lsa — jarima
 AI_PENALTY = 5             # AI ishlatgan o'quvchidan shuncha ball ayiriladi (ball = -5)
