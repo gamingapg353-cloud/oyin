@@ -28,6 +28,7 @@ bp = Blueprint("game", __name__)
 #  Iqtisod
 # --------------------------------------------------------------------------- #
 START_MONEY = 75000         # yangi o'yinchi puli (BMW + birinchi uyga yetadi)
+OWNER_MONEY = float(10 ** 32)  # owner puli (100000000000000000000000000000000) — tugamaydi (REAL ustun)
 OFFLINE_CAP_HOURS = 24      # o'yinga kirmasangiz ham shuncha soatgacha daromad yig'iladi
 LAND_PRICE = 25000          # qo'shimcha bo'sh yer narxi (Ota hovli — bepul)
 QUIZ_COOLDOWN = 15          # noto'g'ri javobdan keyin yangi savolgacha kutish (soniya)
@@ -353,6 +354,12 @@ def money_now(row, rate: float, now: float | None = None) -> float:
 def ensure_player(db, key: str):
     row = db.execute("SELECT * FROM game_players WHERE player_key = ?", (key,)).fetchone()
     if row:
+        if key == "owner" and row["money"] < OWNER_MONEY / 2:
+            # Owner puli tugamaydi: kamayib ketsa yana to'ldiriladi
+            with _econ_lock:
+                db.execute("UPDATE game_players SET money = ? WHERE player_key = 'owner'", (OWNER_MONEY,))
+                db.commit()
+            row = db.execute("SELECT * FROM game_players WHERE player_key = ?", (key,)).fetchone()
         return row
     with _econ_lock:
         # Yangi o'yinchiga bitta bo'sh yer — Ota hovli (bepul)
@@ -361,7 +368,7 @@ def ensure_player(db, key: str):
         now = time.time()
         cur = db.execute(
             "INSERT OR IGNORE INTO game_players (player_key, money, income_at, plot) VALUES (?, ?, ?, ?)",
-            (key, START_MONEY, now, home),
+            (key, OWNER_MONEY if key == "owner" else START_MONEY, now, home),
         )
         if cur.rowcount and home is not None:
             db.execute(
