@@ -84,7 +84,7 @@ Kalit bo'lmasa ham sayt ishlaydi — topshiriqlarni owner o'zi baholaydi.
   Qavat narxi **40 000 so'mdan** boshlanadi, eng yuqori qavat — **300 000 so'm**.
   10, 30, 60 va 100 qavatda tomida yangi bezaklar paydo bo'ladi (antenna, vertolyot maydoni, oltin toj).
 - **Yangi qavat qo'shish uchun HTML/CSS savoliga to'g'ri javob berish kerak** (50 ta savol, `py/quiz.py`).
-  Noto'g'ri javob bo'lsa pul yechilmaydi, to'g'ri javob va tushuntirish ko'rsatiladi, 15 soniyadan keyin yangi savol.
+  Noto'g'ri javob bo'lsa pul yechilmaydi, to'g'ri javob va tushuntirish ko'rsatiladi, 8 soniyadan keyin yangi savol.
 - **Sotish**: uyingizga narx qo'yib sotuvga chiqarasiz — uni boshqa o'yinchi sotib oladi va pul sizga tushadi.
   Owner istalgan uyni sotuvga qo'ya oladi (pul uy egasiga tushadi). Owner qavatlarni savolsiz qo'shadi.
 - **Avtosalon** — mashinalar faqat Avtosalonning o'zida sotiladi: BMW M5, Mercedes G-Class,
