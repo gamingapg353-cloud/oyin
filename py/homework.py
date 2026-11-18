@@ -298,8 +298,9 @@ def download_file(sub_id: int, index: int):
 def grade_submission(sub_id: int):
     data = request.get_json(silent=True) or {}
     score = data.get("score")
-    if isinstance(score, bool) or not isinstance(score, int) or not 0 <= score <= config.HOMEWORK_MAX_SCORE:
-        return jsonify(error=f"Ball 0 dan {config.HOMEWORK_MAX_SCORE} gacha bo'lsin"), 400
+    if (isinstance(score, bool) or not isinstance(score, int)
+            or not config.HOMEWORK_MIN_SCORE <= score <= config.HOMEWORK_MAX_SCORE):
+        return jsonify(error=f"Ball {config.HOMEWORK_MIN_SCORE} dan {config.HOMEWORK_MAX_SCORE} gacha bo'lsin"), 400
 
     db = get_db()
     cur = db.execute(
@@ -321,6 +322,23 @@ def recheck_submission(sub_id: int):
         return jsonify(error="AI kaliti qo'yilmagan (.env faylida GEMINI_API_KEY=...)"), 400
     run_check(sub_id)
     return jsonify(submission=submission_json(load_submission(sub_id), for_owner=True))
+
+
+@bp.post("/api/submissions/<int:sub_id>/retry")
+@login_required
+def retry_submission(sub_id: int):
+    """AI tekshira olmagan (xato bo'lgan) ishni qayta tekshirish — faylni qayta yuklamasdan.
+    O'quvchi faqat o'z ishini, owner — har qandayini."""
+    user = current_user()
+    sub = load_submission(sub_id)
+    if sub is None or (user["role"] != "owner" and sub["user_id"] != user.get("id")):
+        return jsonify(error="Topilmadi"), 404
+    if sub["status"] != "error":
+        return jsonify(error="Bu ish allaqachon tekshirilgan"), 400
+    if not ai_check.ai_enabled():
+        return jsonify(error="AI tekshiruvi o'chiq"), 400
+    run_check(sub_id)
+    return jsonify(submission=submission_json(load_submission(sub_id), for_owner=user["role"] == "owner"))
 
 
 @bp.delete("/api/submissions/<int:sub_id>")

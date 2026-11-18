@@ -44,3 +44,4 @@ AI_THINKING = "low"        # qanchalik chuqur o'ylaydi: minimal | low | medium |
 AI_THRESHOLD = 70          # "AI yasagan" ehtimoli shu foizdan yuqori bo'lsa — jarima
 AI_PENALTY = 5             # AI ishlatgan o'quvchidan shuncha ball ayiriladi (ball = -5)
 HOMEWORK_MAX_SCORE = 5     # bitta uy vazifa uchun eng ko'p ball
+HOMEWORK_MIN_SCORE = -5    # xato ish uchun eng past (minus) ball

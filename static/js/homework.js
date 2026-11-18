@@ -97,8 +97,23 @@
       const msg = el('p', 'sub__msg sub__msg--error');
       msg.append(icon('alert'), el('span', '', isOwner
         ? `AI tekshira olmadi: ${sub.error || 'noma’lum xato'}`
-        : `Tekshirishda xato bo'ldi: ${sub.error || 'noma’lum xato'}. Faylni qaytadan yuboring.`));
+        : `Tekshirishda xato bo'ldi: ${sub.error || 'noma’lum xato'}`));
       frag.append(msg);
+      if (!isOwner && APP.aiEnabled) {
+        // Fayl saqlangan — qayta yuklamasdan qayta tekshirish
+        const retry = textButton('refresh', 'Qayta tekshirish', 'btn btn--primary');
+        retry.addEventListener('click', async () => {
+          retry.disabled = true;
+          retry.querySelector('span').textContent = 'AI tekshirmoqda… (1–3 daqiqa)';
+          try {
+            await api(`/api/submissions/${sub.id}/retry`, { method: 'POST' });
+          } catch (err) {
+            if (handleAuthError(err)) return;
+          }
+          await load();
+        });
+        frag.append(retry);
+      }
       return frag;
     }
     if (sub.status === 'pending') {
@@ -275,7 +290,8 @@
     const actions = el('div', 'sub__actions');
     const select = el('select', 'mini-select');
     select.setAttribute('aria-label', 'Ball');
-    for (let i = 0; i <= maxScore; i += 1) select.append(new Option(`${i} ball`, i));
+    // Xato ish uchun minus ball ham qo'yish mumkin
+    for (let i = maxScore; i >= -maxScore; i -= 1) select.append(new Option(`${i > 0 ? '+' : ''}${i} ball`, i));
     select.value = String(sub.score);
     const saveBtn = textButton('check', 'Bahoni saqlash', 'btn btn--ghost');
     actions.append(select, saveBtn);
