@@ -78,6 +78,13 @@ import * as THREE from 'three';
 
   const plotTitle = (id) => `Yer №${id + 1}`;
   const kindName = (kind) => (buildingsById[kind] ? buildingsById[kind].name : "Bo'sh yer");
+  // Bino nomi: variant bo'lsa — uning nomi (Gadjet do'kon), bo'lmasa — tur nomi (Magazin)
+  function bName(kind, variant) {
+    const b = buildingsById[kind];
+    if (!b) return "Bo'sh yer";
+    const v = (b.variants || []).find((x) => x.id === variant);
+    return v ? v.name : b.name;
+  }
   const myPlotIds = () => (economy ? economy.plots.map((p) => p.plot) : []);
   const plotGate = (p) => ({ x: p.x + p.w / 2, y: p.gate === 'bottom' ? p.y + p.h + 40 : p.y - 40 });
   const carInfo = () => (me && me.car ? carsById[me.car] : null);
@@ -682,12 +689,37 @@ import * as THREE from 'three';
   // 1-qavat — turiga xos (hovli uy, do'kon, kafe, ofis vestibyuli), qolgan qavatlar — ustidagi minora
   const GROUND_H = { uy: 32, magazin: 40, kafe: 40, ofis: 26 };
   const TOWER = { uy: [110, 70], magazin: [108, 68], kafe: [96, 62], ofis: [100, 80] };
-  const WALLS = {
-    uy: { wall: '#e8b48f', frame: '#fff7ed', glass: '#8fd3ff' },
-    magazin: { wall: '#e5e7eb', frame: '#94a3b8', glass: '#93c5fd' },
-    kafe: { wall: '#fde68a', frame: '#92400e', glass: '#7dd3fc' },
-    ofis: { wall: '#1e3a5f', frame: '#0f172a', glass: '#8fd3ff', curtain: true },
+  // Har bir variantning ko'rinishi: devor, tom, minora (qavatlar) ranglari, peshtaxta yozuvi
+  const STYLES = {
+    uy: {
+      hovli: { wall: '#d97757', roof: '#9f2d20', base: '#b45309', tower: '#e8b48f', frame: '#fff7ed', glass: '#8fd3ff' },
+      kottej: { wall: '#a16207', roof: '#3f2a14', base: '#854d0e', tower: '#c08a4f', frame: '#fef3c7', glass: '#a5f3fc' },
+      villa: { wall: '#f8fafc', roof: '#0ea5e9', base: '#e2e8f0', tower: '#f1f5f9', frame: '#cbd5e1', glass: '#7dd3fc' },
+      zamonaviy: { wall: '#6b7280', roof: '#1f2937', base: '#4b5563', tower: '#9ca3af', frame: '#111827', glass: '#bae6fd' },
+    },
+    magazin: {
+      gadjet: { wall: '#1e293b', sign: 'GADJET', signBg: '#2563eb', signFg: '#ffffff', awnA: '#2563eb', awnB: '#0f172a', tower: '#334155', frame: '#0f172a', glass: '#60a5fa' },
+      oziq: { wall: '#f3f4f6', sign: 'OZIQ-OVQAT', signBg: '#15803d', signFg: '#ffffff', awnA: '#16a34a', awnB: '#f0fdf4', tower: '#e5e7eb', frame: '#94a3b8', glass: '#93c5fd' },
+      kiyim: { wall: '#fdf2f8', sign: 'KIYIM', signBg: '#db2777', signFg: '#ffffff', awnA: '#db2777', awnB: '#fdf2f8', tower: '#fce7f3', frame: '#be185d', glass: '#f9a8d4' },
+      gul: { wall: '#faf5ff', sign: 'GULLAR', signBg: '#7c3aed', signFg: '#ffffff', awnA: '#7c3aed', awnB: '#f5f3ff', tower: '#ede9fe', frame: '#6d28d9', glass: '#c4b5fd', flowers: true },
+    },
+    kafe: {
+      kofe: { wall: '#fde68a', sign: 'KOFE', signBg: '#7c2d12', signFg: '#fde68a', awnA: '#dc2626', awnB: '#fff7ed', tower: '#fde68a', frame: '#92400e', glass: '#7dd3fc', umbrella: '#dc2626' },
+      pizza: { wall: '#fef2f2', sign: 'PIZZA', signBg: '#b91c1c', signFg: '#ffffff', awnA: '#16a34a', awnB: '#ffffff', tower: '#fecaca', frame: '#991b1b', glass: '#fca5a5', umbrella: '#16a34a' },
+      burger: { wall: '#fff7ed', sign: 'BURGER', signBg: '#ea580c', signFg: '#ffffff', awnA: '#facc15', awnB: '#ea580c', tower: '#fed7aa', frame: '#c2410c', glass: '#fdba74', umbrella: '#facc15' },
+      choyxona: { wall: '#ecfeff', sign: 'CHOYXONA', signBg: '#0f766e', signFg: '#ffffff', awnA: '#0f766e', awnB: '#ffffff', tower: '#ccfbf1', frame: '#115e59', glass: '#5eead4', umbrella: '#0f766e' },
+    },
+    ofis: {
+      it: { lobby: '#334155', sign: 'IT PARK', bigSign: 'BIZNES MARKAZ', signBg: '#0f172a', signFg: '#93c5fd', tower: '#1e3a5f', frame: '#0f172a', glass: '#8fd3ff', curtain: true },
+      bank: { lobby: '#422006', sign: 'BANK', signBg: '#1e3a8a', signFg: '#facc15', tower: '#1e3a8a', frame: '#0f172a', glass: '#fde68a', curtain: true },
+      klinika: { lobby: '#e2e8f0', sign: 'KLINIKA', signBg: '#ffffff', signFg: '#dc2626', tower: '#f1f5f9', frame: '#cbd5e1', glass: '#bae6fd', curtain: true, cross: true },
+      markaz: { lobby: '#14532d', sign: "O'QUV MARKAZI", signBg: '#166534', signFg: '#ffffff', tower: '#14532d', frame: '#052e16', glass: '#bbf7d0', curtain: true },
+    },
   };
+  function styleOf(kind, variant) {
+    const set = STYLES[kind] || STYLES.uy;
+    return set[variant] || set[Object.keys(set)[0]];
+  }
 
   // Bino balandligi (uchadigan mashina undan baland uchishi kerak)
   function buildingTop(kind, level) {
@@ -696,25 +728,25 @@ import * as THREE from 'three';
     return GROUND_H[kind] + 4 + (level - 1) * FLOOR_H + 40;
   }
 
-  const windowTextures = {};
-  function windowTexture(kind) {
-    if (windowTextures[kind]) return windowTextures[kind];
-    const s = WALLS[kind];
+  const windowTextures = new Map();
+  function windowTexture(st) {
+    const key = `${st.tower}|${st.frame}|${st.glass}|${st.curtain ? 1 : 0}`;
+    if (windowTextures.has(key)) return windowTextures.get(key);
     const c = document.createElement('canvas');
     c.width = 64;
     c.height = 64;
     const x = c.getContext('2d');
-    x.fillStyle = s.wall;
+    x.fillStyle = st.tower;
     x.fillRect(0, 0, 64, 64);
-    if (s.curtain) {
-      x.fillStyle = s.glass;
+    if (st.curtain) {
+      x.fillStyle = st.glass;
       x.fillRect(4, 6, 56, 48);
       x.fillStyle = 'rgba(255,255,255,.35)';
       x.fillRect(6, 8, 14, 44);
     } else {
-      x.fillStyle = s.frame;
+      x.fillStyle = st.frame;
       x.fillRect(14, 12, 36, 38);
-      x.fillStyle = s.glass;
+      x.fillStyle = st.glass;
       x.fillRect(17, 15, 30, 32);
       x.fillStyle = 'rgba(255,255,255,.4)';
       x.fillRect(19, 17, 8, 28);
@@ -726,29 +758,28 @@ import * as THREE from 'three';
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.anisotropy = 4;
-    windowTextures[kind] = tex;
+    windowTextures.set(key, tex);
     return tex;
   }
 
   const towerMats = new Map();
-  function towerMaterial(kind, cols, rows) {
-    const key = `${kind}|${cols}|${rows}`;
+  function towerMaterial(st, cols, rows) {
+    const key = `${st.tower}|${st.frame}|${st.glass}|${st.curtain ? 1 : 0}|${cols}|${rows}`;
     if (!towerMats.has(key)) {
-      const tex = windowTexture(kind).clone();
+      const tex = windowTexture(st).clone();
       tex.repeat.set(cols, rows);
       tex.needsUpdate = true;
-      const glassy = kind === 'ofis';
-      towerMats.set(key, new THREE.MeshStandardMaterial({ map: tex, roughness: glassy ? 0.25 : 0.8, metalness: glassy ? 0.3 : 0 }));
+      towerMats.set(key, new THREE.MeshStandardMaterial({ map: tex, roughness: st.curtain ? 0.25 : 0.8, metalness: st.curtain ? 0.3 : 0 }));
     }
     return towerMats.get(key);
   }
 
   // Qavatlar minorasi: bitta quti, har qavatda deraza qatori
-  function tower(kind, w, d, floors, y0) {
+  function tower(st, w, d, floors, y0) {
     const h = floors * FLOOR_H;
-    const front = towerMaterial(kind, Math.max(2, Math.round(w / 18)), floors);
-    const side = towerMaterial(kind, Math.max(2, Math.round(d / 18)), floors);
-    const top = mat(WALLS[kind].wall);
+    const front = towerMaterial(st, Math.max(2, Math.round(w / 18)), floors);
+    const side = towerMaterial(st, Math.max(2, Math.round(d / 18)), floors);
+    const top = mat(st.tower);
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [side, side, top, top, front, front]);
     m.position.y = y0 + h / 2;
     m.castShadow = true;
@@ -790,7 +821,7 @@ import * as THREE from 'three';
   }
 
   // Tom bezaklari qavatlar soniga qarab: panjara, suv baki, antenna, vertolyot maydoni, oltin toj
-  function roofTop(g, kind, level, w, d, y) {
+  function roofTop(g, kind, level, w, d, y, st = {}) {
     const rail = mat('#94a3b8');
     if (level >= 10) {
       g.add(box(w, 4, 1.5, rail, 0, y + 2, d / 2 - 1), box(w, 4, 1.5, rail, 0, y + 2, -d / 2 + 1),
@@ -806,7 +837,7 @@ import * as THREE from 'three';
       g.add(s, box(2, 22, 2, rail, -w * 0.4, y + 11, d / 2 - 4), box(2, 22, 2, rail, w * 0.4, y + 11, d / 2 - 4));
     };
     if (kind === 'kafe' && level >= 10) roofSign('MEHMONXONA', '#7c2d12', '#fde68a');
-    if (kind === 'magazin' && level >= 20) roofSign('SUPERMARKET', '#15803d', '#ffffff');
+    if (kind === 'magazin' && level >= 20) roofSign(st.sign || 'MAGAZIN', st.signBg || '#15803d', st.signFg || '#ffffff');
     if (level >= 30) {
       g.add(cyl(1.5, 1.5, 60, rail, -w * 0.3, y + 30, -d * 0.25));
       g.add(mesh(new THREE.SphereGeometry(3, 10, 8), glow('#ef4444', 1.2), -w * 0.3, y + 61, -d * 0.25));
@@ -825,16 +856,16 @@ import * as THREE from 'three';
     }
   }
 
-  function buildHouse(level) {
+  function buildHouse(level, st) {
     const g = new THREE.Group();
     if (level === 1) {
-      // Bir qavatli hovli uy
+      // Bir qavatli uy
       const s = { w: 120, h: 44, d: 76 };
-      g.add(box(s.w, s.h, s.d, mat('#d97757'), 0, s.h / 2, 0));
-      const roof = gableRoof(s.w + 16, s.d + 14, 32, '#9f2d20');
+      g.add(box(s.w, s.h, s.d, mat(st.wall), 0, s.h / 2, 0));
+      const roof = gableRoof(s.w + 16, s.d + 14, 32, st.roof);
       roof.position.y = s.h;
       g.add(roof);
-      g.add(box(10, 26, 10, mat('#7f1d1d'), s.w * 0.28, s.h + 20, -s.d * 0.15));
+      g.add(box(10, 26, 10, mat(st.base), s.w * 0.28, s.h + 20, -s.d * 0.15));
       door(g, s.d / 2);
       windowsRow(g, s.w, s.h * 0.58, s.d / 2, 2, true);
       return g;
@@ -842,66 +873,75 @@ import * as THREE from 'three';
     // Ko'p qavatli uy: pastda kirish (podyezd), ustida qavatlar
     const G = GROUND_H.uy;
     const [tw, td] = TOWER.uy;
-    g.add(box(124, G, 80, mat('#b45309'), 0, G / 2, 0));
+    g.add(box(124, G, 80, mat(st.base), 0, G / 2, 0));
     door(g, 40);
     windowsRow(g, 124, G * 0.55, 40, 4, true);
-    g.add(box(40, 3, 14, mat('#7c2d12'), 0, 30.5, 47));
+    g.add(box(40, 3, 14, mat(st.roof), 0, 30.5, 47));
     g.add(box(128, 4, 84, mat('#78716c'), 0, G + 2, 0));
     const floors = level - 1;
-    g.add(tower('uy', tw, td, floors, G + 4));
+    g.add(tower(st, tw, td, floors, G + 4));
     const top = G + 4 + floors * FLOOR_H;
     if (level < 10) {
-      const roof = gableRoof(tw + 12, td + 10, 24, '#9f2d20');
+      const roof = gableRoof(tw + 12, td + 10, 24, st.roof);
       roof.position.y = top;
       g.add(roof);
     } else {
       g.add(box(tw + 4, 3, td + 4, mat('#78716c'), 0, top + 1.5, 0));
-      roofTop(g, 'uy', level, tw, td, top + 3);
+      roofTop(g, 'uy', level, tw, td, top + 3, st);
     }
     return g;
   }
 
-  function buildShopBuilding(level) {
+  function buildShopBuilding(level, st) {
     const g = new THREE.Group();
     const W = 124;
     const D = 78;
     const H = GROUND_H.magazin;
     const front = D / 2;
-    g.add(box(W, H, D, mat('#f3f4f6'), 0, H / 2, 0));
+    g.add(box(W, H, D, mat(st.wall), 0, H / 2, 0));
     g.add(box(W - 22, 24, 1.5, GLASS(), 0, 13, front + 0.8));
     door(g, front, '#1f2937');
-    stripedAwning(g, W - 8, 27, front, '#16a34a', '#f0fdf4');
-    const sign = signPlane('MAGAZIN', W * 0.6, 10, '#15803d', '#ffffff');
+    stripedAwning(g, W - 8, 27, front, st.awnA, st.awnB);
+    const sign = signPlane(st.sign, W * 0.6, 10, st.signBg, st.signFg);
     sign.position.set(0, 34, front + 1);
     g.add(sign);
     g.add(box(W + 4, 4, D + 4, mat('#9ca3af'), 0, H + 2, 0));
+    if (st.flowers) {
+      // Gul do'koni: oldida rang-barang gul tuvaklari
+      const colors = ['#ef4444', '#f59e0b', '#ec4899', '#a855f7', '#22c55e'];
+      for (let i = 0; i < 5; i += 1) {
+        const x = -48 + i * 24;
+        g.add(cyl(5, 4, 8, mat('#92400e'), x, 4, front + 16));
+        g.add(mesh(new THREE.SphereGeometry(6, 10, 8), mat(colors[i]), x, 12, front + 16));
+      }
+    }
     if (level === 1) {
-      roofTop(g, 'magazin', level, W, D, H + 4);
+      roofTop(g, 'magazin', level, W, D, H + 4, st);
       return g;
     }
     const [tw, td] = TOWER.magazin;
     const floors = level - 1;
-    g.add(tower('magazin', tw, td, floors, H + 4));
+    g.add(tower(st, tw, td, floors, H + 4));
     const top = H + 4 + floors * FLOOR_H;
     g.add(box(tw + 4, 3, td + 4, mat('#9ca3af'), 0, top + 1.5, 0));
-    roofTop(g, 'magazin', level, tw, td, top + 3);
+    roofTop(g, 'magazin', level, tw, td, top + 3, st);
     return g;
   }
 
-  function buildCafe(level) {
+  function buildCafe(level, st) {
     const g = new THREE.Group();
     const W = 104;
     const D = 70;
     const H = GROUND_H.kafe;
     const front = D / 2;
-    g.add(box(W, H, D, mat('#fde68a'), 0, H / 2, 0));
+    g.add(box(W, H, D, mat(st.wall), 0, H / 2, 0));
     g.add(box(W - 24, 22, 1.5, GLASS(), 0, 13, front + 0.8));
-    door(g, front, '#7c2d12');
-    stripedAwning(g, W - 6, 27, front, '#dc2626', '#fff7ed');
-    const sign = signPlane('KAFE', W * 0.5, 10, '#7c2d12', '#fde68a');
+    door(g, front, st.frame);
+    stripedAwning(g, W - 6, 27, front, st.awnA, st.awnB);
+    const sign = signPlane(st.sign, W * 0.5, 10, st.signBg, st.signFg);
     sign.position.set(0, 34, front + 1);
     g.add(sign);
-    g.add(box(W + 6, 4, D + 6, mat('#7c2d12'), 0, H + 2, 0));
+    g.add(box(W + 6, 4, D + 6, mat(st.frame), 0, H + 2, 0));
     // Tashqaridagi stollar va soyabonlar
     const tables = Math.min(2 + Math.floor(level / 25), 4);
     const xs = [-62, 62, -34, 34];
@@ -910,42 +950,49 @@ import * as THREE from 'three';
       const z = 74;
       g.add(cyl(9, 9, 2, mat('#78350f'), x, 11, z), cyl(1.5, 1.5, 11, mat('#78350f'), x, 5.5, z));
       g.add(cyl(1, 1, 26, mat('#e5e7eb'), x, 13, z));
-      g.add(mesh(new THREE.ConeGeometry(17, 9, 10), mat(i % 2 ? '#fff7ed' : '#dc2626'), x, 30, z));
+      g.add(mesh(new THREE.ConeGeometry(17, 9, 10), mat(i % 2 ? '#fff7ed' : st.umbrella), x, 30, z));
     }
     if (level === 1) return g;
     // Ustida — mehmonxona qavatlari
     const [tw, td] = TOWER.kafe;
     const floors = level - 1;
-    g.add(tower('kafe', tw, td, floors, H + 4));
+    g.add(tower(st, tw, td, floors, H + 4));
     const top = H + 4 + floors * FLOOR_H;
-    g.add(box(tw + 4, 3, td + 4, mat('#7c2d12'), 0, top + 1.5, 0));
-    roofTop(g, 'kafe', level, tw, td, top + 3);
+    g.add(box(tw + 4, 3, td + 4, mat(st.frame), 0, top + 1.5, 0));
+    roofTop(g, 'kafe', level, tw, td, top + 3, st);
     return g;
   }
 
-  function buildOffice(level) {
+  function buildOffice(level, st) {
     const g = new THREE.Group();
     const W = 100;
     const D = 80;
     const G = GROUND_H.ofis;
     const front = D / 2;
-    g.add(box(W + 8, G, D + 8, mat('#334155'), 0, G / 2, 0));
+    g.add(box(W + 8, G, D + 8, mat(st.lobby), 0, G / 2, 0));
     g.add(box(30, 18, 1.6, GLASS(), 0, 9, front + 4.8));
-    const sign = signPlane(level >= 50 ? 'BIZNES MARKAZ' : 'OFIS', W * 0.8, 7, '#0f172a', '#93c5fd');
+    const text = level >= 50 && st.bigSign ? st.bigSign : st.sign;
+    const sign = signPlane(text, W * 0.8, 7, st.signBg, st.signFg);
     sign.position.set(0, 22, front + 4.2);
     g.add(sign);
-    g.add(tower('ofis', W, D, level, G));
+    g.add(tower(st, W, D, level, G));
     const top = G + level * FLOOR_H;
     g.add(box(W + 6, 5, D + 6, mat('#1f2937'), 0, top + 2.5, 0));
-    roofTop(g, 'ofis', level, W, D, top + 5);
+    if (st.cross) {
+      // Klinika: tomida qizil xoch
+      const red = glow('#dc2626', 0.4);
+      g.add(box(36, 12, 4, red, 0, top + 14, front - 6), box(12, 36, 4, red, 0, top + 14, front - 6));
+    }
+    roofTop(g, 'ofis', level, W, D, top + 5, st);
     return g;
   }
 
-  function makeBuilding(kind, level) {
-    if (kind === 'magazin') return buildShopBuilding(level);
-    if (kind === 'kafe') return buildCafe(level);
-    if (kind === 'ofis') return buildOffice(level);
-    return buildHouse(level);
+  function makeBuilding(kind, level, variant) {
+    const st = styleOf(kind, variant);
+    if (kind === 'magazin') return buildShopBuilding(level, st);
+    if (kind === 'kafe') return buildCafe(level, st);
+    if (kind === 'ofis') return buildOffice(level, st);
+    return buildHouse(level, st);
   }
 
   // ---------------- Statik xarita ----------------
@@ -1226,7 +1273,7 @@ import * as THREE from 'three';
   function plotSignature(id) {
     const r = plotsById.get(id);
     if (!r) return 'free';
-    return `${r.owner}|${r.kind}|${r.level}|${r.name}|${r.home}|${r.owner === me.key}|${r.price}`;
+    return `${r.owner}|${r.kind}|${r.variant}|${r.level}|${r.name}|${r.home}|${r.owner === me.key}|${r.price}`;
   }
 
   // "SOTUVDA" taxtachasi darvoza yonida
@@ -1275,7 +1322,7 @@ import * as THREE from 'three';
       fence(group, plot, mine ? '#3b82f6' : '#8b5a2b');
       const t = buildingTransform(id);
       if (rec.level > 0) {
-        const b = makeBuilding(rec.kind, rec.level);
+        const b = makeBuilding(rec.kind, rec.level, rec.variant);
         b.position.set(t.x, 0, t.z);
         b.rotation.y = t.rot;
         b.traverse((o) => { o.userData.plot = id; });
@@ -1288,7 +1335,7 @@ import * as THREE from 'three';
         group.add(base);
       }
       const who = mine ? 'Siz' : rec.name;
-      const what = rec.level ? `${kindName(rec.kind)} · ${rec.level} qavat` : "bo'sh yer";
+      const what = rec.level ? `${bName(rec.kind, rec.variant)} · ${rec.level} qavat` : "bo'sh yer";
       labelText = `${who}${rec.home ? ' · Ota hovli' : ''} · ${what}${rec.price ? ' · SOTUVDA' : ''}`;
       labelBg = mine ? 'rgba(37,99,235,.92)' : 'rgba(15,23,42,.82)';
     }
@@ -1962,8 +2009,8 @@ import * as THREE from 'three';
     } else if (best.kind === 'plot') {
       const r = plotsById.get(best.id);
       if (!r) text = `${plotTitle(best.id)} — sotuvda`;
-      else if (r.owner === me.key) text = r.level ? `${kindName(r.kind)} · ${r.level} qavat` : `${plotTitle(best.id)} — nima quramiz?`;
-      else text = `${r.name}: ${r.level ? `${kindName(r.kind)} · ${r.level} qavat` : "bo'sh yer"}`
+      else if (r.owner === me.key) text = r.level ? `${bName(r.kind, r.variant)} · ${r.level} qavat` : `${plotTitle(best.id)} — nima quramiz?`;
+      else text = `${r.name}: ${r.level ? `${bName(r.kind, r.variant)} · ${r.level} qavat` : "bo'sh yer"}`
         + (r.price ? ` — sotuvda ${formatNumber(r.price)} so'm` : '');
     }
     $('prompt-text').textContent = text;
@@ -2087,7 +2134,7 @@ import * as THREE from 'three';
   function saleBox(id, rec, own) {
     const box2 = el('div', 'sale');
     const forOther = rec.owner !== me.key; // owner boshqaning uyini sotuvga qo'ymoqda
-    const thing = rec.level ? `${kindName(rec.kind)} (${rec.level} qavat)` : "Yer";
+    const thing = rec.level ? `${bName(rec.kind, rec.variant)} (${rec.level} qavat)` : "Yer";
     if (rec.price) {
       box2.append(el('strong', 'sale__title', `Sotuvda: ${formatNumber(rec.price)} so'm`),
         el('small', '', forOther
@@ -2152,7 +2199,7 @@ import * as THREE from 'three';
   function buyListedBox(id, rec) {
     const box2 = el('div', 'offer');
     box2.append(el('small', 'eyebrow', 'Sotuvda'), el('strong', '', `${formatNumber(rec.price)} so'm`),
-      el('span', '', `${rec.level ? `${kindName(rec.kind)} (${rec.level} qavat)` : "Bo'sh yer"} binosi bilan sizniki bo'ladi. Pul ${rec.name}ga o'tadi.`),
+      el('span', '', `${rec.level ? `${bName(rec.kind, rec.variant)} (${rec.level} qavat)` : "Bo'sh yer"} binosi bilan sizniki bo'ladi. Pul ${rec.name}ga o'tadi.`),
       priceButton('Sotib olish', rec.price, async () => {
         const data = await plotAction(id, 'buy');
         sound.cash();
@@ -2184,7 +2231,7 @@ import * as THREE from 'three';
       setHead(rec.level ? KIND_ICONS[rec.kind] : 'map-pin', `${rec.name}ning yeri`, rec.home ? 'Ota hovli' : plotTitle(id));
       const info = el('div', 'house-now');
       if (rec.level) info.append(floorsBar(rec.level, rec.kind));
-      info.append(el('strong', '', rec.level ? kindName(rec.kind) : "Bo'sh yer"),
+      info.append(el('strong', '', rec.level ? bName(rec.kind, rec.variant) : "Bo'sh yer"),
         el('span', '', rec.level ? `${rec.level} qavat` : 'Hali hech narsa qurilmagan'));
       body.append(info);
       if (rec.price) body.append(buyListedBox(id, rec));
@@ -2198,22 +2245,53 @@ import * as THREE from 'three';
     const title = rec.home ? 'Ota hovli' : plotTitle(id);
     if (!rec.level) {
       setHead('hammer', `${title} — nima quramiz?`, `Bino turini tanlang: har birining qavat chegarasi bor.`);
+      // Tanlangan turning 4 ta varianti (bosilgan kartaning darhol tagida chiqadi)
+      const variantsBox = (kind) => {
+        const wrap = el('div', 'variants');
+        wrap.id = 'build-variants';
+        wrap.append(el('h3', 'variants__title', `${kind.name}: qaysi biri bo'lsin?`));
+        const list = el('div', 'variants__grid');
+        kind.variants.forEach((v) => {
+          const st = styleOf(kind.id, v.id);
+          const vc = el('div', 'variant');
+          const sw = el('span', 'variant__swatch');
+          sw.style.background = st.signBg || st.roof || st.tower;
+          sw.style.color = st.signFg || '#ffffff';
+          sw.append(icon(KIND_ICONS[kind.id]));
+          const info = el('div', 'variant__info');
+          info.append(el('strong', '', v.name), el('small', '', v.about));
+          vc.append(sw, info, priceButton('Qurish', kind.first.price, async () => {
+            await plotAction(id, 'build', { kind: kind.id, variant: v.id });
+            sound.cash();
+            toast(`${v.name} qurildi! Endi har soniyada pul keladi`, 'success');
+          }, ''));
+          list.append(vc);
+        });
+        wrap.append(list);
+        return wrap;
+      };
       const grid = el('div', 'build-grid');
       catalog.buildings.forEach((b) => {
-        const card = el('div', 'build-card');
+        const picked = sheetState.pickKind === b.id;
+        const card = el('div', picked ? 'build-card is-picked' : 'build-card');
         card.style.setProperty('--kind', b.color);
         const top = el('div', 'build-card__top');
         const ic = el('span', 'build-card__icon');
         ic.append(icon(KIND_ICONS[b.id]));
         top.append(ic, el('strong', '', b.name));
+        const choose = el('button', picked ? 'btn btn--ghost btn--block' : 'btn btn--primary btn--block');
+        choose.type = 'button';
+        choose.append(icon(picked ? 'check' : 'arrow-up'), el('span', '', picked ? 'Tanlandi — pastdan variant tanlang' : "4 ta variantni ko'rish"));
+        choose.addEventListener('click', () => {
+          sheetState.pickKind = picked ? null : b.id;
+          renderSheet();
+          if (sheetState.pickKind) $('build-variants')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
         card.append(top, el('p', '', b.about),
-          el('span', 'build-card__income', `+${fmtRate(b.first.income)} so'm / sek · ${b.max} qavatgacha`),
-          priceButton('Qurish', b.first.price, async () => {
-            await plotAction(id, 'build', { kind: b.id });
-            sound.cash();
-            toast(`${b.name} qurildi! Endi har soniyada pul keladi`, 'success');
-          }));
+          el('span', 'build-card__income', `+${fmtRate(b.first.income)} so'm / sek · ${b.max} qavatgacha · ${formatNumber(b.first.price)} so'm`),
+          choose);
         grid.append(card);
+        if (picked) grid.append(variantsBox(b));
       });
       body.append(grid, saleBox(id, rec, own));
       return;
@@ -2221,9 +2299,9 @@ import * as THREE from 'three';
 
     const b = buildingsById[rec.kind];
     const income = own ? own.income : 0;
-    setHead(KIND_ICONS[rec.kind], `${title} — ${b.name}`, `${rec.level} qavat · +${fmtRate(income)} so'm / sek`);
+    setHead(KIND_ICONS[rec.kind], `${title} — ${bName(rec.kind, rec.variant)}`, `${rec.level} qavat · +${fmtRate(income)} so'm / sek`);
     const now = el('div', 'house-now');
-    now.append(floorsBar(rec.level, rec.kind), el('strong', '', `${b.name} · ${rec.level} qavat`),
+    now.append(floorsBar(rec.level, rec.kind), el('strong', '', `${bName(rec.kind, rec.variant)} · ${rec.level} qavat`),
       el('span', '', `+${fmtRate(income)} so'm / sek`));
     body.append(now);
 
@@ -2285,7 +2363,7 @@ import * as THREE from 'three';
     setEconomy(data.economy);
     sound.right();
     const rec = plotsById.get(id);
-    toast(`+${data.added} qavat! ${kindName(rec.kind)} endi ${rec.level} qavat`, 'success');
+    toast(`+${data.added} qavat! ${bName(rec.kind, rec.variant)} endi ${rec.level} qavat`, 'success');
   }
 
   // ---------------- Savol-javob (yangi qavat uchun) ----------------
@@ -2328,7 +2406,7 @@ import * as THREE from 'three';
       if (data.correct) {
         const rec = plotsById.get(st.id);
         sound.right();
-        toast(`To'g'ri! +${st.result.added} qavat — ${kindName(rec.kind)} endi ${rec.level} qavat`, 'success');
+        toast(`To'g'ri! +${st.result.added} qavat — ${bName(rec.kind, rec.variant)} endi ${rec.level} qavat`, 'success');
       } else {
         sound.wrong();
       }
@@ -2670,7 +2748,7 @@ import * as THREE from 'three';
       b1.type = 'button';
       b1.append(icon('trash'), el('span', '', 'Owner: uyni yo\'q qilish'));
       b1.addEventListener('click', () => act('building',
-        `${rec.name}ning ${kindName(rec.kind).toLowerCase()}ini (${rec.level} qavat) yo'q qilasizmi? Yer egasida qoladi.`,
+        `${rec.name}ning ${bName(rec.kind, rec.variant).toLowerCase()}ini (${rec.level} qavat) yo'q qilasizmi? Yer egasida qoladi.`,
         "Uy yo'q qilindi"));
       wrap.append(b1);
     }
@@ -2692,7 +2770,7 @@ import * as THREE from 'three';
     swatch.style.setProperty('--car', r.kind ? buildingsById[r.kind].color : '#a8a29e');
     swatch.append(icon(r.kind ? KIND_ICONS[r.kind] : 'map-pin'));
     const info = el('div', 'car-row__info');
-    info.append(el('strong', '', r.level ? `${kindName(r.kind)} · ${r.level} qavat` : "Bo'sh yer"),
+    info.append(el('strong', '', r.level ? `${bName(r.kind, r.variant)} · ${r.level} qavat` : "Bo'sh yer"),
       el('small', '', `${r.name} sotyapti · ${r.home ? 'Ota hovli' : plotTitle(r.plot)} · +${fmtRate(levelIncomeOf(r))} so'm / sek`));
     row.append(swatch, info, priceButton('Olish', r.price, async () => {
       const data = await plotAction(r.plot, 'buy');
@@ -2742,7 +2820,7 @@ import * as THREE from 'three';
       myListed.forEach((r) => {
         const row = el('div', 'car-row is-owned');
         const info = el('div', 'car-row__info');
-        info.append(el('strong', '', `${r.level ? `${kindName(r.kind)} · ${r.level} qavat` : "Bo'sh yer"} — ${formatNumber(r.price)} so'm`),
+        info.append(el('strong', '', `${r.level ? `${bName(r.kind, r.variant)} · ${r.level} qavat` : "Bo'sh yer"} — ${formatNumber(r.price)} so'm`),
           el('small', '', 'Xaridor kutilmoqda'));
         const off = el('button', 'btn btn--ghost');
         off.type = 'button';
@@ -2915,7 +2993,7 @@ import * as THREE from 'three';
       swatch.style.setProperty('--car', p.kind ? buildingsById[p.kind].color : '#a8a29e');
       swatch.append(icon(p.kind ? KIND_ICONS[p.kind] : 'map-pin'));
       const info = el('div', 'car-row__info');
-      info.append(el('strong', '', `${p.home ? 'Ota hovli' : plotTitle(p.plot)} — ${p.kind ? `${kindName(p.kind)} · ${p.level} qavat` : "bo'sh yer"}`),
+      info.append(el('strong', '', `${p.home ? 'Ota hovli' : plotTitle(p.plot)} — ${p.kind ? `${bName(p.kind, p.variant)} · ${p.level} qavat` : "bo'sh yer"}`),
         el('small', '', p.kind ? `+${fmtRate(p.income)} so'm / sek` : 'Hali hech narsa qurilmagan'));
       const open = el('button', 'btn btn--ghost');
       open.type = 'button';

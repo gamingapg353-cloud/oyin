@@ -56,6 +56,43 @@ BUILDINGS = {
 }
 BUILDING_ORDER = ["uy", "magazin", "kafe", "ofis"]
 
+# Har bir turning 4 ta varianti: narx va daromad bir xil, ko'rinishi va yozuvi boshqa
+VARIANTS = {
+    "uy": [
+        {"id": "hovli", "name": "Hovli uy", "about": "G'isht devor, qizil tom."},
+        {"id": "kottej", "name": "Yog'och kottej", "about": "Yog'ochdan, iliq va shinam."},
+        {"id": "villa", "name": "Oq villa", "about": "Oppoq devorlar, havorang tom."},
+        {"id": "zamonaviy", "name": "Zamonaviy uy", "about": "Kulrang beton va katta oynalar."},
+    ],
+    "magazin": [
+        {"id": "gadjet", "name": "Gadjet do'kon", "about": "Telefon, noutbuk, quloqchinlar."},
+        {"id": "oziq", "name": "Oziq-ovqat", "about": "Supermarket: non, meva, sut."},
+        {"id": "kiyim", "name": "Kiyim do'koni", "about": "Ko'ylak, krossovka, kurtka."},
+        {"id": "gul", "name": "Gul do'koni", "about": "Guldastalar va sovg'alar."},
+    ],
+    "kafe": [
+        {"id": "kofe", "name": "Kofe-kafe", "about": "Kofe va shirinliklar."},
+        {"id": "pizza", "name": "Pitsa", "about": "Issiq pitsa pechdan."},
+        {"id": "burger", "name": "Burger", "about": "Burger va kartoshka fri."},
+        {"id": "choyxona", "name": "Choyxona", "about": "Palov, choy va somsa."},
+    ],
+    "ofis": [
+        {"id": "it", "name": "IT park", "about": "Dasturchilar ofisi."},
+        {"id": "bank", "name": "Bank", "about": "Pul va kartalar."},
+        {"id": "klinika", "name": "Klinika", "about": "Shifokorlar va dorixona."},
+        {"id": "markaz", "name": "O'quv markazi", "about": "Kurslar va darslar."},
+    ],
+}
+VARIANT_IDS = {kind: [v["id"] for v in items] for kind, items in VARIANTS.items()}
+
+
+def variant_name(kind: str, variant: str | None) -> str:
+    """Bino nomi: variant bo'lsa — uning nomi (Gadjet do'kon), bo'lmasa — tur nomi (Magazin)."""
+    for v in VARIANTS.get(kind, []):
+        if v["id"] == variant:
+            return v["name"]
+    return BUILDINGS[kind]["name"]
+
 # Mashinalar (faqat Avtosalonda). fare — taksi haqi koeffitsienti.
 CARS = [
     {"id": "bmw", "name": "BMW M5", "price": 30000, "speed": 1.7, "fare": 1.0,
@@ -130,7 +167,7 @@ CATALOG = {
         {"id": kind, "name": BUILDINGS[kind]["name"], "about": BUILDINGS[kind]["about"],
          "color": BUILDINGS[kind]["color"],
          "first": {"price": level_price(kind, 1), "income": level_income(kind, 1)},
-         "max": max_level(kind), "payback": BUILDINGS[kind]["payback"],
+         "max": max_level(kind), "payback": BUILDINGS[kind]["payback"], "variants": VARIANTS[kind],
          "last": {"price": level_price(kind, max_level(kind)), "income": level_income(kind, max_level(kind))}}
         for kind in BUILDING_ORDER
     ],
@@ -355,7 +392,7 @@ def player_key(user: dict) -> str:
 
 def my_plots(db, key: str) -> list:
     return db.execute(
-        "SELECT plot, kind, level, sale_price FROM game_plots WHERE owner_key = ? ORDER BY bought_at, plot", (key,)
+        "SELECT plot, kind, level, sale_price, variant FROM game_plots WHERE owner_key = ? ORDER BY bought_at, plot", (key,)
     ).fetchall()
 
 
@@ -426,7 +463,7 @@ def economy_json(db, row) -> dict:
         level = p["level"]
         nxt = level + 1 if p["kind"] and level < max_level(p["kind"]) else None
         plots.append({
-            "plot": p["plot"], "kind": p["kind"], "level": level, "home": home,
+            "plot": p["plot"], "kind": p["kind"], "variant": p["variant"], "level": level, "home": home,
             "income": level_income(p["kind"], level),
             "next_price": level_price(p["kind"], nxt) if nxt else None,
             "next_income": level_income(p["kind"], nxt) if nxt else None,
@@ -450,7 +487,7 @@ def summary_for(db, key: str) -> dict | None:
     data = economy_json(db, row)
     data["car_names"] = [CARS_BY_ID[c]["name"] for c in data["cars"] if c in CARS_BY_ID]
     data["buildings"] = [
-        {"name": BUILDINGS[p["kind"]]["name"], "level": p["level"], "home": p["home"]}
+        {"name": variant_name(p["kind"], p["variant"]), "level": p["level"], "home": p["home"]}
         if p["kind"] else {"name": "Bo'sh yer", "level": 0, "home": p["home"]}
         for p in data["plots"]
     ]
@@ -459,12 +496,12 @@ def summary_for(db, key: str) -> dict | None:
 
 def plots_list(db) -> list[dict]:
     rows = db.execute(
-        "SELECT g.plot, g.owner_key, g.kind, g.level, g.sale_price, u.name, p.plot AS home_plot FROM game_plots g "
+        "SELECT g.plot, g.owner_key, g.kind, g.level, g.sale_price, g.variant, u.name, p.plot AS home_plot FROM game_plots g "
         "LEFT JOIN users u ON g.owner_key = 'u' || u.id "
         "LEFT JOIN game_players p ON p.player_key = g.owner_key"
     ).fetchall()
     return [
-        {"plot": r["plot"], "owner": r["owner_key"], "kind": r["kind"], "level": r["level"],
+        {"plot": r["plot"], "owner": r["owner_key"], "kind": r["kind"], "variant": r["variant"], "level": r["level"],
          "home": r["home_plot"] == r["plot"], "price": r["sale_price"],
          "name": config.OWNER_NAME if r["owner_key"] == "owner" else (r["name"] or "?")}
         for r in rows
@@ -916,9 +953,13 @@ def api_buy_plot(plot_id: int):
 @bp.post("/api/game/plots/<int:plot_id>/build")
 @login_required
 def api_build(plot_id: int):
-    kind = (request.get_json(silent=True) or {}).get("kind")
+    data = request.get_json(silent=True) or {}
+    kind = data.get("kind")
     if kind not in BUILDINGS:
         return jsonify(error="Bino turini tanlang"), 400
+    variant = data.get("variant") or VARIANT_IDS[kind][0]
+    if variant not in VARIANT_IDS[kind]:
+        return jsonify(error="Bunday variant yo'q"), 400
 
     def change_for(db, key):
         def change(_row, money):
@@ -929,7 +970,7 @@ def api_build(plot_id: int):
             if money < price:
                 raise GameError("Pul yetarli emas")
             return -price, lambda: db.execute(
-                "UPDATE game_plots SET kind = ?, level = 1 WHERE plot = ?", (kind, plot_id))
+                "UPDATE game_plots SET kind = ?, variant = ?, level = 1 WHERE plot = ?", (kind, variant, plot_id))
         return change
     return _plot_action(plot_id, change_for)
 
@@ -1006,7 +1047,8 @@ def api_owner_demolish(plot_id: int):
             db.execute("UPDATE game_players SET money = ?, income_at = ? WHERE player_key = ?",
                        (money_now(victim, player_rate(db, victim), now), now, victim["player_key"]))
         if mode == "building":
-            db.execute("UPDATE game_plots SET kind = NULL, level = 0, sale_price = NULL WHERE plot = ?", (plot_id,))
+            db.execute("UPDATE game_plots SET kind = NULL, variant = NULL, level = 0, sale_price = NULL WHERE plot = ?",
+                       (plot_id,))
         else:
             db.execute("DELETE FROM game_plots WHERE plot = ?", (plot_id,))
             if victim is not None and victim["plot"] == plot_id:

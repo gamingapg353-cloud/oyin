@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS game_plots (
     kind        TEXT,                          -- uy | magazin | kafe | ofis (NULL = bo'sh yer)
     level       INTEGER NOT NULL DEFAULT 0,
     bought_at   REAL NOT NULL,
-    sale_price  INTEGER                        -- sotuvga qo'yilgan narx (NULL = sotuvda emas)
+    sale_price  INTEGER,                       -- sotuvga qo'yilgan narx (NULL = sotuvda emas)
+    variant     TEXT                           -- bino varianti (gadjet, pizza, bank ...)
 );
 
 -- Haftalik mashina ovozi: o'yinchilar mashina taklif qiladi, g'olib Avtosalonga qo'shiladi
@@ -193,6 +194,8 @@ def init_db() -> None:
         plot_columns = {row[1] for row in db.execute("PRAGMA table_info(game_plots)")}
         if "sale_price" not in plot_columns:
             db.execute("ALTER TABLE game_plots ADD COLUMN sale_price INTEGER")
+        if "variant" not in plot_columns:  # bino varianti: gadjet do'kon, pitsa, bank ...
+            db.execute("ALTER TABLE game_plots ADD COLUMN variant TEXT")
         # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)
         db.execute(
             "INSERT OR IGNORE INTO game_plots (plot, owner_key, kind, level, bought_at) "

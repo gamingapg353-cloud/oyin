@@ -1458,3 +1458,63 @@ button.hud-online {
     background: #6d28d9;
   }
 }
+
+// Qurish: tanlangan tur va uning 4 ta varianti
+.build-card.is-picked {
+  border-color: var(--kind);
+  box-shadow: 0 0 0 2px var(--kind) inset;
+}
+
+.variants {
+  display: grid;
+  grid-column: 1 / -1; // 2 ustunli to'rda butun kenglikni egallaydi
+  gap: 10px;
+  margin-top: 4px;
+  scroll-margin-top: 12px;
+
+  &__title {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  &__grid {
+    display: grid;
+    gap: 8px;
+  }
+}
+
+.variant {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: $radius;
+
+  &__swatch {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+  }
+
+  &__info {
+    display: grid;
+    flex: 1;
+    min-width: 130px;
+
+    small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+  }
+
+  .btn {
+    height: 40px;
+    font-size: 14px;
+  }
+}
