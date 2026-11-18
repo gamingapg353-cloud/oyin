@@ -2632,7 +2632,7 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   left: 14px;
   z-index: 10;
   width: 240px;
-  height: 120px;
+  height: auto;
   border: 2px solid rgba(255, 255, 255, 0.7);
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
@@ -2644,7 +2644,7 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
     top: 74px;
     bottom: auto;
     width: 150px;
-    height: 75px;
+    height: auto;
   }
 }
 
@@ -2655,7 +2655,6 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   z-index: 36;
   width: min(94vw, 1100px);
   height: auto;
-  aspect-ratio: 2 / 1;
   border-width: 3px;
   border-radius: 18px;
   cursor: crosshair;
@@ -3648,7 +3647,7 @@ button.hud-online:hover {
 
 .chat {
   position: absolute;
-  bottom: 148px;
+  bottom: 162px;
   left: 14px;
   z-index: 11;
   display: grid;

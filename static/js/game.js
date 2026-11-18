@@ -951,86 +951,160 @@ import * as THREE from 'three';
   // ---------------- Statik xarita ----------------
   const pickables = [];  // sichqoncha bilan bosiladigan narsalar
 
-  function buildGround() {
-    // Katta xarita: tekstura video karta chegarasidan oshmasin
-    const maxTex = renderer.capabilities.maxTextureSize || 4096;
-    const S = Math.min(TOUCH ? 0.55 : 0.85, maxTex / Math.max(world.w, world.h));
+  // Takrorlanadigan kichik tekstura (katta xaritada ham xotira kam ketadi, yo'llar aniq chiqadi)
+  function tileTexture(size, draw, repeatX, repeatY) {
     const c = document.createElement('canvas');
-    c.width = Math.round(world.w * S);
-    c.height = Math.round(world.h * S);
-    const g = c.getContext('2d');
-    g.scale(S, S);
+    c.width = size;
+    c.height = size;
+    draw(c.getContext('2d'), size);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repeatX, repeatY);
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return tex;
+  }
 
-    g.fillStyle = '#5c9442';
-    g.fillRect(0, 0, world.w, world.h);
-    // O't dog'lari (tasodifiy, lekin har safar bir xil)
+  // Yerga yotqizilgan tekislik (x, z — markazi)
+  function flat(w, d, material, x, z, y) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), material);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z);
+    m.receiveShadow = true;
+    return m;
+  }
+
+  function buildGround() {
+    const W = world.w;
+    const H = world.h;
+    const R = world.road;
+
+    // O't — 256px rasm har 320 birlikda takrorlanadi
     let seed = 11;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    const spots = Math.round((world.w * world.h) / 1500);
-    for (let i = 0; i < spots; i += 1) {
-      g.fillStyle = rnd() > 0.5 ? 'rgba(78,128,55,.55)' : 'rgba(108,164,72,.45)';
-      g.beginPath();
-      g.ellipse(rnd() * world.w, rnd() * world.h, 6 + rnd() * 18, 4 + rnd() * 10, rnd() * 3, 0, Math.PI * 2);
-      g.fill();
-    }
+    const grass = tileTexture(256, (g, n) => {
+      g.fillStyle = '#5c9442';
+      g.fillRect(0, 0, n, n);
+      for (let i = 0; i < 70; i += 1) {
+        g.fillStyle = rnd() > 0.5 ? 'rgba(78,128,55,.55)' : 'rgba(108,164,72,.45)';
+        g.beginPath();
+        g.ellipse(rnd() * n, rnd() * n, 5 + rnd() * 14, 3 + rnd() * 8, rnd() * 3, 0, Math.PI * 2);
+        g.fill();
+      }
+    }, W / 320, H / 320);
+    scene.add(flat(W, H, new THREE.MeshStandardMaterial({ map: grass, roughness: 1 }), W / 2, H / 2, 0));
 
     // Bog' maydoni, ko'l qirg'og'i, Avtosalon oldi
     const f = world.fountain;
-    g.fillStyle = '#d6d3d1';
-    g.beginPath();
-    g.arc(f.x + f.w / 2, f.y + f.h / 2, 125, 0, Math.PI * 2);
-    g.fill();
-    const p = world.pond;
-    g.fillStyle = '#d9c08c';
-    g.beginPath();
-    g.ellipse(p.x + p.w / 2, p.y + p.h / 2, p.w / 2 + 14, p.h / 2 + 14, 0, 0, Math.PI * 2);
-    g.fill();
-    const s = world.shop;
-    g.fillStyle = '#cbd5e1';
-    g.fillRect(s.x - 10, s.y + s.h, s.w + 20, 70);
+    const plaza = new THREE.Mesh(new THREE.CircleGeometry(125, 48), mat('#d6d3d1', { roughness: 1 }));
+    plaza.rotation.x = -Math.PI / 2;
+    plaza.position.set(f.x + f.w / 2, 0.2, f.y + f.h / 2);
+    plaza.receiveShadow = true;
+    const pd = world.pond;
+    const shore = new THREE.Mesh(new THREE.CircleGeometry(1, 48), mat('#d9c08c', { roughness: 1 }));
+    shore.rotation.x = -Math.PI / 2;
+    shore.scale.set(pd.w / 2 + 14, pd.h / 2 + 14, 1);
+    shore.position.set(pd.x + pd.w / 2, 0.2, pd.y + pd.h / 2);
+    const sh = world.shop;
+    scene.add(plaza, shore, flat(sh.w + 20, 70, mat('#cbd5e1', { roughness: 1 }), sh.x + sh.w / 2, sh.y + sh.h + 35, 0.2));
 
-    // Yo'llar
-    const R = world.road;
-    g.fillStyle = '#9ca3af';
-    world.h_roads.forEach((y) => g.fillRect(0, y - 8, world.w, R + 16));
-    world.v_roads.forEach((x) => g.fillRect(x - 8, 0, R + 16, world.h));
-    g.fillStyle = '#3b404c';
-    world.h_roads.forEach((y) => g.fillRect(0, y, world.w, R));
-    world.v_roads.forEach((x) => g.fillRect(x, 0, R, world.h));
-    g.strokeStyle = '#facc15';
-    g.lineWidth = 3;
-    g.setLineDash([22, 18]);
-    g.beginPath();
-    world.h_roads.forEach((y) => { g.moveTo(0, y + R / 2); g.lineTo(world.w, y + R / 2); });
-    world.v_roads.forEach((x) => { g.moveTo(x + R / 2, 0); g.lineTo(x + R / 2, world.h); });
-    g.stroke();
-    g.setLineDash([]);
-    g.fillStyle = '#3b404c';
-    world.h_roads.forEach((y) => world.v_roads.forEach((x) => g.fillRect(x, y, R, R)));
-    g.fillStyle = 'rgba(255,255,255,.8)';
-    world.h_roads.forEach((y) => world.v_roads.forEach((x) => {
+    // Yo'llar: trotuar, asfalt, sariq uzuq chiziq; chorrahalar chiziqni yopadi
+    const sidewalk = mat('#9ca3af', { roughness: 1 });
+    const asphalt = mat('#3b404c', { roughness: 0.95 });
+    const dashTex = (len) => tileTexture(64, (g, n) => {
+      g.clearRect(0, 0, n, n);
+      g.fillStyle = '#facc15';
+      g.fillRect(0, 0, n * 0.55, n);
+    }, len / 40, 1);
+    const dashMat = (len) => new THREE.MeshBasicMaterial({ map: dashTex(len), transparent: true, alphaTest: 0.5, depthWrite: false });
+    world.h_roads.forEach((y) => {
+      scene.add(flat(W, R + 16, sidewalk, W / 2, y + R / 2, 0.25), flat(W, R, asphalt, W / 2, y + R / 2, 0.45));
+      scene.add(flat(W, 3, dashMat(W), W / 2, y + R / 2, 0.6));
+    });
+    world.v_roads.forEach((x) => {
+      scene.add(flat(R + 16, H, sidewalk, x + R / 2, H / 2, 0.25), flat(R, H, asphalt, x + R / 2, H / 2, 0.45));
+      const line = flat(H, 3, dashMat(H), x + R / 2, H / 2, 0.6);
+      line.rotation.z = Math.PI / 2;
+      scene.add(line);
+    });
+    // Chorrahalar va piyodalar o'tish joylari (bitta InstancedMesh — tez)
+    const crossings = [];
+    world.h_roads.forEach((y) => world.v_roads.forEach((x) => crossings.push([x, y])));
+    crossings.forEach(([x, y]) => scene.add(flat(R, R, asphalt, x + R / 2, y + R / 2, 0.75)));
+    const stripes = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat('#f8fafc', { roughness: 1 }), crossings.length * 20);
+    const m4 = new THREE.Matrix4();
+    const rot = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0));
+    let k = 0;
+    const stripe = (cx, cz, w, d) => {
+      m4.compose(new THREE.Vector3(cx, 0.8, cz), rot, new THREE.Vector3(w, d, 1));
+      stripes.setMatrixAt(k, m4);
+      k += 1;
+    };
+    crossings.forEach(([x, y]) => {
       for (let i = 0; i < 5; i += 1) {
-        g.fillRect(x - 20, y + 6 + i * 15, 14, 8);
-        g.fillRect(x + R + 6, y + 6 + i * 15, 14, 8);
-        g.fillRect(x + 6 + i * 15, y - 20, 8, 14);
-        g.fillRect(x + 6 + i * 15, y + R + 6, 8, 14);
+        stripe(x - 13, y + 10 + i * 15, 14, 8);
+        stripe(x + R + 13, y + 10 + i * 15, 14, 8);
+        stripe(x + 10 + i * 15, y - 13, 8, 14);
+        stripe(x + 10 + i * 15, y + R + 13, 8, 14);
       }
-    }));
+    });
+    stripes.receiveShadow = true;
+    scene.add(stripes);
 
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(world.w, world.h), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(world.w / 2, 0, world.h / 2);
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    // Xarita chetidan tashqari — keng o'tloq
-    const outside = new THREE.Mesh(new THREE.PlaneGeometry(world.w * 5, world.h * 5), mat('#4f8a3a', { roughness: 1 }));
-    outside.rotation.x = -Math.PI / 2;
-    outside.position.set(world.w / 2, -0.5, world.h / 2);
+    // Xarita chetidan tashqari — keng o'tloq, o'rmon va tepaliklar (dunyo "tugab qolgandek" ko'rinmasin)
+    const outside = flat(W * 6, H * 6, mat('#4f8a3a', { roughness: 1 }), W / 2, H / 2, -0.5);
+    outside.receiveShadow = false;
     scene.add(outside);
+    buildBorderForest();
+  }
+
+  function buildBorderForest() {
+    const W = world.w;
+    const H = world.h;
+    let seed = 99;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    // Chetida zich daraxtlar (xarita ichiga kirmaydi)
+    const spots = [];
+    for (let i = 0; i < 900; i += 1) {
+      const side = i % 4;
+      const depth = 60 + rnd() * 900;
+      let x;
+      let y;
+      if (side === 0) { x = rnd() * (W + 2000) - 1000; y = -depth; }
+      else if (side === 1) { x = rnd() * (W + 2000) - 1000; y = H + depth; }
+      else if (side === 2) { x = -depth; y = rnd() * H; }
+      else { x = W + depth; y = rnd() * H; }
+      spots.push([x, y, 26 + rnd() * 22]);
+    }
+    const trunkGeo = new THREE.CylinderGeometry(4, 5, 26, 6);
+    trunkGeo.translate(0, 13, 0);
+    const crownGeo = new THREE.ConeGeometry(1, 2.2, 7);
+    crownGeo.translate(0, 1.1, 0);
+    const trunks = new THREE.InstancedMesh(trunkGeo, mat('#6b3f1d'), spots.length);
+    const crowns = new THREE.InstancedMesh(crownGeo, mat('#ffffff'), spots.length);
+    const m4 = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const color = new THREE.Color();
+    spots.forEach(([x, y, r], i) => {
+      m4.compose(new THREE.Vector3(x, 0, y), q, new THREE.Vector3(1, 1, 1));
+      trunks.setMatrixAt(i, m4);
+      m4.compose(new THREE.Vector3(x, 18, y), q, new THREE.Vector3(r, r * 1.3, r));
+      crowns.setMatrixAt(i, m4);
+      crowns.setColorAt(i, color.setHSL(0.31 + (i % 7) * 0.01, 0.45, 0.22 + (i % 4) * 0.03));
+    });
+    scene.add(trunks, crowns);
+    // Uzoqdagi tepaliklar
+    const hillMat = mat('#4a7c35', { roughness: 1, flatShading: true });
+    for (let i = 0; i < 26; i += 1) {
+      const a = (i / 26) * Math.PI * 2;
+      const rx = W / 2 + Math.cos(a) * (W * 0.5 + 1700 + rnd() * 600);
+      const rz = H / 2 + Math.sin(a) * (H * 0.5 + 1700 + rnd() * 600);
+      const hill = new THREE.Mesh(new THREE.ConeGeometry(500 + rnd() * 500, 300 + rnd() * 500, 7), hillMat);
+      hill.position.set(rx, 120, rz);
+      hill.rotation.y = rnd() * Math.PI;
+      scene.add(hill);
+    }
   }
 
   function buildTrees() {
@@ -3228,7 +3302,7 @@ import * as THREE from 'three';
     const big = force === undefined ? !mini.classList.contains('is-big') : force;
     mini.classList.toggle('is-big', big);
     mini.width = big ? 1200 : 480;
-    mini.height = mini.width / 2;
+    mini.height = Math.round((mini.width * world.h) / world.w); // xarita nisbati bilan bir xil
     $('map-backdrop').hidden = !big;
     lastMini = 0;
     if (big) toast("Xaritada joyni bosing — u yerga yo'l ko'rsatiladi");
@@ -3442,6 +3516,9 @@ import * as THREE from 'three';
       };
       me.rig = makeRig(me.name, me.avatar, true);
 
+      // Kichik xarita dunyo nisbatida (kesilib qolmasin)
+      mini.height = Math.round((mini.width * world.h) / world.w);
+      mini.style.aspectRatio = `${world.w} / ${world.h}`;
       buildGround();
       buildTrees();
       buildPark();

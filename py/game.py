@@ -147,10 +147,10 @@ CATALOG = {
 # --------------------------------------------------------------------------- #
 #  Xarita (server va brauzer bir xil xaritadan foydalanadi)
 # --------------------------------------------------------------------------- #
-WORLD_W, WORLD_H = 4800, 2400
+WORLD_W, WORLD_H = 6720, 3800
 ROAD = 80
-H_ROADS = [380, 1140, 1900]                       # gorizontal yo'llar (yuqori cheti, y)
-V_ROADS = [380, 1160, 1940, 2720, 3500, 4280]     # vertikal yo'llar (chap cheti, x)
+H_ROADS = [380, 1140, 1900, 2660, 3420]                         # gorizontal yo'llar (yuqori cheti, y)
+V_ROADS = [380, 1160, 1940, 2720, 3500, 4280, 5060, 5840]       # vertikal yo'llar (chap cheti, x)
 
 WALK_SPEED = 190               # piyoda tezlik (birlik/soniya); mashina — shundan necha barobar
 ONLINE_SECONDS = 6
@@ -179,6 +179,13 @@ def _make_plots() -> list[dict]:
     # Pastki yangi yo'l (y=1900) bo'yidagi qatorlar
     for row_y, gate in ((1710, "bottom"), (1990, "top")):
         row(row_y, gate, (470, 1250, 2030, 2810, 3590))
+    # Yana kattalashtirilgan xarita (6720×3800): o'ngdagi uchta yangi blok...
+    for row_y, gate in old_rows + ((1710, "bottom"), (1990, "top")):
+        row(row_y, gate, (4370, 5150, 5930))
+    # ...va pastdagi ikki yangi ko'cha (y=2660, 3420) bo'yidagi qatorlar (2810-blok — ikkinchi bog')
+    for row_y, gate in ((2470, "bottom"), (2760, "top"), (3230, "bottom"), (3520, "top")):
+        blocks = (470, 1250, 2030, 3590, 4370, 5150, 5930) if row_y in (2760, 3230) else             (470, 1250, 2030, 2810, 3590, 4370, 5150, 5930)
+        row(row_y, gate, blocks)
     return plots
 
 
@@ -217,7 +224,7 @@ def _make_trees() -> list[dict]:
     rng = random.Random(7)
     trees = []
     attempts = 0
-    while len(trees) < 170 and attempts < 30000:
+    while len(trees) < 380 and attempts < 60000:
         attempts += 1
         x, y = rng.uniform(30, WORLD_W - 30), rng.uniform(30, WORLD_H - 30)
         if _on_road(x, y, 16) or any(_overlaps(x, y, a, 40) for a in BLOCKED_AREAS):
