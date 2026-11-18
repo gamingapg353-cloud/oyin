@@ -187,9 +187,24 @@
     }
 
     const start = btn(`Testni boshlash (${total()}/${SIZE})`, 'check', 'btn btn--primary btn--lg');
-    start.disabled = total() !== SIZE || !draft.title.trim();
-    title.addEventListener('input', () => { start.disabled = total() !== SIZE || !draft.title.trim(); });
+    start.disabled = total() !== SIZE;
+    // Nega boshlab bo'lmasligini aniq aytamiz
+    const why = el('p', 'form-error');
+    why.hidden = true;
+    const say = (text) => {
+      why.textContent = text;
+      why.hidden = !text;
+    };
+    if (total() < SIZE) say(`Yana ${SIZE - total()} ta savol tanlang yoki yozing.`);
+    title.addEventListener('input', () => { if (draft.title.trim()) say(total() < SIZE ? why.textContent : ''); });
     start.addEventListener('click', async () => {
+      if (!draft.title.trim()) {
+        say('Avval tepadagi «Test mavzusi» maydoniga mavzu yozing (masalan: HTML teglar).');
+        title.focus();
+        title.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      say('');
       start.disabled = true;
       try {
         await api('/api/exams', {
@@ -205,7 +220,7 @@
         start.disabled = false;
       }
     });
-    c.append(el('p', 'exam-muted', "Boshlaganingizda o'quvchilarning ekranida «Test boshlandi» xabari chiqadi."), start);
+    c.append(el('p', 'exam-muted', "Boshlaganingizda o'quvchilarning ekranida «Test boshlandi» xabari chiqadi."), why, start);
     return c;
   }
 
