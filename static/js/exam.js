@@ -329,7 +329,8 @@
       start.disabled = true;
       try {
         const d = await api(`/api/exams/${data.exam.id}/begin`, { method: 'POST' });
-        run = { exam: d.exam, questions: d.questions, index: 0, answers: d.questions.map(() => null) };
+        // done — oldin javob berilganlar (sahifa yangilangan bo'lsa davom etamiz)
+        run = { exam: d.exam, questions: d.questions, index: d.done.length, results: d.done };
         renderQuestion();
       } catch (err) {
         fail(err);
@@ -344,49 +345,72 @@
     const q = run.questions[run.index];
     root.replaceChildren();
     const c = card();
+    // Tepadagi chiziq: to'g'ri — yashil, xato — qizil, hozirgisi — oq ramka
     const progress = el('div', 'exam-progress');
-    run.questions.forEach((_, i) => progress.append(el('span', i < run.index ? 'is-done' : (i === run.index ? 'is-now' : ''))));
-    c.append(el('div', 'exam-step', `Savol ${run.index + 1} / ${run.questions.length}`), progress, topicBadge(q.topic),
-      el('p', 'exam-q', q.question));
+    run.questions.forEach((_, i) => {
+      const r = run.results[i];
+      progress.append(el('span', r ? (r.correct ? 'is-right' : 'is-wrong') : (i === run.index ? 'is-now' : '')));
+    });
+    const right = run.results.filter((r) => r.correct).length;
+    c.append(el('div', 'exam-step', `Savol ${run.index + 1} / ${run.questions.length} · to'g'ri: ${right}`), progress,
+      topicBadge(q.topic), el('p', 'exam-q', q.question));
+    const last = run.index === run.questions.length - 1;
     const opts = el('div', 'quiz__options');
+    const buttons = [];
     q.options.forEach((text, i) => {
-      const o = el('button', run.answers[run.index] === i ? 'quiz__opt is-chosen' : 'quiz__opt');
+      const o = el('button', 'quiz__opt');
       o.type = 'button';
       o.append(el('span', 'quiz__letter', 'ABCD'[i]), el('code', '', text));
-      o.addEventListener('click', () => { run.answers[run.index] = i; renderQuestion(); });
+      o.addEventListener('click', () => choose(i, buttons, progress, last));
+      buttons.push(o);
       opts.append(o);
     });
-    c.append(opts);
-    const last = run.index === run.questions.length - 1;
-    const actions = el('div', 'exam-actions');
-    if (run.index > 0) {
-      const back = btn('Orqaga', 'arrow-left', 'btn btn--ghost');
-      back.addEventListener('click', () => { run.index -= 1; renderQuestion(); });
-      actions.append(back);
-    }
-    const next = btn(last ? 'Yakunlash' : 'Keyingi', last ? 'check' : null);
-    next.disabled = run.answers[run.index] === null;
-    next.addEventListener('click', async () => {
-      if (!last) {
-        run.index += 1;
-        renderQuestion();
+    c.append(opts, el('p', 'exam-muted', last ? "Oxirgi savol — javob bersangiz test topshiriladi." : "Javobni bosing — keyingi savolga o'tasiz."));
+    root.append(c);
+  }
+
+  async function choose(i, buttons, progress, last) {
+    if (run.busy) return;
+    run.busy = true;
+    buttons.forEach((b) => { b.disabled = true; });
+    buttons[i].classList.add('is-chosen');
+    let res;
+    try {
+      res = await api(`/api/exams/${run.exam.id}/answer`, { method: 'POST', body: { index: run.index, answer: i } });
+    } catch (err) {
+      run.busy = false;
+      if (err.status === 409) {
+        loadUserFresh(); // bu savolga javob berilgan ekan — joriy holatni qayta olamiz
         return;
       }
-      next.disabled = true;
-      try {
-        const res = await api(`/api/exams/${run.exam.id}/submit`, { method: 'POST', body: { answers: run.answers } });
-        const exam = run.exam;
-        run = null;
-        root.replaceChildren(resultCard(exam, res.score, res.total, res.review));
-        window.Oyin.hideExamBanner?.();
-      } catch (err) {
-        fail(err);
-        next.disabled = false;
-      }
-    });
-    actions.append(next);
-    c.append(actions);
-    root.append(c);
+      fail(err);
+      buttons.forEach((b) => { b.disabled = false; });
+      buttons[i].classList.remove('is-chosen');
+      return;
+    }
+    // Rang: tanlagani — yashil yoki qizil, xato bo'lsa to'g'risi yashil
+    buttons[i].classList.remove('is-chosen');
+    buttons[i].classList.add(res.correct ? 'is-right' : 'is-wrong');
+    if (!res.correct) buttons[res.right].classList.add('is-right');
+    run.results[run.index] = res;
+    const seg = progress.children[run.index];
+    seg.className = res.correct ? 'is-right' : 'is-wrong';
+    await new Promise((r) => setTimeout(r, res.correct ? 700 : 1300)); // natija ko'rinsin
+    if (res.finished) {
+      const exam = run.exam;
+      run = null;
+      root.replaceChildren(resultCard(exam, res.score, res.total, res.review));
+      window.Oyin.hideExamBanner?.();
+      return;
+    }
+    run.index += 1;
+    run.busy = false;
+    renderQuestion();
+  }
+
+  async function loadUserFresh() {
+    run = null;
+    await loadUser();
   }
 
   function resultCard(exam, score, totalCount, review) {

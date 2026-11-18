@@ -54,6 +54,7 @@
 .exam-topic {
   display: inline-block;
   flex-shrink: 0;
+  justify-self: start; // kartada butun kenglikka cho'zilmasin
   padding: 2px 8px;
   border-radius: 6px;
   color: #ffffff;
@@ -210,18 +211,24 @@
   display: flex;
   gap: 6px;
 
+  // To'g'ri — yashil, xato — qizil, hozirgi savol — ramka
   span {
     flex: 1;
-    height: 6px;
+    height: 10px;
     border-radius: 999px;
     background: var(--border);
+    transition: background-color 0.25s;
 
-    &.is-done {
+    &.is-right {
       background: var(--success);
     }
 
+    &.is-wrong {
+      background: var(--danger);
+    }
+
     &.is-now {
-      background: var(--primary);
+      box-shadow: inset 0 0 0 2px var(--text);
     }
   }
 }

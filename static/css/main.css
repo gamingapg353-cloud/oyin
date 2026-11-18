@@ -3922,6 +3922,7 @@ button.hud-online:hover {
 .exam-topic {
   display: inline-block;
   flex-shrink: 0;
+  justify-self: start;
   padding: 2px 8px;
   border-radius: 6px;
   color: #ffffff;
@@ -4082,17 +4083,22 @@ button.hud-online:hover {
 
 .exam-progress span {
   flex: 1;
-  height: 6px;
+  height: 10px;
   border-radius: 999px;
   background: var(--border);
+  transition: background-color 0.25s;
 }
 
-.exam-progress span.is-done {
+.exam-progress span.is-right {
   background: var(--success);
 }
 
+.exam-progress span.is-wrong {
+  background: var(--danger);
+}
+
 .exam-progress span.is-now {
-  background: var(--primary);
+  box-shadow: inset 0 0 0 2px var(--text);
 }
 
 .exam-q {

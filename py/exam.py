@@ -3,8 +3,8 @@
 Owner test tuzadi: mavzu (nomi), bo'limlar (HTML / CSS / JS), savollar bazasidan tanlaydi
 yoki o'zi yozadi — jami 5 ta savol. "Testni boshlash" bosilgach, foydalanuvchilarda
 "Test boshlandi" xabari chiqadi. Har kim testni bir marta yechadi: nechta to'g'ri
-javob bersa, shuncha ball reytingga qo'shiladi. To'g'ri javoblar brauzerga faqat
-test topshirilgandan keyin yuboriladi.
+javob bersa, shuncha ball reytingga qo'shiladi. Har javob darhol tekshiriladi va saqlanadi —
+uni o'zgartirib bo'lmaydi, to'g'ri javob faqat javob berilgandan keyin ko'rsatiladi.
 """
 import json
 import random
@@ -175,28 +175,45 @@ def api_begin(exam_id: int):
                    (exam_id, user["id"], time.time()))
         db.commit()
     questions = json.loads(exam["questions"])
+    answers = json.loads(a["answers"] or "[]") if a is not None else []
     return jsonify(exam=_public(exam), questions=[
-        {"topic": q["topic"], "question": q["question"], "options": q["options"]} for q in questions])
+        {"topic": q["topic"], "question": q["question"], "options": q["options"]} for q in questions],
+        done=[_checked(questions[i], ans) for i, ans in enumerate(answers)])  # sahifa yangilansa — davom etadi
 
 
-@bp.post("/api/exams/<int:exam_id>/submit")
+def _checked(q: dict, answer: int) -> dict:
+    return {"answer": answer, "correct": answer == q["correct"], "right": q["correct"]}
+
+
+@bp.post("/api/exams/<int:exam_id>/answer")
 @login_required
-def api_submit(exam_id: int):
-    """Javoblar: nechtasi to'g'ri bo'lsa, shuncha ball reytingga qo'shiladi (bir marta)."""
+def api_answer(exam_id: int):
+    """Bitta savolga javob: darhol to'g'ri/xato aytiladi va saqlanadi (o'zgartirib bo'lmaydi).
+    Oxirgi savoldan keyin test yakunlanadi: nechta to'g'ri bo'lsa, shuncha ball reytingga qo'shiladi."""
     user, exam, err = _user_exam(exam_id)
     if err:
         return err
-    answers = (request.get_json(silent=True) or {}).get("answers")
+    data = request.get_json(silent=True) or {}
+    index, answer = data.get("index"), data.get("answer")
+    if isinstance(answer, bool) or not isinstance(answer, int) or not 0 <= answer < 4:
+        return jsonify(error="Javobni tanlang"), 400
     questions = json.loads(exam["questions"])
-    if not isinstance(answers, list) or len(answers) != len(questions) or not all(
-            a is None or (isinstance(a, int) and not isinstance(a, bool) and 0 <= a < 4) for a in answers):
-        return jsonify(error="Hamma savolga javob bering"), 400
     db = get_db()
     a = db.execute("SELECT * FROM exam_attempts WHERE exam_id = ? AND user_id = ?", (exam_id, user["id"])).fetchone()
     if a is None:
         return jsonify(error="Avval testni boshlang"), 400
     if a["finished_at"] is not None:
         return jsonify(error="Siz bu testni allaqachon yechgansiz"), 400
+    answers = json.loads(a["answers"] or "[]")
+    if index != len(answers):
+        return jsonify(error="Bu savolga javob berilgan — keyingisiga o'ting"), 409
+    answers.append(answer)
+    result = _checked(questions[index], answer)
+    if len(answers) < len(questions):
+        db.execute("UPDATE exam_attempts SET answers = ? WHERE exam_id = ? AND user_id = ?",
+                   (json.dumps(answers), exam_id, user["id"]))
+        db.commit()
+        return jsonify(result)
     score = sum(1 for i, q in enumerate(questions) if answers[i] == q["correct"])
     cur = db.execute("UPDATE exam_attempts SET finished_at = ?, answers = ?, score = ? "
                      "WHERE exam_id = ? AND user_id = ? AND finished_at IS NULL",
@@ -204,4 +221,4 @@ def api_submit(exam_id: int):
     if cur.rowcount:
         db.execute("UPDATE users SET score = score + ? WHERE id = ?", (score, user["id"]))
     db.commit()
-    return jsonify(score=score, total=len(questions), review=_review(questions, answers))
+    return jsonify(**result, finished=True, score=score, total=len(questions), review=_review(questions, answers))
