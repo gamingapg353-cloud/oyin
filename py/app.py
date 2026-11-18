@@ -20,8 +20,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import accounts
 import ai_check
 import config
+import exam
 import game
 import homework
+import poll
 from build_css import build_css
 from core import (DATA_DIR, RATING_SQL, ROOT_DIR, avatar_url, close_db, current_user, get_db,
                   init_db, now_iso, owner_required, text_field)
@@ -62,6 +64,8 @@ app.teardown_appcontext(close_db)
 app.register_blueprint(homework.bp)
 app.register_blueprint(accounts.bp)
 app.register_blueprint(game.bp)
+app.register_blueprint(poll.bp)
+app.register_blueprint(exam.bp)
 
 
 def asset(filename: str) -> str:
@@ -292,7 +296,20 @@ def delete_user(user_id: int):
     return jsonify(ok=True)
 
 
+
+def load_custom_cars() -> None:
+    """Ovoz bilan qo'shilgan mashinalarni Avtosalonga yuklash."""
+    import core
+    db = sqlite3.connect(core.DB_PATH)
+    db.row_factory = sqlite3.Row
+    try:
+        poll.load_custom_cars(db)
+    finally:
+        db.close()
+
+
 init_db()
+load_custom_cars()
 
 if __name__ == "__main__":
     build_css()

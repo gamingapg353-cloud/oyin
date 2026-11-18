@@ -89,6 +89,12 @@ import * as THREE from 'three';
     lambo: { type: 'sawtooth', base: 68, range: 150, cutoff: 950, vol: 0.17 },
     tesla: { type: 'sine', base: 170, range: 300, cutoff: 2400, vol: 0.07 },
   };
+  // Ovoz bilan qo'shilgan mashinalar — ko'rinishiga mos dvigatel ovozi
+  function engineKey(carId) {
+    if (!carId || ENGINE[carId]) return carId;
+    const style = carsById[carId] ? carsById[carId].style : 'sedan';
+    return { sedan: 'bmw', suv: 'mercedes', super: 'lambo', fly: 'tesla' }[style] || 'bmw';
+  }
   const sound = (() => {
     let ctx = null;
     let master = null;
@@ -553,7 +559,8 @@ import * as THREE from 'three';
   const CAR_BUILDERS = { bmw: carBMW, mercedes: carG, lambo: carLambo, tesla: carTesla };
   function makeCar(id) {
     const info = carsById[id] || catalog.cars[0];
-    return (CAR_BUILDERS[info.id] || carBMW)(info.color);
+    const byStyle = { sedan: carBMW, suv: carG, super: carLambo, fly: carTesla };
+    return (CAR_BUILDERS[info.id] || byStyle[info.style] || carBMW)(info.color);
   }
 
   // G'ildiraklar aylanadi; Tesla uchganda qanot va nurlar chiqadi
@@ -1662,7 +1669,7 @@ import * as THREE from 'three';
   }
 
   function honk() {
-    if (me && me.car) sound.horn(me.car);
+    if (me && me.car) sound.horn(engineKey(me.car));
   }
 
   // ---------------- Harakat va kamera ----------------
@@ -1941,6 +1948,12 @@ import * as THREE from 'three';
     // Odamlar va pul berish oynalari sinxronda qayta chizilmaydi (yozilgan summa o'chib ketmasin)
     if (sheetState.kind === 'people') return `people|${sheetState.list ? sheetState.list.length : '-'}`;
     if (sheetState.kind === 'give') return `give|${sheetState.person.key}`;
+    if (sheetState.kind === 'market') {
+      const m = money();
+      const listed = [...plotsById.values()].filter((r) => r.price);
+      return `market|${listed.map((r) => `${r.plot}:${r.price}:${r.owner}:${m >= r.price}`).join()}|${plotsById.size}|${m >= catalog.land_price}|${catalog.cars.length}`;
+    }
+    if (sheetState.kind === 'poll') return `poll|${sheetState.data ? JSON.stringify([sheetState.data.my_vote, sheetState.data.proposals.length]) : '-'}`;
     const m = money();
     const prices = [catalog.land_price, ...catalog.buildings.map((b) => b.first.price),
       ...catalog.cars.map((c) => c.price), ...economy.plots.map((p) => p.next_price || 0)];
@@ -2103,6 +2116,7 @@ import * as THREE from 'three';
       if (rec.price) body.append(buyListedBox(id, rec));
       else body.append(el('p', 'sheet-note', "Bu yer boshqa o'yinchiga tegishli. Egasi sotuvga qo'ysa, sotib olishingiz mumkin."));
       if (IS_OWNER) body.append(saleBox(id, rec, null));
+      if (IS_OWNER) body.append(ownerDestroyBox(id, rec));
       return;
     }
 
@@ -2333,6 +2347,24 @@ import * as THREE from 'three';
       const info = el('div', 'car-row__info');
       info.append(el('strong', '', car.name),
         el('small', '', `Tezlik ×${car.speed} · Taksi haqi ×${car.fare}${car.flies ? ' · UCHADI!' : ''}`));
+      if (car.custom) info.append(el('small', 'car-row__new', `Yangi! Ovoz bilan qo'shildi — ${car.author} taklifi («${car.ability}»)`));
+      if (car.custom && IS_OWNER) {
+        // Owner: ovoz bilan qo'shilgan mashinani olib tashlash
+        const del = el('button', 'link-btn link-btn--danger');
+        del.type = 'button';
+        del.append(icon('trash'), el('span', '', "Owner: Avtosalondan o'chirish"));
+        del.addEventListener('click', async () => {
+          if (!window.confirm(`${car.name}ni Avtosalondan o'chirasizmi? Uni sotib olganlarga pullari qaytariladi.`)) return;
+          try {
+            const data = await api(`/api/poll/cars/${car.id}`, { method: 'DELETE' });
+            toast(`${data.name} o'chirildi${data.refunded ? ` — ${data.refunded} kishiga pul qaytarildi` : ''}`, 'success');
+            refreshCars();
+          } catch (err) {
+            if (!handleAuthError(err)) toast(err.message, 'warn');
+          }
+        });
+        info.append(del);
+      }
       row.append(swatch, info);
       if (owned) {
         const driving = me.car === car.id;
@@ -2365,6 +2397,293 @@ import * as THREE from 'three';
     body.append(list, el('p', 'sheet-note',
       "Mashinaga o'tirish/tushish — E, signal — H. Taksi: sariq halqadagi yo'lovchiga boring — o'zi o'tiradi, "
       + 'yashil nurga eltsangiz pul olasiz. Teslada Probel — uchish/qo\'nish.'));
+  }
+
+
+  // ---------------- Haftalik mashina ovozi ----------------
+  async function openPoll() {
+    const st = { kind: 'poll', data: null, draftName: '', draftAbility: '' };
+    openSheet(st);
+    try {
+      const data = await api('/api/poll');
+      if (sheetState !== st) return;
+      st.data = data;
+      renderSheet();
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+
+  function carStatsText(stx) {
+    return `Tezlik ×${stx.speed} · Taksi ×${stx.fare}${stx.flies ? ' · UCHADI' : ''} · ${formatNumber(stx.price)} so'm`;
+  }
+
+  // Yangi mashina qo'shilsa — Avtosalon ro'yxatini yangilaymiz
+  async function refreshCars() {
+    try {
+      const s2 = await api('/api/game/state');
+      catalog.cars = s2.catalog.cars;
+      carsById = Object.fromEntries(catalog.cars.map((car) => [car.id, car]));
+      if (sheetState && sheetState.kind === 'shop') renderSheet();
+    } catch { /* keyingi safar */ }
+  }
+
+  function renderPollSheet(body, st) {
+    const d = st.data;
+    if (!d) {
+      setHead('vote', 'Haftalik mashina ovozi', 'Yuklanmoqda…');
+      return;
+    }
+    const left = Math.max(0, d.poll.ends_at - d.poll.now);
+    const days = Math.floor(left / 86400);
+    const hours = Math.floor((left % 86400) / 3600);
+    setHead('vote', 'Haftalik mashina ovozi', `Tugashiga ${days} kun ${hours} soat · g'olib Avtosalonga qo'shiladi`);
+    if (d.last_winner) {
+      body.append(el('p', 'sheet-note', `O'tgan hafta g'olibi: ${d.last_winner.name} (${d.last_winner.author} taklifi) — Avtosalonda!`));
+    }
+    // Tepada — variantlar
+    const list = el('div', 'votes');
+    const max = Math.max(1, ...d.proposals.map((p) => p.votes));
+    d.proposals.forEach((p) => {
+      const row = el('div', d.my_vote === p.id ? 'vote is-mine' : 'vote');
+      const swatch = el('span', 'car-row__swatch');
+      swatch.style.setProperty('--car', p.stats.color);
+      swatch.append(icon(p.stats.flies ? 'plane' : 'car'));
+      const info = el('div', 'vote__info');
+      const bar = el('span', 'vote__bar');
+      const fill = el('span', 'vote__fill');
+      fill.style.width = `${(p.votes / max) * 100}%`;
+      bar.append(fill);
+      info.append(el('strong', '', `${p.name} — ${p.votes} ovoz`), el('small', '', `«${p.ability}» · ${p.author} taklifi`),
+        el('small', 'vote__stats', carStatsText(p.stats)), bar);
+      const btn = el('button', d.my_vote === p.id ? 'btn btn--ghost' : 'btn btn--primary');
+      btn.type = 'button';
+      btn.append(icon('check'), el('span', '', d.my_vote === p.id ? 'Ovozingiz' : 'Ovoz berish'));
+      btn.disabled = d.my_vote === p.id;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          st.data = await api('/api/poll/vote', { method: 'POST', body: { proposal: p.id } });
+          sound.ding();
+          toast(`${p.name} uchun ovoz berdingiz`, 'success');
+          renderSheet();
+        } catch (err) {
+          if (!handleAuthError(err)) toast(err.message, 'warn');
+          btn.disabled = false;
+        }
+      });
+      row.append(swatch, info, btn);
+      list.append(row);
+    });
+    if (!d.proposals.length) list.append(el('p', 'sheet-note', "Bu hafta hali taklif yo'q — birinchi bo'lib taklif qiling!"));
+    body.append(list);
+
+    // Pastda — yangi mashina taklif qilish
+    const box2 = el('div', 'sale');
+    box2.append(el('strong', 'sale__title', 'Yangi mashina taklif qilish'));
+    if (d.proposed) {
+      box2.append(el('small', '', "Bu hafta siz mashina taklif qildingiz. Do'stlaringizni ovoz berishga chaqiring!"));
+    } else {
+      const cost = d.my_points === null ? 'owner — bepul' : `${d.cost} ball`;
+      box2.append(el('small', '', d.my_points === null
+        ? 'Nomini va qobiliyatini yozing.'
+        : `Taklif qilish ${d.cost} ball turadi (reytingdan ayiriladi). Sizda ${d.my_points} ball bor.`));
+      const name = el('input', 'input');
+      name.placeholder = 'Mashina nomi, masalan: Chevrolet';
+      name.maxLength = 30;
+      name.value = st.draftName;
+      name.setAttribute('aria-label', 'Mashina nomi');
+      name.addEventListener('input', () => { st.draftName = name.value; });
+      const ability = el('input', 'input');
+      ability.placeholder = "Qobiliyati, masalan: tez bo'lsin, qizil";
+      ability.maxLength = 80;
+      ability.value = st.draftAbility;
+      ability.setAttribute('aria-label', 'Mashina qobiliyati');
+      ability.addEventListener('input', () => { st.draftAbility = ability.value; });
+      const go = el('button', 'btn btn--primary btn--block');
+      go.type = 'button';
+      go.append(icon('sparkles'), el('span', '', `Taklif qilish — ${cost}`));
+      go.disabled = d.my_points !== null && d.my_points < d.cost;
+      go.addEventListener('click', async () => {
+        go.disabled = true;
+        try {
+          st.data = await api('/api/poll/propose', { method: 'POST', body: { name: name.value, ability: ability.value } });
+          st.draftName = '';
+          st.draftAbility = '';
+          sound.cash();
+          toast("Taklifingiz variantlarga qo'shildi!", 'success');
+          renderSheet();
+        } catch (err) {
+          if (!handleAuthError(err)) toast(err.message, 'warn');
+          go.disabled = false;
+        }
+      });
+      box2.append(name, ability,
+        el('small', 'vote__hint', "So'zlar: tez, juda tez, uchadigan, kuchli/jip, taksi, arzon, qimmat; rang: qizil, ko'k, qora, oq, sariq…"),
+        go);
+    }
+    body.append(box2);
+
+    if (d.is_owner) {
+      const fin = el('button', 'link-btn');
+      fin.type = 'button';
+      fin.append(icon('trophy'), el('span', '', 'Owner: ovozni hozir yakunlash (g\'olib Avtosalonga)'));
+      fin.addEventListener('click', async () => {
+        if (!window.confirm("Ovoz berishni hozir yakunlaysizmi? Eng ko'p ovoz olgan mashina Avtosalonga qo'shiladi va yangi hafta boshlanadi.")) return;
+        try {
+          const data = await api('/api/poll/finish', { method: 'POST' });
+          st.data = data;
+          toast(data.winner ? `${data.winner.name} Avtosalonga qo'shildi!` : "Ovoz olgan mashina yo'q edi — yangi hafta boshlandi", 'success');
+          refreshCars();
+          renderSheet();
+        } catch (err) {
+          if (!handleAuthError(err)) toast(err.message, 'warn');
+        }
+      });
+      body.append(fin);
+    }
+  }
+
+  // Owner: boshqaning uyini buzish yoki yerini bo'shatish
+  function ownerDestroyBox(id, rec) {
+    const wrap = el('div', 'owner-tools');
+    const act = async (mode, question, done) => {
+      if (!window.confirm(question)) return;
+      try {
+        await plotAction(id, 'demolish', { mode });
+        toast(done, 'success');
+      } catch (err) {
+        if (!handleAuthError(err)) toast(err.message, 'warn');
+      }
+    };
+    if (rec.level) {
+      const b1 = el('button', 'link-btn link-btn--danger');
+      b1.type = 'button';
+      b1.append(icon('trash'), el('span', '', 'Owner: uyni yo\'q qilish'));
+      b1.addEventListener('click', () => act('building',
+        `${rec.name}ning ${kindName(rec.kind).toLowerCase()}ini (${rec.level} qavat) yo'q qilasizmi? Yer egasida qoladi.`,
+        "Uy yo'q qilindi"));
+      wrap.append(b1);
+    }
+    const b2 = el('button', 'link-btn link-btn--danger');
+    b2.type = 'button';
+    b2.append(icon('trash'), el('span', '', 'Owner: yerni bo\'shatish (uy bilan)'));
+    b2.addEventListener('click', () => act('land',
+      `${rec.name}ning yerini (uyi bilan) tortib olib bo'shatasizmi? Yer yana sotuvga chiqadi.`,
+      "Yer bo'shatildi"));
+    wrap.append(b2);
+    return wrap;
+  }
+
+
+  // ---------------- Bozor: sotuvdagi hamma narsa ----------------
+  function marketRow(r) {
+    const row = el('div', 'car-row');
+    const swatch = el('span', 'car-row__swatch');
+    swatch.style.setProperty('--car', r.kind ? buildingsById[r.kind].color : '#a8a29e');
+    swatch.append(icon(r.kind ? KIND_ICONS[r.kind] : 'map-pin'));
+    const info = el('div', 'car-row__info');
+    info.append(el('strong', '', r.level ? `${kindName(r.kind)} · ${r.level} qavat` : "Bo'sh yer"),
+      el('small', '', `${r.name} sotyapti · ${r.home ? 'Ota hovli' : plotTitle(r.plot)} · +${fmtRate(levelIncomeOf(r))} so'm / sek`));
+    row.append(swatch, info, priceButton('Olish', r.price, async () => {
+      const data = await plotAction(r.plot, 'buy');
+      sound.cash();
+      toast(`Tabriklaymiz! ${formatNumber(data.paid)} so'mga sotib oldingiz`, 'success');
+    }, ''), guideButton(r.plot));
+    return row;
+  }
+
+  // Bino daromadi (serverdagi formula bilan bir xil: har qavat narxi / payback)
+  function levelIncomeOf(r) {
+    if (!r.kind || !r.level) return 0;
+    let sum = 0;
+    for (let lv = 1; lv <= Math.min(r.level, kindMax(r.kind)); lv += 1) sum += levelPrice(r.kind, lv);
+    return Math.round((sum / buildingsById[r.kind].payback) * 100) / 100;
+  }
+
+  function guideButton(plotId) {
+    const go = el('button', 'btn btn--ghost');
+    go.type = 'button';
+    go.title = "Yo'l ko'rsatish";
+    go.append(icon('navigation'));
+    go.addEventListener('click', () => {
+      const gate = plotGate(world.plots[plotId]);
+      setGuide(gate.x, gate.y, plotTitle(plotId));
+      closeSheet();
+    });
+    return go;
+  }
+
+  function renderMarketSheet(body) {
+    const listed = [...plotsById.values()].filter((r) => r.price);
+    const forMe = listed.filter((r) => r.owner !== me.key).sort((a, b) => a.price - b.price);
+    const myListed = listed.filter((r) => r.owner === me.key);
+    const free = world.plots.filter((p) => !plotsById.has(p.id))
+      .map((p) => ({ p, d: Math.hypot(plotGate(p).x - me.x, plotGate(p).y - me.y) }))
+      .sort((a, b) => a.d - b.d);
+    setHead('store', 'Bozor', `Sotuvda: ${forMe.length} ta uy · ${free.length} ta bo'sh yer · ${catalog.cars.length} ta mashina`);
+    const box2 = el('div', 'market');
+
+    box2.append(el('h3', 'market__title', "O'yinchilar sotayotgan uylar"));
+    if (!forMe.length) box2.append(el('p', 'sheet-note', "Hozir hech kim uy sotmayapti. O'z uyingizni sotish uchun uni oching va narx qo'ying."));
+    forMe.forEach((r) => box2.append(marketRow(r)));
+
+    if (myListed.length) {
+      box2.append(el('h3', 'market__title', 'Siz sotayotganlar'));
+      myListed.forEach((r) => {
+        const row = el('div', 'car-row is-owned');
+        const info = el('div', 'car-row__info');
+        info.append(el('strong', '', `${r.level ? `${kindName(r.kind)} · ${r.level} qavat` : "Bo'sh yer"} — ${formatNumber(r.price)} so'm`),
+          el('small', '', 'Xaridor kutilmoqda'));
+        const off = el('button', 'btn btn--ghost');
+        off.type = 'button';
+        off.append(icon('x'), el('span', '', 'Sotuvdan olish'));
+        off.addEventListener('click', async () => {
+          off.disabled = true;
+          try {
+            await plotAction(r.plot, 'unlist');
+            toast('Sotuvdan olindi');
+          } catch (err) {
+            if (!handleAuthError(err)) toast(err.message, 'warn');
+            off.disabled = false;
+          }
+        });
+        row.append(info, off);
+        box2.append(row);
+      });
+    }
+
+    box2.append(el('h3', 'market__title', `Bo'sh yerlar — ${formatNumber(catalog.land_price)} so'm (sizga eng yaqinlari)`));
+    free.slice(0, 6).forEach(({ p, d }) => {
+      const row = el('div', 'car-row');
+      const swatch = el('span', 'car-row__swatch');
+      swatch.style.setProperty('--car', '#b45309');
+      swatch.append(icon('map-pin'));
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', plotTitle(p.id)), el('small', '', `${meters(d)} uzoqda`));
+      row.append(swatch, info, priceButton('Olish', catalog.land_price, async () => {
+        await plotAction(p.id, 'buy');
+        sound.cash();
+        toast(`Tabriklaymiz! ${plotTitle(p.id)} endi sizniki`, 'success');
+      }, ''), guideButton(p.id));
+      box2.append(row);
+    });
+    if (!free.length) box2.append(el('p', 'sheet-note', "Bo'sh yer qolmagan."));
+
+    box2.append(el('h3', 'market__title', 'Mashinalar — Avtosalonda'));
+    const carRow = el('div', 'car-row');
+    const swatch = el('span', 'car-row__swatch');
+    swatch.style.setProperty('--car', '#1e3a8a');
+    swatch.append(icon('car'));
+    const info = el('div', 'car-row__info');
+    info.append(el('strong', '', `${catalog.cars.length} ta mashina`), el('small', '', catalog.cars.map((c) => c.name).join(', ')));
+    const shopBtn = el('button', 'btn btn--primary');
+    shopBtn.type = 'button';
+    shopBtn.append(icon('car'), el('span', '', 'Avtosalon'));
+    shopBtn.addEventListener('click', () => { openSheet({ kind: 'shop' }); refreshCars(); });
+    carRow.append(swatch, info, shopBtn);
+    box2.append(carRow);
+    body.append(box2);
   }
 
   // ---------------- Odamlar: ro'yxat va pul berish ----------------
@@ -2523,12 +2842,16 @@ import * as THREE from 'three';
     else if (sheetState.kind === 'shop') renderShopSheet(body);
     else if (sheetState.kind === 'people') renderPeopleSheet(body, sheetState);
     else if (sheetState.kind === 'give') renderGiveSheet(body, sheetState);
+    else if (sheetState.kind === 'poll') renderPollSheet(body, sheetState);
+    else if (sheetState.kind === 'market') renderMarketSheet(body);
     else renderMineSheet(body);
   }
 
   $('btn-mine').addEventListener('click', () => openSheet({ kind: 'mine' }));
   $('btn-online').addEventListener('click', openPeople);
-  $('btn-shop').addEventListener('click', () => openSheet({ kind: 'shop' }));
+  $('btn-poll').addEventListener('click', openPoll);
+  $('btn-market').addEventListener('click', () => openSheet({ kind: 'market' }));
+  $('btn-shop').addEventListener('click', () => { openSheet({ kind: 'shop' }); refreshCars(); });
   $('btn-ride').addEventListener('click', toggleRide);
   $('btn-horn').addEventListener('click', honk);
   $('btn-yandex').addEventListener('click', toggleTaxi);
@@ -2592,6 +2915,16 @@ import * as THREE from 'three';
       return;
     }
     if (sheetState || e.target.closest?.('input, textarea, select')) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      $('chat-input').focus();
+      return;
+    }
+    if (e.code === 'KeyV' || keyChar(e) === 'v' || keyChar(e) === 'м') {
+      e.preventDefault();
+      if (!e.repeat) micToggle();
+      return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) {
       releaseAll(); // Ctrl+W kabi tezkor tugmalardan keyin keyup kelmasligi mumkin
       return;
@@ -2628,6 +2961,7 @@ import * as THREE from 'three';
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       releaseAll();
+      if (mic.on) micOff();
       sound.pause();
     }
   });
@@ -2643,7 +2977,7 @@ import * as THREE from 'three';
     btn.addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
   });
   // HUD tugmalari bosilgandan keyin fokusni o'yinga qaytaramiz (Probel tugmani qayta bosmasin)
-  document.querySelectorAll('.hud-actions .action-btn, #prompt, #btn-sound, #btn-yandex, #btn-online, #taxi-cancel').forEach((btn) => {
+  document.querySelectorAll('.hud-actions .action-btn, #prompt, #btn-sound, #btn-yandex, #btn-online, #btn-poll, #taxi-cancel').forEach((btn) => {
     btn.addEventListener('click', () => btn.blur());
   });
 
@@ -2672,6 +3006,218 @@ import * as THREE from 'three';
   }, { passive: false });
 
   window.addEventListener('resize', resize);
+
+
+  // ---------------- Chat ----------------
+  let chatSince = 0;
+  let voiceSince = 0;
+  const chatShown = new Set();
+
+  function chatLine(m, extraClass = '') {
+    if (m.id && chatShown.has(m.id)) return;
+    if (m.id) chatShown.add(m.id);
+    const log = $('chat-log');
+    const line = el('div', `chat__line ${extraClass}`.trim());
+    const who = el('strong', '', m.key === me.key ? 'Siz' : m.name);
+    who.style.color = m.key === me.key ? '#93c5fd' : avatarColor(m.name);
+    line.append(who, el('span', '', ` ${m.text}`));
+    log.append(line);
+    while (log.children.length > 40) log.firstChild.remove();
+    log.scrollTop = log.scrollHeight;
+    $('chat').classList.add('is-active');
+    clearTimeout(chatLine.timer);
+    chatLine.timer = setTimeout(() => $('chat').classList.remove('is-active'), 9000);
+  }
+
+  function addChat(list) {
+    (list || []).forEach((m) => {
+      chatLine(m);
+      chatSince = Math.max(chatSince, m.id);
+    });
+  }
+
+  $('chat-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = $('chat-input');
+    const text = input.value.trim();
+    if (!text) {
+      input.blur();
+      return;
+    }
+    input.value = '';
+    try {
+      const data = await api('/api/game/chat', { method: 'POST', body: { text } });
+      chatLine(data.message);
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  });
+  $('chat-input').addEventListener('focus', () => { releaseAll(); $('chat').classList.add('is-open'); });
+  $('chat-input').addEventListener('blur', () => $('chat').classList.remove('is-open'));
+  $('chat-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      e.target.blur();
+    }
+  });
+
+  // ---------------- Mikrofon: bir bosishda yoqiladi, ovoz hammaga jonli eshitiladi ----------------
+  // Bepul serverda doimiy ulanish yo'q, shuning uchun ovoz ~1 soniyalik bo'laklarda yuboriladi
+  // va boshqalarda ketma-ket o'ynaydi (1–2 soniya kechikish). Jim payt yuborilmaydi.
+  const CHUNK_MS = 1000;
+  const SILENCE = 0.02;                 // shundan past ovoz — jimlik
+  const mic = { on: false, stream: null, rec: null, analyser: null, peak: 0, mime: '', timer: null, meter: null };
+
+  function micUi() {
+    const btn = $('btn-mic');
+    btn.classList.toggle('is-rec', mic.on);
+    btn.setAttribute('aria-pressed', String(mic.on));
+    btn.title = mic.on ? "Mikrofon yoniq — hamma eshitadi. O'chirish uchun bosing (V)" : 'Mikrofonni yoqish (V)';
+  }
+
+  async function micToggle() {
+    if (mic.on) {
+      micOff();
+      toast("Mikrofon o'chdi");
+      return;
+    }
+    if (!navigator.mediaDevices || !window.MediaRecorder) {
+      toast("Brauzeringiz mikrofonni qo'llamaydi", 'warn');
+      return;
+    }
+    try {
+      if (!mic.stream) mic.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    } catch {
+      toast('Mikrofonga ruxsat berilmadi. Brauzerda mikrofonga ruxsat bering', 'warn');
+      return;
+    }
+    mic.mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported?.(t)) || '';
+    // Ovoz balandligini o'lchash (jim payt yubormaslik uchun)
+    try {
+      sound.unlock();
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AC();
+      const src = ctx.createMediaStreamSource(mic.stream);
+      mic.analyser = ctx.createAnalyser();
+      mic.analyser.fftSize = 512;
+      src.connect(mic.analyser);
+      const buf = new Float32Array(mic.analyser.fftSize);
+      mic.meter = setInterval(() => {
+        mic.analyser.getFloatTimeDomainData(buf);
+        let sum = 0;
+        for (let i = 0; i < buf.length; i += 1) sum += buf[i] * buf[i];
+        mic.peak = Math.max(mic.peak, Math.sqrt(sum / buf.length));
+      }, 80);
+    } catch {
+      mic.analyser = null; // o'lchab bo'lmasa — hammasini yuboramiz
+    }
+    mic.on = true;
+    micUi();
+    toast('Mikrofon yoniq — gapiring, hamma eshitadi. O\'chirish — yana bosing', 'success');
+    recordChunk();
+  }
+
+  function recordChunk() {
+    if (!mic.on) return;
+    const chunks = [];
+    const rec = new MediaRecorder(mic.stream, mic.mime ? { mimeType: mic.mime } : undefined);
+    mic.rec = rec;
+    mic.peak = 0;
+    rec.ondataavailable = (ev) => { if (ev.data.size) chunks.push(ev.data); };
+    rec.onstop = () => {
+      const loud = !mic.analyser || mic.peak > SILENCE;
+      recordChunk(); // keyingi bo'lak darhol boshlanadi
+      if (loud && chunks.length) sendChunk(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }));
+    };
+    rec.start();
+    mic.timer = setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, CHUNK_MS);
+  }
+
+  async function sendChunk(blob) {
+    const form = new FormData();
+    form.append('audio', blob, 'ovoz.webm');
+    try {
+      await api('/api/game/voice', { method: 'POST', form });
+    } catch (err) {
+      if (handleAuthError(err)) return;
+    }
+  }
+
+  function micOff() {
+    mic.on = false;
+    clearTimeout(mic.timer);
+    clearInterval(mic.meter);
+    if (mic.rec && mic.rec.state === 'recording') mic.rec.stop();
+    mic.rec = null;
+    if (mic.stream) {
+      mic.stream.getTracks().forEach((t) => t.stop()); // brauzerdagi "mikrofon ishlayapti" belgisi o'chsin
+      mic.stream = null;
+    }
+    micUi();
+  }
+
+  $('btn-mic').addEventListener('click', (e) => {
+    e.preventDefault();
+    micToggle();
+    $('btn-mic').blur();
+  });
+
+  // Boshqalarning ovozi: har bir odamning bo'laklari o'z navbatida ketma-ket o'ynaydi
+  const voiceQueues = new Map();   // key -> {list, playing, name}
+  const speakingUntil = new Map(); // key -> {name, t}
+
+  function addVoices(list) {
+    (list || []).forEach((v) => {
+      voiceSince = Math.max(voiceSince, v.id);
+      let q = voiceQueues.get(v.key);
+      if (!q) {
+        q = { list: [], playing: false };
+        voiceQueues.set(v.key, q);
+      }
+      q.list.push(v);
+      speakingUntil.set(v.key, { name: v.name, t: performance.now() + 2500 });
+      playQueue(q);
+    });
+    updateSpeaking();
+  }
+
+  async function playQueue(q) {
+    if (q.playing || !q.list.length) return;
+    q.playing = true;
+    while (q.list.length) {
+      const v = q.list.shift();
+      if (q.list.length > 4) q.list.splice(0, q.list.length - 2); // juda orqada qolsak — yetib olamiz
+      if (sound.isMuted()) continue;
+      try {
+        const res = await fetch(`/api/game/voice/${v.id}`, { credentials: 'same-origin' });
+        if (!res.ok) continue;
+        const url = URL.createObjectURL(await res.blob());
+        const audio = new Audio(url);
+        await new Promise((resolve) => {
+          audio.onended = resolve;
+          audio.onerror = resolve;
+          audio.play().catch(resolve);
+        });
+        URL.revokeObjectURL(url);
+      } catch { /* eskirgan bo'lak — o'tkazib yuboramiz */ }
+    }
+    q.playing = false;
+  }
+
+  // "🔊 Ali gapiryapti" — chat ustida
+  function updateSpeaking() {
+    const now = performance.now();
+    const names = [];
+    speakingUntil.forEach((v, key) => {
+      if (v.t > now) names.push(v.name);
+      else speakingUntil.delete(key);
+    });
+    const box = $('speaking');
+    const text = names.length ? `🔊 ${names.join(', ')} gapiryapti` : '';
+    if (box.textContent !== text) box.textContent = text;
+    box.hidden = !names.length;
+  }
+  setInterval(updateSpeaking, 500);
 
   // ---------------- Xarita (kichik / katta) ----------------
   const mini = $('minimap');
@@ -2807,6 +3353,8 @@ import * as THREE from 'three';
     }
     setPlayers(data.players);
     // Kimdir pul bergan bo'lsa — xabar
+    addChat(data.chat);
+    addVoices(data.voices);
     (data.gifts || []).forEach((g) => {
       sound.cash();
       toast(`${g.from} sizga ${formatNumber(g.amount)} so'm berdi!`, 'success');
@@ -2820,7 +3368,10 @@ import * as THREE from 'three';
       try {
         const data = await api('/api/game/sync', {
           method: 'POST',
-          body: { x: Math.round(me.x), y: Math.round(me.y), h: Math.round(me.h), dir: me.dir, car: me.car },
+          body: {
+            x: Math.round(me.x), y: Math.round(me.y), h: Math.round(me.h), dir: me.dir, car: me.car,
+            chat_since: chatSince, voice_since: voiceSince,
+          },
         });
         applySync(data, version === localVersion);
         $('conn').hidden = true;
@@ -2871,7 +3422,7 @@ import * as THREE from 'three';
     updateTaxiCard();
     if (now - lastSound > 80) {
       lastSound = now;
-      sound.engine(me.car, me.throttle, me.h > 5);
+      sound.engine(engineKey(me.car), me.throttle, me.h > 5);
     }
     requestAnimationFrame(loop);
   }
@@ -2906,6 +3457,8 @@ import * as THREE from 'three';
       setPassengers(s.passengers);
       setRide(s.ride);
       setPlayers(s.players);
+      addChat(s.chat);
+      voiceSince = s.voice_last || 0;
       updateSoundButton();
       resize();
 

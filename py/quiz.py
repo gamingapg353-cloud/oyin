@@ -1,4 +1,4 @@
-"""HTML/CSS savollari — binoga yangi qavat (daraja) qo'shishdan oldin beriladi.
+"""HTML/CSS/JS savollari: o'yinda yangi qavat uchun (HTML/CSS) va panel testlari uchun (hammasi).
 
 Har bir savolda birinchi variant — TO'G'RI javob (berishda aralashtiriladi).
 Yangi savol qo'shish oson: ro'yxat oxiriga xuddi shu ko'rinishda qo'shing.
@@ -173,15 +173,77 @@ QUESTIONS = [
     {"topic": "CSS", "q": "Elementning kengligini qaysi xususiyat beradi?",
      "options": ["width", "height", "size", "length"],
      "explain": "width — kenglik, height — balandlik."},
+    # ---------------- JavaScript ----------------
+    {"topic": "JS", "q": "O'zgarmaydigan (qayta qiymat berib bo'lmaydigan) o'zgaruvchi qanday e'lon qilinadi?",
+     "options": ["const", "let", "var", "static"],
+     "explain": "const bilan e'lon qilingan o'zgaruvchiga qayta qiymat berib bo'lmaydi. let — o'zgaradigan."},
+    {"topic": "JS", "q": "Brauzer konsoliga matn chiqarish qaysi?",
+     "options": ["console.log(\"Salom\")", "print(\"Salom\")", "echo(\"Salom\")", "console.write(\"Salom\")"],
+     "explain": "console.log() — konsolga yozadi (F12 → Console)."},
+    {"topic": "JS", "q": "typeof 5 nimani qaytaradi?",
+     "options": ["\"number\"", "\"int\"", "\"string\"", "\"digit\""],
+     "explain": "JavaScript'da butun va kasr sonlar uchun bitta tur bor — number."},
+    {"topic": "JS", "q": "\"5\" + 2 natijasi nima?",
+     "options": ["\"52\"", "7", "\"7\"", "xato beradi"],
+     "explain": "Matnga son qo'shilsa, son matnga aylanib yopishadi: \"5\" + 2 = \"52\"."},
+    {"topic": "JS", "q": "Qiymat va turini birga solishtiruvchi (qat'iy tenglik) operator qaysi?",
+     "options": ["===", "==", "=", "!="],
+     "explain": "=== turini ham tekshiradi: 5 === \"5\" — false. = esa qiymat berish."},
+    {"topic": "JS", "q": "Massivning elementlari soni qanday topiladi?",
+     "options": ["arr.length", "arr.size", "arr.count", "length(arr)"],
+     "explain": "Massiv uzunligi — .length xususiyati."},
+    {"topic": "JS", "q": "Massiv oxiriga element qo'shuvchi metod qaysi?",
+     "options": ["push()", "pop()", "shift()", "add()"],
+     "explain": "push() — oxiriga qo'shadi, pop() — oxiridagini olib tashlaydi."},
+    {"topic": "JS", "q": "let arr = [10, 20, 30]; arr[0] nimaga teng?",
+     "options": ["10", "20", "30", "undefined"],
+     "explain": "Massiv indeksi 0 dan boshlanadi: arr[0] — birinchi element."},
+    {"topic": "JS", "q": "Funksiya qaysi kalit so'z bilan e'lon qilinadi?",
+     "options": ["function", "func", "def", "method"],
+     "explain": "function salom() { ... } — funksiya e'lon qilish. def — Python'da."},
+    {"topic": "JS", "q": "id=\"title\" bo'lgan elementni qanday olamiz?",
+     "options": ["document.getElementById(\"title\")", "document.getElement(\"#title\")",
+                 "document.id(\"title\")", "window.getId(\"title\")"],
+     "explain": "getElementById id bo'yicha bitta elementni qaytaradi. querySelector(\"#title\") ham ishlaydi."},
+    {"topic": "JS", "q": "CSS selektor bo'yicha birinchi mos elementni qaytaradigan metod qaysi?",
+     "options": ["document.querySelector()", "document.querySelectorAll()", "document.select()", "document.find()"],
+     "explain": "querySelector — birinchisini, querySelectorAll — hammasini (NodeList) qaytaradi."},
+    {"topic": "JS", "q": "Tugma bosilganda kod ishlashi uchun qaysi metod ishlatiladi?",
+     "options": ["addEventListener(\"click\", ...)", "onPress(...)", "listen(\"click\", ...)", "addEvent(\"press\", ...)"],
+     "explain": "btn.addEventListener(\"click\", function () { ... }) — bosilganda funksiya ishlaydi."},
+    {"topic": "JS", "q": "Elementning ichidagi matnni o'zgartirish uchun nima ishlatiladi?",
+     "options": ["el.textContent = \"...\"", "el.text(\"...\")", "el.value.text = \"...\"", "el.inner = \"...\""],
+     "explain": "textContent — elementning matni. innerHTML esa HTML bilan birga."},
+    {"topic": "JS", "q": "Shart operatori qaysi?",
+     "options": ["if (x > 5) { ... }", "if x > 5 then ...", "when (x > 5) { ... }", "check (x > 5) { ... }"],
+     "explain": "if (shart) { ... } else { ... } — JavaScript'da shart shunday yoziladi."},
+    {"topic": "JS", "q": "for (let i = 0; i < 3; i++) sikli necha marta ishlaydi?",
+     "options": ["3 marta", "2 marta", "4 marta", "cheksiz"],
+     "explain": "i = 0, 1, 2 — uch marta. i = 3 bo'lganda shart (i < 3) false bo'ladi."},
+    {"topic": "JS", "q": "Mantiqiy \"VA\" operatori qaysi?",
+     "options": ["&&", "||", "!", "&"],
+     "explain": "&& — ikkalasi ham true bo'lsa true. || — \"YOKI\", ! — inkor."},
+    {"topic": "JS", "q": "Matnni butun songa aylantiradigan funksiya qaysi?",
+     "options": ["parseInt(\"42\")", "toNumber(\"42\")", "int(\"42\")", "\"42\".number()"],
+     "explain": "parseInt(\"42\") — 42. Number(\"42\") ham ishlaydi."},
+    {"topic": "JS", "q": "Qiymat berilmagan o'zgaruvchining qiymati nima bo'ladi?",
+     "options": ["undefined", "null", "0", "\"\""],
+     "explain": "let x; — x hozircha undefined. null esa \"bo'sh\" deb ataylab beriladi."},
+    {"topic": "JS", "q": "Funksiyadan natija qaytarish uchun qaysi kalit so'z?",
+     "options": ["return", "result", "give", "back"],
+     "explain": "return qiymat — funksiyani tugatib, natijani qaytaradi."},
+    {"topic": "JS", "q": "Ekranga oddiy xabar oynasi chiqaradigan funksiya qaysi?",
+     "options": ["alert(\"Salom\")", "message(\"Salom\")", "popup(\"Salom\")", "console.alert(\"Salom\")"],
+     "explain": "alert() — brauzerda xabar oynasini ko'rsatadi."},
 ]
 
 
-def issue(exclude: set[int] | None = None, rng: random.Random | None = None) -> dict:
-    """Tasodifiy savol: {qid, topic, question, options (aralash), correct (indeks), explain}."""
+GAME_TOPICS = ("HTML", "CSS")   # o'yinda qavat qo'shishda beriladigan savollar
+
+
+def shuffled(qid: int, rng: random.Random | None = None) -> dict:
+    """qid-savol, variantlari aralashtirilgan: {qid, topic, question, options, correct, explain}."""
     rng = rng or random
-    exclude = exclude or set()
-    pool = [i for i in range(len(QUESTIONS)) if i not in exclude] or list(range(len(QUESTIONS)))
-    qid = rng.choice(pool)
     item = QUESTIONS[qid]
     order = list(range(len(item["options"])))
     rng.shuffle(order)
@@ -193,3 +255,12 @@ def issue(exclude: set[int] | None = None, rng: random.Random | None = None) -> 
         "correct": order.index(0),  # birinchi variant — to'g'ri javob
         "explain": item["explain"],
     }
+
+
+def issue(exclude: set[int] | None = None, rng: random.Random | None = None, topics=GAME_TOPICS) -> dict:
+    """Tasodifiy savol (o'yin uchun — faqat HTML/CSS)."""
+    rng = rng or random
+    exclude = exclude or set()
+    allowed = [i for i, q in enumerate(QUESTIONS) if q["topic"] in topics]
+    pool = [i for i in allowed if i not in exclude] or allowed
+    return shuffled(rng.choice(pool), rng)

@@ -10,17 +10,19 @@ pul olib keladi. Mashinalar faqat Avtosalonda sotiladi: BMW, Mercedes, Lamborghi
 Kim qayerda turgani, yo'lovchilar — server xotirasida (qayta ishga tushsa tozalanadi),
 pul, yerlar, binolar va mashinalar — bazada.
 """
+import itertools
 import json
 import math
 import random
 import threading
 import time
+from collections import deque
 
-from flask import Blueprint, jsonify, redirect, render_template, request, url_for
+from flask import Blueprint, Response, jsonify, redirect, render_template, request, url_for
 
 import config
 import quiz
-from core import avatar_url, current_user, get_db, get_setting, login_required
+from core import avatar_url, current_user, get_db, get_setting, login_required, owner_required
 
 bp = Blueprint("game", __name__)
 
@@ -66,6 +68,13 @@ CARS = [
      "color": "#e5e7eb", "style": "fly", "flies": True},
 ]
 CARS_BY_ID = {car["id"]: car for car in CARS}  # eski mashinalar core.init_db da ko'chiriladi
+
+
+def add_custom_car(car: dict) -> None:
+    """Haftalik ovozda g'olib bo'lgan mashinani Avtosalonga qo'shish (CATALOG["cars"] ham shu ro'yxat)."""
+    if car["id"] not in CARS_BY_ID:
+        CARS.append(car)
+        CARS_BY_ID[car["id"]] = car
 
 # Taksi
 TAXI_WAITING = 10            # bir vaqtda kutib turgan yo'lovchilar
@@ -121,7 +130,7 @@ CATALOG = {
         {"id": kind, "name": BUILDINGS[kind]["name"], "about": BUILDINGS[kind]["about"],
          "color": BUILDINGS[kind]["color"],
          "first": {"price": level_price(kind, 1), "income": level_income(kind, 1)},
-         "max": max_level(kind),
+         "max": max_level(kind), "payback": BUILDINGS[kind]["payback"],
          "last": {"price": level_price(kind, max_level(kind)), "income": level_income(kind, max_level(kind))}}
         for kind in BUILDING_ORDER
     ],
@@ -490,8 +499,12 @@ def api_state():
     with _lock:
         _tick_passengers(now)
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
+        chat = list(_chat)[-30:]
+        voice_last = _voices[-1]["id"] if _voices else 0
     return jsonify(
         me={"key": key, "name": user["name"], "avatar": user["avatar"], "spawn": spawn},
+        chat=chat,
+        voice_last=voice_last,
         economy=economy_json(db, row),
         world=WORLD_DATA,
         catalog=CATALOG,
@@ -559,12 +572,84 @@ def api_sync():
                       "car": car, "t": now, "name": user["name"], "avatar": user["avatar"]}
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
         gifts = _gifts.pop(key, [])
+        chat_since, voice_since = _int(data.get("chat_since")), _int(data.get("voice_since"))
+        chat = [m for m in _chat if m["id"] > chat_since]
+        voices = [{"id": v["id"], "key": v["key"], "name": v["name"]} for v in _voices
+                  if v["id"] > voice_since and v["key"] != key and now - v["t"] < VOICE_TTL]
 
     response = {"economy": economy_json(db, row), "passengers": passengers, "ride": ride,
-                "players": players, "plots": plots_list(db), "gifts": gifts, "seat": seat}
+                "players": players, "plots": plots_list(db), "gifts": gifts, "seat": seat,
+                "chat": chat, "voices": voices}
     if corrected:
         response["correct"] = {"x": x, "y": y}
     return jsonify(response)
+
+
+# --------------------------------------------------------------------------- #
+#  Chat va ovozli xabarlar (rasiya: tugmani bosib turib gapiriladi)
+# --------------------------------------------------------------------------- #
+CHAT_MAX_LEN = 200
+VOICE_MAX_BYTES = 600 * 1024     # ~15 soniyalik ovoz
+VOICE_TTL = 30                   # ovoz bo'lagi 30 soniya saqlanadi (jonli ovoz)
+_chat: deque = deque(maxlen=100)
+_voices: deque = deque(maxlen=600)   # jonli ovoz bo'laklari (har biri ~1 soniya)
+_msg_ids = itertools.count(1)
+
+
+def _int(value) -> int:
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+@bp.post("/api/game/chat")
+@login_required
+def api_chat():
+    user = current_user()
+    text = " ".join(str((request.get_json(silent=True) or {}).get("text") or "").split())
+    if not text:
+        return jsonify(error="Xabar bo'sh"), 400
+    msg = {"id": 0, "key": player_key(user), "name": user["name"], "avatar": user["avatar"],
+           "text": text[:CHAT_MAX_LEN], "t": time.time()}
+    with _lock:
+        msg["id"] = next(_msg_ids)
+        _chat.append(msg)
+    return jsonify(message=msg)
+
+
+@bp.post("/api/game/voice")
+@login_required
+def api_voice():
+    user = current_user()
+    file = request.files.get("audio")
+    if file is None:
+        return jsonify(error="Ovoz yuborilmadi"), 400
+    data = file.read(VOICE_MAX_BYTES + 1)
+    if not data:
+        return jsonify(error="Ovoz bo'sh"), 400
+    if len(data) > VOICE_MAX_BYTES:
+        return jsonify(error="Ovozli xabar juda uzun"), 400
+    mime = (file.mimetype or "audio/webm").split(";")[0]
+    if not mime.startswith("audio/"):
+        return jsonify(error="Bu ovoz emas"), 400
+    now = time.time()
+    with _lock:
+        vid = next(_msg_ids)
+        _voices.append({"id": vid, "key": player_key(user), "name": user["name"], "mime": mime,
+                        "data": data, "t": now})
+    return jsonify(id=vid)
+
+
+@bp.get("/api/game/voice/<int:vid>")
+@login_required
+def api_voice_get(vid: int):
+    now = time.time()
+    with _lock:
+        v = next((v for v in _voices if v["id"] == vid and now - v["t"] < VOICE_TTL), None)
+    if v is None:
+        return jsonify(error="Ovozli xabar topilmadi"), 404
+    return Response(v["data"], mimetype=v["mime"], headers={"Cache-Control": "no-store"})
 
 
 # --------------------------------------------------------------------------- #
@@ -888,6 +973,43 @@ def api_unlist_plot(plot_id: int):
     db.execute("UPDATE game_plots SET sale_price = NULL WHERE plot = ?", (plot_id,))
     db.commit()
     return _listing_response(db, key)
+
+
+@bp.post("/api/game/plots/<int:plot_id>/demolish")
+@owner_required
+def api_owner_demolish(plot_id: int):
+    """Owner: istalgan uyni buzadi (mode=building) yoki yerni egasidan olib bo'shatadi (mode=land)."""
+    if not 0 <= plot_id < len(PLOTS):
+        return jsonify(error="Bunday yer yo'q"), 404
+    mode = (request.get_json(silent=True) or {}).get("mode", "building")
+    if mode not in ("building", "land"):
+        return jsonify(error="Noto'g'ri amal"), 400
+    db = get_db()
+    ensure_player(db, "owner")
+    with _econ_lock:
+        plot = db.execute("SELECT * FROM game_plots WHERE plot = ?", (plot_id,)).fetchone()
+        if plot is None:
+            return jsonify(error="Bu yer hech kimniki emas"), 400
+        if mode == "building" and plot["level"] < 1:
+            return jsonify(error="Bu yerda bino yo'q"), 400
+        victim = db.execute("SELECT * FROM game_players WHERE player_key = ?", (plot["owner_key"],)).fetchone()
+        now = time.time()
+        if victim is not None:
+            # Egasining shu paytgacha yig'ilgan daromadi saqlanib qoladi
+            db.execute("UPDATE game_players SET money = ?, income_at = ? WHERE player_key = ?",
+                       (money_now(victim, player_rate(db, victim), now), now, victim["player_key"]))
+        if mode == "building":
+            db.execute("UPDATE game_plots SET kind = NULL, level = 0, sale_price = NULL WHERE plot = ?", (plot_id,))
+        else:
+            db.execute("DELETE FROM game_plots WHERE plot = ?", (plot_id,))
+            if victim is not None and victim["plot"] == plot_id:
+                nxt = db.execute("SELECT plot FROM game_plots WHERE owner_key = ? ORDER BY bought_at, plot LIMIT 1",
+                                 (victim["player_key"],)).fetchone()
+                db.execute("UPDATE game_players SET plot = ? WHERE player_key = ?",
+                           (nxt[0] if nxt else None, victim["player_key"]))
+        db.commit()
+    row = db.execute("SELECT * FROM game_players WHERE player_key = 'owner'").fetchone()
+    return jsonify(economy=economy_json(db, row), plots=plots_list(db))
 
 
 def _upgrade_check(db, key: str, plot_id: int, money: float) -> int:

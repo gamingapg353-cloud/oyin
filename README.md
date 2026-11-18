@@ -93,6 +93,22 @@ Kalit bo'lmasa ham sayt ishlaydi — topshiriqlarni owner o'zi baholaydi.
 - Binolar **har soniyada pul** olib keladi (o'yinda bo'lmasangiz ham, 24 soatgacha).
 - Narx va daromadlarni `py/game.py` dagi `BUILDINGS`, `CARS`, `LAND_PRICE`, `MAX_PLOTS`, `TAXI_*` da o'zgartirasiz.
 
+- **Chat** (Enter) va **mikrofon** (🎤 yoki V — bir bosishda yoqiladi, ovoz hammaga 1–2 soniya kechikish bilan eshitiladi).
+- **Bozor**: o'yinchilar sotayotgan uylar, bo'sh yerlar va mashinalar bir joyda, shu yerdan sotib olinadi.
+- **Pul berish**: yuqoridagi odamlar tugmasi — istalgan odamga o'z pulingizdan berasiz.
+- **Do'stning mashinasiga o'tirish**: yoniga borib F, tushish — E (bitta mashinaga 3 kishigacha).
+- **Haftalik mashina ovozi**: mashina nomi va qobiliyatini yozib taklif qilasiz (30 ball). Hafta oxirida eng ko'p ovoz
+  olgan mashina Avtosalonga qo'shiladi. Owner ovozni muddatidan oldin yakunlashi va bunday mashinani o'chirishi mumkin.
+- **Owner**: qavatlarni savolsiz qo'shadi, istalgan uyni sotuvga qo'yadi yoki yo'q qiladi, puli tugamaydi.
+
+## Test bo'limi (panel)
+
+- Owner test tuzadi: mavzuni yozadi, HTML / CSS / JS bo'limlarini tanlaydi, bazadan savol belgilaydi
+  («Tasodifiy to'ldirish» ham bor) yoki o'zi savol yozadi — jami **5 ta savol**. «Testni boshlash» bosiladi.
+- O'quvchilarda (panelda ham, o'yinda ham) tepada **«📝 Test boshlandi»** xabari va **Boshlash** tugmasi chiqadi.
+- Avval test haqida ma'lumot, pastida **Boshlash**, keyin 5 ta savol. **Nechta to'g'ri bo'lsa — shuncha ball** reytingga.
+- Har kim testni bir marta yechadi. Owner natijalarni ko'radi va testni tugatadi. Savollar bazasi — `py/quiz.py`.
+
 ## Fayllar
 
 ```

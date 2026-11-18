@@ -1195,3 +1195,234 @@ button.hud-online {
 .sale .chips {
   margin-top: 4px;
 }
+
+// Chat va mikrofon (chap pastda, xarita ustida)
+.chat {
+  position: absolute;
+  bottom: 148px;
+  left: 14px;
+  z-index: 11;
+  display: grid;
+  gap: 6px;
+  width: unquote("min(340px, calc(100% - 28px))");
+  pointer-events: none;
+
+  > * {
+    pointer-events: auto;
+  }
+
+  &__log {
+    display: grid;
+    align-content: end;
+    gap: 3px;
+    overflow-y: auto;
+    max-height: 170px;
+    opacity: 0.55;
+    transition: opacity 0.4s;
+    scrollbar-width: thin;
+  }
+
+  &.is-active &__log,
+  &.is-open &__log,
+  &:hover &__log {
+    opacity: 1;
+  }
+
+  &__line {
+    width: fit-content;
+    max-width: 100%;
+    padding: 4px 10px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.72);
+    color: #f8fafc;
+    font-size: 13px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+
+    &--voice span,
+    &--rec span {
+      color: #fca5a5;
+    }
+  }
+
+  &__form {
+    @extend %glass;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 14px;
+  }
+
+  &__input {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    padding: 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    outline: none;
+  }
+
+  &__btn {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+    touch-action: none;
+
+    &:hover {
+      background: var(--primary-soft);
+    }
+  }
+
+  &__mic.is-rec {
+    background: #dc2626;
+    color: #ffffff;
+    animation: mic-pulse 1s ease-in-out infinite;
+  }
+
+  @media (hover: none), (max-width: $bp-sm) {
+    bottom: 220px;
+    width: unquote("min(280px, calc(100% - 28px))");
+
+    &__log {
+      max-height: 110px;
+    }
+  }
+}
+
+@keyframes mic-pulse {
+  50% {
+    box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.35);
+  }
+}
+
+// Haftalik mashina ovozi
+.hud-poll {
+  color: var(--gold);
+}
+
+.votes {
+  display: grid;
+  gap: 8px;
+}
+
+.vote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: $radius;
+
+  &.is-mine {
+    border-color: var(--success);
+    background: var(--success-soft);
+  }
+
+  &__info {
+    display: grid;
+    flex: 1;
+    gap: 2px;
+    min-width: 160px;
+
+    small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+  }
+
+  &__stats {
+    color: var(--text) !important;
+    font-weight: 600;
+  }
+
+  &__bar {
+    overflow: hidden;
+    height: 6px;
+    margin-top: 4px;
+    border-radius: 999px;
+    background: var(--border);
+  }
+
+  &__fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--gold);
+  }
+
+  &__hint {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .btn {
+    height: 40px;
+    font-size: 14px;
+  }
+}
+
+.sale .input + .input {
+  margin-top: 2px;
+}
+
+.car-row__new {
+  color: var(--gold) !important;
+  font-weight: 700;
+}
+
+.owner-tools {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+// "🔊 Ali gapiryapti"
+.chat__speaking {
+  width: fit-content;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  animation: toast-in 0.2s ease;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+// Bozor
+.market {
+  display: grid;
+  gap: 8px;
+
+  &__title {
+    margin: 6px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .car-row {
+    gap: 10px;
+  }
+
+  .car-row .btn {
+    padding: 0 12px;
+  }
+}

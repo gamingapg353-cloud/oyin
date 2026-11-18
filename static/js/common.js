@@ -168,8 +168,61 @@
     return (value < 0 ? '-' : '') + digits.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   }
 
+  // "📝 Test boshlandi" — owner test boshlaganda foydalanuvchilarning tepasida (panelda ham, o'yinda ham)
+  let bannerExam = null;
+  function hideExamBanner() {
+    const b = document.getElementById('exam-banner');
+    if (b) b.hidden = true;
+  }
+  function examBannerLoop() {
+    const APP = window.APP || {};
+    if (APP.role !== 'user') return;
+    const banner = document.createElement('div');
+    banner.id = 'exam-banner';
+    banner.className = 'exam-banner';
+    banner.hidden = true;
+    banner.setAttribute('role', 'status');
+    const text = el('span', 'exam-banner__text');
+    const go = el('button', 'exam-banner__go', 'Boshlash');
+    go.type = 'button';
+    const close = el('button', 'exam-banner__close', '×');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Yopish');
+    banner.append(text, go, close);
+    document.body.append(banner);
+    const onPanel = () => window.location.pathname.startsWith('/panel');
+    go.addEventListener('click', () => {
+      hideExamBanner();
+      if (onPanel()) window.location.hash = 'exam';
+      else window.location.href = '/panel#exam';
+    });
+    close.addEventListener('click', () => {
+      try { sessionStorage.setItem('exam-dismissed', String(bannerExam)); } catch { /* e'tiborsiz */ }
+      hideExamBanner();
+    });
+    const check = async () => {
+      try {
+        const res = await fetch('/api/exams/active', { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const data = await res.json();
+        let dismissed = '';
+        try { dismissed = sessionStorage.getItem('exam-dismissed') || ''; } catch { /* e'tiborsiz */ }
+        const show = data.exam && data.attempt && data.attempt.status !== 'finished'
+          && String(data.exam.id) !== dismissed && !(onPanel() && window.location.hash === '#exam');
+        bannerExam = data.exam ? data.exam.id : null;
+        if (show) text.textContent = `📝 Test boshlandi: «${data.exam.title}». Kiringlar!`;
+        banner.hidden = !show;
+      } catch { /* tarmoq xatosi — keyingi safar */ }
+    };
+    check();
+    setInterval(check, 8000);
+    window.addEventListener('hashchange', check);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', examBannerLoop);
+  else examBannerLoop();
+
   window.Oyin = {
     store, avatarColor, api, handleAuthError, el, icon, formatDate, avatarEl, setAvatar,
-    uploadAvatar, MONTHS, formatNumber, viewLoaders: {},
+    uploadAvatar, MONTHS, formatNumber, viewLoaders: {}, hideExamBanner,
   };
 })();

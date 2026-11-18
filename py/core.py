@@ -51,6 +51,63 @@ CREATE TABLE IF NOT EXISTS game_plots (
     sale_price  INTEGER                        -- sotuvga qo'yilgan narx (NULL = sotuvda emas)
 );
 
+-- Haftalik mashina ovozi: o'yinchilar mashina taklif qiladi, g'olib Avtosalonga qo'shiladi
+CREATE TABLE IF NOT EXISTS car_polls (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at  REAL NOT NULL,
+    ends_at     REAL NOT NULL,
+    closed      INTEGER NOT NULL DEFAULT 0,
+    winner      INTEGER                        -- g'olib taklif (car_proposals.id)
+);
+
+CREATE TABLE IF NOT EXISTS car_proposals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id     INTEGER NOT NULL REFERENCES car_polls(id),
+    name        TEXT NOT NULL,
+    ability     TEXT NOT NULL,
+    author_key  TEXT NOT NULL,
+    author_name TEXT NOT NULL,
+    stats       TEXT NOT NULL,                 -- JSON: tezlik, taksi haqi, uchadimi, ko'rinish, rang, narx
+    created_at  REAL NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS car_votes (
+    poll_id     INTEGER NOT NULL,
+    voter_key   TEXT NOT NULL,
+    proposal_id INTEGER NOT NULL,
+    PRIMARY KEY (poll_id, voter_key)
+);
+
+CREATE TABLE IF NOT EXISTS custom_cars (
+    id          TEXT PRIMARY KEY,              -- 'c_<taklif id>'
+    name        TEXT NOT NULL,
+    ability     TEXT NOT NULL,
+    author_name TEXT NOT NULL,
+    stats       TEXT NOT NULL,
+    added_at    REAL NOT NULL
+);
+
+-- Panel testlari: owner tuzib boshlaydi, foydalanuvchilar bir marta yechadi
+CREATE TABLE IF NOT EXISTS exams (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT NOT NULL,
+    topics      TEXT NOT NULL,                 -- JSON: ["HTML", "CSS", "JS"]
+    questions   TEXT NOT NULL,                 -- JSON: [{topic, question, options, correct, explain}]
+    created_at  REAL NOT NULL,
+    active      INTEGER NOT NULL DEFAULT 1,
+    ended_at    REAL
+);
+
+CREATE TABLE IF NOT EXISTS exam_attempts (
+    exam_id     INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    started_at  REAL NOT NULL,
+    finished_at REAL,
+    answers     TEXT,
+    score       INTEGER,
+    PRIMARY KEY (exam_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS homeworks (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     title       TEXT NOT NULL,
@@ -152,7 +209,7 @@ def init_db() -> None:
             new = []
             for car in cars:
                 car = old_cars.get(car, car)
-                if car in known and car not in new:
+                if (car in known or car.startswith("c_")) and car not in new:  # c_ — ovoz bilan qo'shilgan
                     new.append(car)
             if new != cars:
                 db.execute("UPDATE game_players SET cars = ? WHERE player_key = ?", (json.dumps(new), key))

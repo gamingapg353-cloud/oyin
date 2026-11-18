@@ -26,6 +26,7 @@
       <nav class="nav" aria-label="Asosiy menyu">
         <a class="nav__link" href="#games" data-view="games">{{ icon('gamepad') }}<span>O'yinlar</span></a>
         <a class="nav__link" href="#homework" data-view="homework">{{ icon('book') }}<span>Uy vazifa</span></a>
+        <a class="nav__link" href="#exam" data-view="exam">{{ icon('target') }}<span>Test</span></a>
         {% if is_owner %}
         <a class="nav__link" href="#add-user" data-view="add-user">{{ icon('user-plus') }}<span>Odam qo'shish</span></a>
         {% endif %}
@@ -89,12 +90,12 @@
             <div class="game-card__body">
               <span class="badge badge--info">{{ icon('users', 15) }} <span>Do'stlar bilan</span></span>
               <h2>Mahalla 3D</h2>
-              <p>Do'stlaringiz bilan katta 3D shaharda yuring, <strong>taksida pul ishlang</strong>, yer sotib olib unga <strong>Uy, Magazin, Kafe yoki Ofis</strong> quring va <strong>100 qavatgacha</strong> ko'taring. Avtosalonda — BMW, Mercedes, Lamborghini va uchadigan Tesla. Binolar <strong>har soniyada pul</strong> olib keladi.</p>
+              <p>Do'stlaringiz bilan katta 3D shaharda yuring, <strong>chatda yozishing va mikrofonda gaplashing</strong>, <strong>taksida pul ishlang</strong>, yer olib <strong>Uy, Magazin, Kafe yoki Ofis</strong> quring. Avtosalonda — BMW, Mercedes, Lamborghini, uchadigan Tesla va <strong>har hafta ovoz bilan qo'shiladigan</strong> mashinalar. Binolar <strong>har soniyada pul</strong> olib keladi.</p>
               <ul class="game-card__features">
-                <li>{{ icon('car', 18) }} Taksi va 4 ta mashina</li>
-                <li>{{ icon('map-pin', 18) }} 5 tagacha yer — sotsa ham bo'ladi</li>
-                <li>{{ icon('store', 18) }} 100 qavatli binolar</li>
-                <li>{{ icon('coins', 18) }} Har soniyada daromad</li>
+                <li>{{ icon('car', 18) }} Taksi, do'stning mashinasida yurish</li>
+                <li>{{ icon('map-pin', 18) }} Cheksiz yer, Bozorda sotish</li>
+                <li>{{ icon('store', 18) }} Uy 25 · Ofis 100 qavatgacha</li>
+                <li>{{ icon('users', 18) }} Chat, mikrofon, pul berish</li>
               </ul>
               <div class="game-card__actions">
                 <a class="btn btn--primary btn--lg" href="/game">{{ icon('gamepad', 20) }} Kirish</a>
@@ -163,6 +164,11 @@
             <h3>Hali uy vazifa yo'q</h3>
             <p>{% if is_owner %}Yuqoridagi formadan birinchi vazifani bering.{% else %}Owner vazifa berganda shu yerda chiqadi.{% endif %}</p>
           </div>
+        </section>
+
+        <!-- Test: owner tuzib boshlaydi, foydalanuvchilar yechadi -->
+        <section class="view" data-view="exam" data-title="Test" hidden>
+          <div class="exam" id="exam-root"></div>
         </section>
 
         {% if is_owner %}
@@ -353,7 +359,8 @@
 
   <!-- JS ishlatadigan ikonkalar -->
   <template id="icons">
-    {% for name in ['medal', 'trash', 'book', 'upload', 'download', 'file', 'bot', 'refresh', 'alert', 'check', 'clock', 'chevron-down', 'send', 'star', 'camera', 'calendar', 'target', 'home', 'car', 'coins', 'lock', 'user', 'trophy', 'gamepad'] %}
+    {% for name in ['medal', 'trash', 'book', 'upload', 'download', 'file', 'bot', 'refresh', 'alert', 'check', 'clock', 'chevron-down', 'send', 'star', 'camera', 'calendar', 'target', 'home', 'car', 'coins', 'lock', 'user', 'trophy', 'gamepad',
+                  'target', 'x', 'sparkles', 'plus', 'arrow-left'] %}
     <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
     {% endfor %}
   </template>
@@ -362,6 +369,7 @@
   <script src="{{ asset('js/common.js') }}"></script>
   <script src="{{ asset('js/homework.js') }}"></script>
   <script src="{{ asset('js/profile.js') }}"></script>
+  <script src="{{ asset('js/exam.js') }}"></script>
   <script src="{{ asset('js/panel.js') }}"></script>
 </body>
 </html>
