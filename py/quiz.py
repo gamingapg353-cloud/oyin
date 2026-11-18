@@ -264,3 +264,99 @@ def issue(exclude: set[int] | None = None, rng: random.Random | None = None, top
     allowed = [i for i, q in enumerate(QUESTIONS) if q["topic"] in topics]
     pool = [i for i in allowed if i not in exclude] or allowed
     return shuffled(rng.choice(pool), rng)
+
+
+# --------------------------------------------------------------------------- #
+#  Juda qiyin savollar — o'yinda "+10 qavat" uchun (2 ta beriladi, ikkalasi ham to'g'ri bo'lishi kerak)
+#  Birinchi variant — to'g'ri javob.
+# --------------------------------------------------------------------------- #
+HARD_QUESTIONS = [
+    {"topic": "CSS", "q": "Qaysi selektor kuchliroq (specificity): #menu yoki .nav .list .item?",
+     "options": ["#menu — id har doim klasslardan kuchli", ".nav .list .item — klasslar soni ko'p",
+                 "ikkalasi teng — oxirgi yozilgani yutadi", "qaysi biri HTML'da oldin kelsa"],
+     "explain": "Specificity: id (1,0,0) uchta klassdan (0,3,0) ham kuchli."},
+    {"topic": "CSS", "q": "visibility: hidden; va display: none; ning farqi nima?",
+     "options": ["visibility: hidden joyini egallab turadi, display: none joyini ham olib tashlaydi",
+                 "ikkalasi bir xil ishlaydi", "display: none joyini saqlab qoladi",
+                 "visibility: hidden elementni HTML'dan o'chiradi"],
+     "explain": "visibility: hidden — ko'rinmaydi, lekin joyi qoladi. display: none — umuman joy egallamaydi."},
+    {"topic": "CSS", "q": "1rem nimaga teng?",
+     "options": ["html (ildiz) elementning shrift o'lchamiga", "ota elementning shrift o'lchamiga",
+                 "har doim 10px ga", "ekran kengligining 1% iga"],
+     "explain": "rem — root em: <html> ning font-size'iga nisbatan. em esa ota elementga nisbatan."},
+    {"topic": "CSS", "q": "li:nth-child(2n+1) qaysi elementlarni tanlaydi?",
+     "options": ["toq elementlarni: 1, 3, 5, ...", "juft elementlarni: 2, 4, 6, ...",
+                 "faqat 3-elementni", "2-elementdan keyingi hammasini"],
+     "explain": "n = 0, 1, 2 ... bo'lganda 2n+1 = 1, 3, 5 ... — toq elementlar (odd)."},
+    {"topic": "CSS", "q": "position: sticky; ishlashi uchun yana nima kerak?",
+     "options": ["top (yoki bottom/left/right) qiymati berilishi kerak", "display: flex bo'lishi kerak",
+                 "z-index: 999 bo'lishi kerak", "elementning width'i bo'lishi kerak"],
+     "explain": "sticky element top: 0 kabi chegaraga yetganda yopishadi — chegara berilmasa ishlamaydi."},
+    {"topic": "CSS", "q": "Flexbox'da justify-content qaysi o'q bo'yicha joylashtiradi?",
+     "options": ["asosiy o'q (flex-direction yo'nalishi) bo'yicha", "har doim vertikal bo'yicha",
+                 "har doim gorizontal bo'yicha", "ko'ndalang (cross) o'q bo'yicha"],
+     "explain": "justify-content — asosiy o'q, align-items — ko'ndalang o'q. flex-direction: column bo'lsa, asosiy o'q vertikal."},
+    {"topic": "CSS", "q": "box-sizing: content-box; (standart) bo'lsa, width: 200px; padding: 20px; elementning umumiy kengligi?",
+     "options": ["240px", "200px", "220px", "160px"],
+     "explain": "content-box'da width faqat ichki qism: 200 + 20 + 20 = 240px (border bo'lmasa)."},
+    {"topic": "HTML", "q": "<label for=\"email\"> qaysi elementga bog'lanadi?",
+     "options": ["id=\"email\" bo'lgan input'ga", "name=\"email\" bo'lgan input'ga",
+                 "class=\"email\" bo'lgan input'ga", "type=\"email\" bo'lgan birinchi input'ga"],
+     "explain": "label'ning for atributi input'ning id'siga mos kelishi kerak."},
+    {"topic": "HTML", "q": "<script defer src=\"app.js\"> dagi defer nima qiladi?",
+     "options": ["skriptni HTML to'liq o'qilgandan keyin ishga tushiradi", "skriptni umuman ishga tushirmaydi",
+                 "skriptni HTML'dan oldin ishga tushiradi", "skriptni 1 soniya kechiktiradi"],
+     "explain": "defer — skript fonda yuklanadi va sahifa (DOM) to'liq tayyor bo'lgach ishlaydi."},
+    {"topic": "HTML", "q": "Mustaqil ma'noga ega kontent (maqola, post) uchun eng to'g'ri semantik teg?",
+     "options": ["<article>", "<section>", "<div>", "<aside>"],
+     "explain": "<article> — o'zicha to'liq ma'noli blok. <section> — bo'lim, <aside> — yon ma'lumot."},
+    {"topic": "JS", "q": "typeof null nimani qaytaradi?",
+     "options": ["\"object\"", "\"null\"", "\"undefined\"", "\"number\""],
+     "explain": "Bu JavaScript'dagi mashhur tarixiy xato: typeof null === \"object\"."},
+    {"topic": "JS", "q": "0.1 + 0.2 === 0.3 natijasi?",
+     "options": ["false", "true", "undefined", "xato beradi"],
+     "explain": "Kasr sonlar ikkilik tizimda aniq saqlanmaydi: 0.1 + 0.2 = 0.30000000000000004."},
+    {"topic": "JS", "q": "typeof NaN nimani qaytaradi?",
+     "options": ["\"number\"", "\"NaN\"", "\"undefined\"", "\"object\""],
+     "explain": "NaN (Not a Number) — g'alati bo'lsa ham, number turidagi maxsus qiymat."},
+    {"topic": "JS", "q": "[] + [] natijasi nima?",
+     "options": ["\"\" (bo'sh matn)", "[] (bo'sh massiv)", "0", "undefined"],
+     "explain": "Ikkala massiv matnga aylanadi (\"\"), \"\" + \"\" = \"\"."},
+    {"topic": "JS", "q": "\"3\" * \"4\" natijasi?",
+     "options": ["12", "\"34\"", "\"12\"", "NaN"],
+     "explain": "* operatori matnlarni songa aylantiradi: 3 * 4 = 12. Faqat + matnlarni yopishtiradi."},
+    {"topic": "JS", "q": "null == undefined natijasi?",
+     "options": ["true", "false", "xato beradi", "null"],
+     "explain": "== da null va undefined bir-biriga teng. Lekin null === undefined — false."},
+    {"topic": "JS", "q": "const user = {age: 10}; user.age = 11; — nima bo'ladi?",
+     "options": ["ishlaydi: user.age 11 bo'ladi", "xato: const o'zgarmaydi",
+                 "user.age 10 bo'lib qoladi", "user butunlay o'chadi"],
+     "explain": "const o'zgaruvchiga yangi qiymat berishni taqiqlaydi, lekin obyekt ichini o'zgartirish mumkin."},
+    {"topic": "JS", "q": "let a = [1, 2, 3]; a.length = 1; console.log(a) — nima chiqadi?",
+     "options": ["[1]", "[1, 2, 3]", "[3]", "xato beradi"],
+     "explain": "length'ni kamaytirsa massiv kesiladi: faqat birinchi element qoladi."},
+    {"topic": "JS", "q": "[1, 2, 3].map(x => x * 2) nimani qaytaradi?",
+     "options": ["[2, 4, 6]", "[1, 2, 3]", "12", "undefined"],
+     "explain": "map har bir elementga funksiyani qo'llab, yangi massiv qaytaradi."},
+    {"topic": "JS", "q": "console.log(1 < 2 < 3, 3 > 2 > 1) — nima chiqadi?",
+     "options": ["true false", "true true", "false false", "false true"],
+     "explain": "1 < 2 = true, true < 3 → 1 < 3 = true. 3 > 2 = true, true > 1 → 1 > 1 = false."},
+]
+
+
+def issue_hard(count: int = 2, exclude: set | None = None, rng: random.Random | None = None) -> list[dict]:
+    """Bir nechta (turli) juda qiyin savol, variantlari aralashtirilgan."""
+    rng = rng or random
+    exclude = exclude or set()
+    pool = [i for i in range(len(HARD_QUESTIONS)) if f"h{i}" not in exclude]
+    if len(pool) < count:
+        pool = list(range(len(HARD_QUESTIONS)))
+    out = []
+    for qid in rng.sample(pool, count):
+        item = HARD_QUESTIONS[qid]
+        order = list(range(len(item["options"])))
+        rng.shuffle(order)
+        out.append({"qid": f"h{qid}", "topic": item["topic"], "question": item["q"],
+                    "options": [item["options"][i] for i in order], "correct": order.index(0),
+                    "explain": item["explain"]})
+    return out

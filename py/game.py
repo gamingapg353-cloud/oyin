@@ -1033,12 +1033,31 @@ def _upgrade_check(db, key: str, plot_id: int, money: float) -> int:
     return price
 
 
+HARD_STEP = 10       # "+10 qavat": 2 ta juda qiyin savol
+HARD_QUESTIONS = 2
+
+
+def _step_check(db, key: str, plot_id: int, money: float, count: int) -> tuple[int, int]:
+    """count qavat qo'shish mumkinmi: (qo'shiladigan qavatlar, jami narx) yoki GameError."""
+    _upgrade_check(db, key, plot_id, money)
+    plot = _owned_plot(db, key, plot_id)
+    floors = min(count, max_level(plot["kind"]) - plot["level"])
+    total = sum(level_price(plot["kind"], lv) for lv in range(plot["level"] + 1, plot["level"] + floors + 1))
+    if money < total:
+        raise GameError(f"Pul yetarli emas: {floors} qavat uchun {total:,} so'm kerak".replace(",", " "))
+    return floors, total
+
+
 @bp.post("/api/game/plots/<int:plot_id>/quiz")
 @login_required
 def api_quiz(plot_id: int):
-    """Yangi qavat qo'shishdan oldin HTML/CSS savoli beriladi."""
+    """Yangi qavat oldidan savol: +1 qavat — 1 ta oddiy HTML/CSS savoli,
+    +10 qavat — 2 ta juda qiyin savol (ikkalasi ham to'g'ri bo'lishi kerak)."""
     if not 0 <= plot_id < len(PLOTS):
         return jsonify(error="Bunday yer yo'q"), 404
+    count = (request.get_json(silent=True) or {}).get("count", 1)
+    if count not in (1, HARD_STEP) or isinstance(count, bool):
+        return jsonify(error="Faqat 1 yoki 10 qavat qo'shish mumkin"), 400
     key = player_key(current_user())
     db = get_db()
     row = ensure_player(db, key)
@@ -1047,19 +1066,23 @@ def api_quiz(plot_id: int):
     if wait > 0:
         return jsonify(error=f"{math.ceil(wait)} soniyadan keyin yangi savol olasiz", wait=math.ceil(wait)), 429
     try:
-        _upgrade_check(db, key, plot_id, money_now(row, player_rate(db, row), now))
+        _step_check(db, key, plot_id, money_now(row, player_rate(db, row), now), count)
     except GameError as err:
         return jsonify(error=str(err)), 400
 
     with _lock:
         recent = _quiz_recent.setdefault(key, [])
-        item = quiz.issue(exclude=set(recent))
-        recent.append(item["qid"])
+        if count == 1:
+            items = [quiz.issue(exclude={q for q in recent if isinstance(q, int)})]
+        else:
+            items = quiz.issue_hard(HARD_QUESTIONS, exclude={q for q in recent if isinstance(q, str)})
+        recent.extend(item["qid"] for item in items)
         del recent[:-15]
-        token = f"{int(now * 1000)}-{item['qid']}"
-        _quizzes[key] = {**item, "token": token, "plot": plot_id, "t": now}
-    return jsonify(quiz={"token": token, "topic": item["topic"], "question": item["question"],
-                         "options": item["options"]})
+        token = f"{int(now * 1000)}-{'-'.join(str(i['qid']) for i in items)}"
+        first = items[0]
+        _quizzes[key] = {**first, "token": token, "plot": plot_id, "t": now, "count": count, "questions": items}
+    public = [{"topic": i["topic"], "question": i["question"], "options": i["options"]} for i in items]
+    return jsonify(quiz={"token": token, "count": count, "hard": count > 1, "questions": public, **public[0]})
 
 
 def _owner_upgrade(plot_id: int, data: dict):
@@ -1103,7 +1126,6 @@ def api_upgrade(plot_id: int):
     if user["role"] == "owner":
         return _owner_upgrade(plot_id, data)
     key = player_key(user)
-    answer = data.get("answer")
     now = time.time()
     with _lock:
         pending = _quizzes.get(key)
@@ -1112,24 +1134,39 @@ def api_upgrade(plot_id: int):
             return jsonify(error="Avval savolga javob bering (savol eskirgan bo'lishi mumkin)"), 400
         _quizzes.pop(key, None)  # har bir savolga bitta urinish
 
-    correct_text = pending["options"][pending["correct"]]
-    if isinstance(answer, bool) or not isinstance(answer, int) or answer != pending["correct"]:
+    questions = pending["questions"]
+    answers = data.get("answers")
+    if answers is None:
+        answers = [data.get("answer")]
+    if not isinstance(answers, list):
+        answers = []
+    results = []
+    for i, q in enumerate(questions):
+        a = answers[i] if i < len(answers) else None
+        ok = isinstance(a, int) and not isinstance(a, bool) and a == q["correct"]
+        results.append({"correct": ok, "right_index": q["correct"], "right_answer": q["options"][q["correct"]],
+                        "explain": q["explain"]})
+    if not all(r["correct"] for r in results):
         _quiz_cooldown[key] = now + QUIZ_COOLDOWN
-        return jsonify(correct=False, right_answer=correct_text, right_index=pending["correct"],
-                       explain=pending["explain"], wait=QUIZ_COOLDOWN)
+        wrong = next(r for r in results if not r["correct"])
+        return jsonify(correct=False, right_answer=wrong["right_answer"], right_index=results[0]["right_index"],
+                       explain=wrong["explain"], results=results, wait=QUIZ_COOLDOWN)
 
     db = get_db()
     ensure_player(db, key)
+    added = {}
 
     def change(_row, money):
-        price = _upgrade_check(db, key, plot_id, money)
-        return -price, lambda: db.execute("UPDATE game_plots SET level = level + 1 WHERE plot = ?", (plot_id,))
+        floors, total = _step_check(db, key, plot_id, money, pending.get("count", 1))
+        added["floors"] = floors
+        return -total, lambda: db.execute("UPDATE game_plots SET level = level + ? WHERE plot = ?", (floors, plot_id))
 
     try:
         row = apply_change(db, key, change)
     except GameError as err:
         return jsonify(error=str(err)), 400
-    return jsonify(correct=True, explain=pending["explain"], economy=economy_json(db, row), plots=plots_list(db))
+    return jsonify(correct=True, explain=results[0]["explain"], results=results, added=added["floors"],
+                   economy=economy_json(db, row), plots=plots_list(db))
 
 
 # --------------------------------------------------------------------------- #

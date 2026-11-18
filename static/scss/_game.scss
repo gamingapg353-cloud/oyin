@@ -1425,3 +1425,36 @@ button.hud-online {
     padding: 0 12px;
   }
 }
+
+// "+10 qavat" — juda qiyin savollar
+.quiz__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.quiz__hard {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #7c3aed;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.quiz__explain {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.btn--hard {
+  background: #7c3aed;
+  color: #ffffff;
+
+  &:hover:not(:disabled) {
+    background: #6d28d9;
+  }
+}

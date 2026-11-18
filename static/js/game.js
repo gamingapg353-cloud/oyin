@@ -2018,7 +2018,7 @@ import * as THREE from 'three';
   function sheetSignature() {
     if (!sheetState) return '';
     // Savol-javob oynasi faqat javob berilganda qayta chiziladi (har sinxronda emas)
-    if (sheetState.kind === 'quiz') return `quiz|${sheetState.quiz.token}|${JSON.stringify(sheetState.result)}`;
+    if (sheetState.kind === 'quiz') return `quiz|${sheetState.quiz.token}|${sheetState.step}|${JSON.stringify(sheetState.result)}`;
     // Odamlar va pul berish oynalari sinxronda qayta chizilmaydi (yozilgan summa o'chib ketmasin)
     if (sheetState.kind === 'people') return `people|${sheetState.list ? sheetState.list.length : '-'}`;
     if (sheetState.kind === 'give') return `give|${sheetState.person.key}`;
@@ -2240,11 +2240,22 @@ import * as THREE from 'three';
       offer.append(el('small', 'quiz-note', 'Siz owner — qavatlar savolsiz qo\'shiladi.'));
       body.append(offer);
     } else if (own && own.next_price) {
+      // +1 qavat — 1 ta oddiy savol, +10 qavat — 2 ta juda qiyin savol
       const offer = el('div', 'offer');
+      const ten = Math.min(10, kindMax(rec.kind) - rec.level);
+      let tenPrice = 0;
+      for (let lv = rec.level + 1; lv <= rec.level + ten; lv += 1) tenPrice += levelPrice(rec.kind, lv);
       offer.append(el('small', 'eyebrow', 'Yangi qavat'), el('strong', '', `${rec.level + 1}-qavat`),
         el('span', '', `Daromad: +${fmtRate(own.next_income)} so'm / sek bo'ladi`),
-        priceButton('Yangi qavat', own.next_price, () => startQuiz(id)),
-        el('small', 'quiz-note', "Qavat qo'shish uchun HTML/CSS savoliga to'g'ri javob bering. Noto'g'ri bo'lsa — pul yechilmaydi."));
+        priceButton('+1 qavat', own.next_price, () => startQuiz(id, 1)));
+      if (ten > 1) {
+        const hard = priceButton(`+${ten} qavat`, tenPrice, () => startQuiz(id, 10));
+        hard.classList.add('btn--hard');
+        offer.append(hard);
+      }
+      offer.append(el('small', 'quiz-note', ten > 1
+        ? `+1 — 1 ta HTML/CSS savoli. +${ten} — 2 ta JUDA QIYIN savol: ikkalasi ham to'g'ri bo'lsa ${ten} qavat qo'shiladi. Xato bo'lsa — pul yechilmaydi.`
+        : "Qavat qo'shish uchun HTML/CSS savoliga to'g'ri javob bering. Noto'g'ri bo'lsa — pul yechilmaydi."));
       body.append(offer);
     } else {
       const done = el('div', 'offer offer--done');
@@ -2280,20 +2291,28 @@ import * as THREE from 'three';
   // ---------------- Savol-javob (yangi qavat uchun) ----------------
   let quizTimer = null;
 
-  async function startQuiz(id) {
-    const data = await api(`/api/game/plots/${id}/quiz`, { method: 'POST' });
-    sheetState = { kind: 'quiz', id, quiz: data.quiz, result: null };
+  async function startQuiz(id, count = 1) {
+    const data = await api(`/api/game/plots/${id}/quiz`, { method: 'POST', body: { count } });
+    sheetState = { kind: 'quiz', id, count, quiz: data.quiz, step: 0, answers: [], result: null };
     renderSheet();
   }
 
+  // Javob: +10 da 2 ta savol ketma-ket, oxirgisidan keyin serverga yuboriladi
   async function answerQuiz(index) {
     const st = sheetState;
     if (!st || st.kind !== 'quiz' || st.result) return;
-    st.result = { pending: true, chosen: index };
+    const questions = st.quiz.questions;
+    st.answers[st.step] = index;
+    if (st.step < questions.length - 1) {
+      st.step += 1;
+      renderSheet();
+      return;
+    }
+    st.result = { pending: true };
     renderSheet();
     try {
       const data = await api(`/api/game/plots/${st.id}/upgrade`, {
-        method: 'POST', body: { quiz: st.quiz.token, answer: index },
+        method: 'POST', body: { quiz: st.quiz.token, answers: st.answers },
       });
       if (data.correct) {
         localVersion += 1;
@@ -2301,16 +2320,15 @@ import * as THREE from 'three';
         setEconomy(data.economy);
       }
       st.result = {
-        chosen: index,
         correct: data.correct,
-        rightIndex: data.correct ? index : data.right_index,
-        explain: data.explain,
+        results: data.results || [],
+        added: data.added || 1,
         until: data.correct ? 0 : Date.now() + (data.wait || catalog.quiz_cooldown) * 1000,
       };
       if (data.correct) {
         const rec = plotsById.get(st.id);
         sound.right();
-        toast(`To'g'ri! ${kindName(rec.kind)} endi ${rec.level} qavat`, 'success');
+        toast(`To'g'ri! +${st.result.added} qavat — ${kindName(rec.kind)} endi ${rec.level} qavat`, 'success');
       } else {
         sound.wrong();
       }
@@ -2323,44 +2341,61 @@ import * as THREE from 'three';
     if (sheetState === st) renderSheet();
   }
 
+  function quizOptions(q, chosen, result, clickable) {
+    const list = el('div', 'quiz__options');
+    q.options.forEach((text, i) => {
+      const opt = el('button', 'quiz__opt');
+      opt.type = 'button';
+      opt.append(el('span', 'quiz__letter', 'ABCD'[i]), el('code', '', text));
+      if (clickable) {
+        opt.addEventListener('click', () => answerQuiz(i));
+      } else {
+        opt.disabled = true;
+        if (!result && chosen === i) opt.classList.add('is-chosen');
+        if (result && i === result.right_index) opt.classList.add('is-right');
+        if (result && !result.correct && i === chosen) opt.classList.add('is-wrong');
+      }
+      list.append(opt);
+    });
+    return list;
+  }
+
   function renderQuizSheet(body, st) {
     clearTimeout(quizTimer);
     const rec = plotsById.get(st.id);
     const b = buildingsById[rec.kind];
-    const target = st.result && st.result.correct ? rec.level : rec.level + 1;
-    setHead('hammer', 'Yangi qavat — savol-javob', `${b.name}: ${target}-qavat uchun`);
+    const questions = st.quiz.questions;
+    const hard = questions.length > 1;
+    setHead('hammer', hard ? `+${st.count} qavat — juda qiyin savollar` : 'Yangi qavat — savol-javob',
+      st.result && st.result.correct ? `${b.name}: endi ${rec.level} qavat` : `${b.name}: hozir ${rec.level} qavat`);
 
-    const box2 = el('div', 'quiz');
-    box2.append(el('span', `quiz__topic quiz__topic--${st.quiz.topic.toLowerCase()}`, st.quiz.topic),
-      el('p', 'quiz__q', st.quiz.question));
-    const list = el('div', 'quiz__options');
-    st.quiz.options.forEach((text, i) => {
-      const opt = el('button', 'quiz__opt');
-      opt.type = 'button';
-      opt.append(el('span', 'quiz__letter', 'ABCD'[i]), el('code', '', text));
-      if (st.result) {
-        opt.disabled = true;
-        if (st.result.pending && st.result.chosen === i) opt.classList.add('is-chosen');
-        if (!st.result.pending && i === st.result.rightIndex) opt.classList.add('is-right');
-        if (!st.result.pending && !st.result.correct && i === st.result.chosen) opt.classList.add('is-wrong');
-      } else {
-        opt.addEventListener('click', () => answerQuiz(i));
-      }
-      list.append(opt);
+    // Savollar: javob kutilayotgan bittasi yoki natijadan keyin hammasi
+    const shown = st.result && !st.result.pending ? questions.map((_, i) => i) : [st.step];
+    shown.forEach((qi) => {
+      const q = questions[qi];
+      const box2 = el('div', 'quiz');
+      const head = el('div', 'quiz__head');
+      head.append(el('span', `quiz__topic quiz__topic--${q.topic.toLowerCase()}`, q.topic));
+      if (hard) head.append(el('span', 'quiz__hard', `JUDA QIYIN · ${qi + 1} / ${questions.length}`));
+      box2.append(head, el('p', 'quiz__q', q.question));
+      const result = st.result && !st.result.pending ? st.result.results[qi] : null;
+      const waiting = !st.result;
+      box2.append(quizOptions(q, st.answers[qi], result, waiting));
+      if (result && result.explain) box2.append(el('p', 'quiz__explain', `${result.correct ? '✓' : '✗'} ${result.explain}`));
+      body.append(box2);
     });
-    box2.append(list);
-    body.append(box2);
 
     if (!st.result || st.result.pending) {
-      body.append(el('p', 'sheet-note', st.result ? 'Tekshirilmoqda…' : "To'g'ri javobni tanlang."));
+      body.append(el('p', 'sheet-note', st.result ? 'Tekshirilmoqda…'
+        : (hard ? `Ikkala savolga ham to'g'ri javob bering — shunda ${st.count} qavat qo'shiladi.` : "To'g'ri javobni tanlang.")));
       return;
     }
 
     const fb = el('div', st.result.correct ? 'quiz__result is-right' : 'quiz__result is-wrong');
+    const wrongCount = st.result.results.filter((r) => !r.correct).length;
     fb.append(el('strong', '', st.result.correct
-      ? `To'g'ri! ${b.name} endi ${rec.level} qavat.`
-      : `Noto'g'ri. To'g'ri javob: ${st.quiz.options[st.result.rightIndex]}`));
-    if (st.result.explain) fb.append(el('p', '', st.result.explain));
+      ? `To'g'ri! +${st.result.added} qavat — ${b.name} endi ${rec.level} qavat.`
+      : (hard ? `${questions.length} tadan ${wrongCount} ta xato — qavat qo'shilmadi.` : 'Noto\'g\'ri — qavat qo\'shilmadi.')));
     body.append(fb);
 
     if (st.result.correct) {
@@ -2371,7 +2406,7 @@ import * as THREE from 'three';
       body.append(next);
       return;
     }
-    // Noto'g'ri: biroz kutib, yangi savol
+    // Noto'g'ri: biroz kutib, yangi savol (xuddi shu turdagi)
     const left = Math.ceil((st.result.until - Date.now()) / 1000);
     const again = el('button', 'btn btn--primary btn--block');
     again.type = 'button';
@@ -2380,7 +2415,7 @@ import * as THREE from 'three';
     again.addEventListener('click', async () => {
       again.disabled = true;
       try {
-        await startQuiz(st.id);
+        await startQuiz(st.id, st.count);
       } catch (err) {
         if (!handleAuthError(err)) toast(err.message, 'warn');
         again.disabled = false;
