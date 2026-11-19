@@ -221,6 +221,41 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', examBannerLoop);
   else examBannerLoop();
 
+  // "📝 Ustoz savol yubordi" — owner «Ball berish» bo'limida «Boshlash» bosganda o'quvchida
+  function lessonBannerLoop() {
+    const APP = window.APP || {};
+    if (APP.role !== 'user') return;
+    const banner = document.createElement('div');
+    banner.className = 'exam-banner lesson-banner';
+    banner.hidden = true;
+    banner.setAttribute('role', 'status');
+    const text = el('span', 'exam-banner__text', "📝 Ustoz sizga dars savollarini yubordi!");
+    const go = el('button', 'exam-banner__go', 'Boshlash');
+    go.type = 'button';
+    banner.append(text, go);
+    document.body.append(banner);
+    const onPanel = () => window.location.pathname.startsWith('/panel');
+    go.addEventListener('click', () => {
+      banner.hidden = true;
+      if (onPanel()) window.location.hash = 'lesson';
+      else window.location.href = '/panel#lesson';
+    });
+    const check = async () => {
+      try {
+        const res = await fetch('/api/lesson-quiz', { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const data = await res.json();
+        banner.hidden = !(data.quiz && data.quiz.status === 'sent') || (onPanel() && window.location.hash === '#lesson');
+      } catch { /* tarmoq xatosi — keyingi safar */ }
+    };
+    check();
+    setInterval(check, 10000);
+    window.addEventListener('hashchange', check);
+    window.Oyin.hideLessonBanner = () => { banner.hidden = true; };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', lessonBannerLoop);
+  else lessonBannerLoop();
+
   window.Oyin = {
     store, avatarColor, api, handleAuthError, el, icon, formatDate, avatarEl, setAvatar,
     uploadAvatar, MONTHS, formatNumber, viewLoaders: {}, hideExamBanner,

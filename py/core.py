@@ -64,6 +64,65 @@ CREATE TABLE IF NOT EXISTS game_challenges (
     PRIMARY KEY (player_key, challenge)
 );
 
+-- Qurilmalar: akkauntga birinchi kirgan qurilma — asosiy (himoya uchun)
+CREATE TABLE IF NOT EXISTS devices (
+    user_key    TEXT NOT NULL,
+    device      TEXT NOT NULL,
+    ua          TEXT,
+    first_at    REAL NOT NULL,
+    last_at     REAL NOT NULL,
+    PRIMARY KEY (user_key, device)
+);
+
+CREATE TABLE IF NOT EXISTS security_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_key    TEXT NOT NULL,
+    device      TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    t           REAL NOT NULL
+);
+
+-- Bildirishnomalar (qo'ng'iroq): @eslatish, test boshlandi, savollar yuborildi
+CREATE TABLE IF NOT EXISTS notifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_key    TEXT NOT NULL,
+    text        TEXT NOT NULL,
+    link        TEXT NOT NULL DEFAULT '',
+    t           REAL NOT NULL,
+    seen        INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS notifications_user ON notifications (user_key, id);
+
+-- Reytingda ball sovg'a qilish tarixi
+CREATE TABLE IF NOT EXISTS point_gifts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_id     INTEGER NOT NULL,
+    to_id       INTEGER NOT NULL,
+    amount      INTEGER NOT NULL,
+    t           REAL NOT NULL
+);
+
+-- Davomat: kun bo'yicha keldi / kechikdi / kelmadi va ball (kelmadi = -1)
+CREATE TABLE IF NOT EXISTS attendance (
+    day         TEXT NOT NULL,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status      TEXT NOT NULL,
+    points      INTEGER NOT NULL DEFAULT 0,
+    updated_at  REAL NOT NULL,
+    PRIMARY KEY (day, user_id)
+);
+
+-- Darsdagi savollar: owner «Boshlash» bosadi, o'quvchi 5 ta savolga javob beradi
+CREATE TABLE IF NOT EXISTS lesson_quiz (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day         TEXT NOT NULL,
+    questions   TEXT NOT NULL,
+    answers     TEXT NOT NULL DEFAULT '[]',
+    status      TEXT NOT NULL,
+    created_at  REAL NOT NULL
+);
+
 -- Do'stlar: a — so'rov yuborgan, b — qabul qiluvchi
 CREATE TABLE IF NOT EXISTS game_friends (
     a           TEXT NOT NULL,
@@ -198,7 +257,8 @@ CREATE TABLE IF NOT EXISTS submissions (
 
 RATING_SQL = (
     "SELECT u.id, u.name, u.login, u.avatar, u.created_at, "
-    "u.score + COALESCE((SELECT SUM(s.score) FROM submissions s WHERE s.user_id = u.id), 0) AS total "
+    "u.score + COALESCE((SELECT SUM(s.score) FROM submissions s WHERE s.user_id = u.id), 0) "
+    "+ COALESCE((SELECT SUM(a.points) FROM attendance a WHERE a.user_id = u.id), 0) AS total "
     "FROM users u ORDER BY total DESC, u.id ASC"
 )
 

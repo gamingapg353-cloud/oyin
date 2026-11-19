@@ -163,6 +163,17 @@
 
       li.append(rank, link);
 
+      // O'z ballingizdan boshqaga sovg'a qilish (faqat o'quvchilar)
+      if (!isOwner && !user.me) {
+        const gift = el('button', 'icon-btn user-row__gift');
+        gift.type = 'button';
+        gift.title = "Ball sovg'a qilish";
+        gift.setAttribute('aria-label', `${user.name}ga ball sovg'a qilish`);
+        gift.append(icon('gift'));
+        gift.addEventListener('click', () => Oyin.giftPoints(user, loadRating));
+        li.append(gift);
+      }
+
       if (isOwner) {
         const del = el('button', 'icon-btn user-row__delete');
         del.type = 'button';
@@ -364,6 +375,7 @@
     });
 
     viewLoaders['add-user'] = () => loadPeople();
+    Oyin.loadPeople = loadPeople;
   }
 
   window.addEventListener('hashchange', () => showView(window.location.hash.slice(1)));

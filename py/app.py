@@ -24,6 +24,7 @@ import exam
 import game
 import game_social
 import game_fun
+import classroom
 import homework
 import poll
 from build_css import build_css
@@ -68,6 +69,9 @@ app.register_blueprint(accounts.bp)
 app.register_blueprint(game.bp)
 app.register_blueprint(game_social.bp)
 app.register_blueprint(game_fun.bp)
+app.register_blueprint(classroom.bp)
+app.before_request(classroom.before_request)
+app.after_request(classroom.after_request)
 app.register_blueprint(poll.bp)
 app.register_blueprint(exam.bp)
 
@@ -100,12 +104,8 @@ def same_text(a: str, b: str) -> bool:
 
 
 def user_total(user_id: int) -> int:
-    """Jami ball = owner bergan ballar + uy vazifalardan olingan ballar."""
-    row = get_db().execute(
-        "SELECT u.score + COALESCE((SELECT SUM(s.score) FROM submissions s WHERE s.user_id = u.id), 0) "
-        "AS total FROM users u WHERE u.id = ?", (user_id,)
-    ).fetchone()
-    return row["total"] if row else 0
+    """Jami ball = owner bergan ballar + uy vazifalar + davomat (dars ballari)."""
+    return classroom.user_total(get_db(), user_id)
 
 
 # --------------------------------------------------------------------------- #
@@ -129,6 +129,7 @@ def panel():
         is_owner=user["role"] == "owner",
         ai_enabled=ai_check.ai_enabled(),
         max_score=config.HOMEWORK_MAX_SCORE,
+        min_score=config.HOMEWORK_MIN_SCORE,
         accept=",".join(ai_check.ACCEPT),
     )
 
@@ -164,6 +165,7 @@ def api_login():
         session.clear()
         session.permanent = True
         session.update(role="user", uid=row["id"], sv=row["session_version"])
+        classroom.touch_device(f"u{row['id']}", force=True)  # birinchi kirgan qurilma — asosiy
         return True
 
     # Tanlangan tugmani birinchi sinaymiz, lekin login/parol to'g'ri bo'lsa —
@@ -278,7 +280,8 @@ def reset_points(user_id: int):
     removed = user_total(user_id)
     db.execute(
         "UPDATE users SET score = -COALESCE((SELECT SUM(s.score) FROM submissions s WHERE s.user_id = ?), 0) "
-        "WHERE id = ?", (user_id, user_id),
+        "- COALESCE((SELECT SUM(a.points) FROM attendance a WHERE a.user_id = ?), 0) "
+        "WHERE id = ?", (user_id, user_id, user_id),
     )
     db.commit()
     return jsonify(user={"id": user_id, "name": row["name"], "score": user_total(user_id)}, removed=removed)

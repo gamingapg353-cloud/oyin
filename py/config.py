@@ -44,6 +44,6 @@ AI_MODEL = "gemini-3.8-flash"
 AI_FALLBACK_MODELS = ["gemini-3.7-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
 AI_THINKING = "low"        # qanchalik chuqur o'ylaydi: minimal | low | medium | high (past = tezroq)
 AI_THRESHOLD = 70          # "AI yasagan" ehtimoli shu foizdan yuqori bo'lsa — jarima
-AI_PENALTY = 5             # AI ishlatgan o'quvchidan shuncha ball ayiriladi (ball = -5)
+AI_PENALTY = 10            # AI ishlatgan o'quvchidan shuncha ball ayiriladi (ball = -10)
 HOMEWORK_MAX_SCORE = 5     # bitta uy vazifa uchun eng ko'p ball
-HOMEWORK_MIN_SCORE = -5    # xato ish uchun eng past (minus) ball
+HOMEWORK_MIN_SCORE = -10   # vazifaga aloqasiz ish (tasodifiy rasm va h.k.) yoki AI — eng past ball

@@ -1633,6 +1633,415 @@ a {
   }
 }
 
+.pop {
+  position: relative;
+}
+
+.pop__menu {
+  width: min(360px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.bell {
+  position: relative;
+}
+
+.bell__badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bell__badge[hidden] {
+  display: none;
+}
+
+.bell__item {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.bell__item small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bell__item.is-new {
+  background: var(--primary-soft);
+}
+
+.bell__item:hover {
+  background: var(--surface-2);
+}
+
+.bell__empty {
+  margin: 0;
+  padding: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.online-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.online-chip:hover {
+  background: var(--surface-2);
+}
+
+.online-chip__warn {
+  display: grid;
+  color: var(--danger);
+}
+
+.online-chip__warn[hidden] {
+  display: none;
+}
+
+.online-acc {
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.online-acc.is-shared {
+  background: var(--danger-soft);
+}
+
+.online-acc__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.online-acc small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.online-acc__other {
+  color: var(--danger) !important;
+  font-weight: 600;
+}
+
+.online-log {
+  display: block;
+  padding: 2px 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.online-log__title {
+  display: block;
+  padding: 4px 12px;
+  font-weight: 700;
+}
+
+.user-row__gift {
+  color: var(--gold);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.att {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.att-cal {
+  display: grid;
+  gap: 12px;
+  max-width: 460px;
+}
+
+.att-cal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.att-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+}
+
+.att-cal__wd {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.att-cal__day {
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.att-cal__day:disabled {
+  opacity: 0.35;
+}
+
+.att-cal__day.is-done {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.att-cal__day.is-missed {
+  background: #dc2626;
+  color: #ffffff;
+}
+
+.att-cal__day.is-today {
+  border-color: var(--primary);
+}
+
+.att-cal__day.is-selected {
+  box-shadow: 0 0 0 3px var(--gold);
+}
+
+.att-cal__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.att-cal__legend span::before {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 3px;
+  content: "";
+}
+
+.att-cal__legend .is-done::before {
+  background: #2563eb;
+}
+
+.att-cal__legend .is-missed::before {
+  background: #dc2626;
+}
+
+.att-days {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.att-days small {
+  color: var(--muted);
+}
+
+.att-table {
+  display: grid;
+}
+
+.att-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.2fr) auto minmax(220px, 1.4fr) minmax(150px, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 4px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .att-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.att-row__who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.att-row__who .avatar {
+  width: 36px;
+  height: 36px;
+}
+
+.att-status {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.att-status__btn {
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.att-status__btn + .att-status__btn {
+  border-left: 1px solid var(--border);
+}
+
+.att-status__btn--keldi.is-on {
+  background: var(--success);
+  color: #ffffff;
+}
+
+.att-status__btn--kechikdi.is-on {
+  background: var(--gold);
+  color: #ffffff;
+}
+
+.att-status__btn--kelmadi.is-on {
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.att-points {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.att-points__select {
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-solid);
+  color: var(--text);
+}
+
+.att-points__minus {
+  color: var(--danger);
+}
+
+.att-go {
+  height: 38px;
+  font-size: 13px;
+}
+
+.att-marks {
+  display: inline-flex;
+  gap: 2px;
+  font-weight: 800;
+}
+
+.att-marks .is-ok {
+  color: var(--success);
+}
+
+.att-marks .is-bad {
+  color: var(--danger);
+  text-decoration: line-through;
+}
+
+.att-hw {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.att-hw__bad {
+  color: var(--danger);
+}
+
+.att-extra {
+  margin-top: 16px;
+}
+
+.lesson-card {
+  display: grid;
+  gap: 14px;
+  max-width: 640px;
+}
+
+.lesson-q {
+  margin: 0;
+  font-size: 20px;
+}
+
+.lesson-opts {
+  display: grid;
+  gap: 8px;
+}
+
+.lesson-opt {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.lesson-opt:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.lesson-res {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.lesson-res.is-ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.lesson-res.is-bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.lesson-banner {
+  top: 64px;
+}
+
 .avatar {
   overflow: hidden;
 }

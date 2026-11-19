@@ -515,6 +515,9 @@ def api_gift():
     me = game.player_key(user)
     data = request.get_json(silent=True) or {}
     to, car, plot = data.get("to"), data.get("car"), data.get("plot")
+    blocked = game.SECURITY(user, "gift")
+    if blocked:
+        return blocked
     db = get_db()
     target = _people(db).get(to) if isinstance(to, str) else None
     if target is None:

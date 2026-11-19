@@ -304,7 +304,7 @@
     const select = el('select', 'mini-select');
     select.setAttribute('aria-label', 'Ball');
     // Xato ish uchun minus ball ham qo'yish mumkin
-    for (let i = maxScore; i >= -maxScore; i -= 1) select.append(new Option(`${i > 0 ? '+' : ''}${i} ball`, i));
+    for (let i = maxScore; i >= (APP.minScore ?? -maxScore); i -= 1) select.append(new Option(`${i > 0 ? '+' : ''}${i} ball`, i));
     select.value = String(sub.score);
     const saveBtn = textButton('check', 'Bahoni saqlash', 'btn btn--ghost');
     actions.append(select, saveBtn);

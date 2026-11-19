@@ -134,6 +134,8 @@ def api_create():
                      (title, json.dumps(topics), json.dumps(questions, ensure_ascii=False), now))
     db.commit()
     exam = db.execute("SELECT * FROM exams WHERE id = ?", (cur.lastrowid,)).fetchone()
+    import classroom
+    classroom.notify_all_users(f"📝 Test boshlandi: «{title}». Kiring!", "/panel#exam")
     return jsonify(exam=_public(exam), results=[]), 201
 
 

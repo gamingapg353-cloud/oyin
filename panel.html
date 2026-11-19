@@ -29,6 +29,9 @@
         <a class="nav__link" href="#exam" data-view="exam">{{ icon('target') }}<span>Test</span></a>
         {% if is_owner %}
         <a class="nav__link" href="#add-user" data-view="add-user">{{ icon('user-plus') }}<span>Odam qo'shish</span></a>
+        <a class="nav__link" href="#attendance" data-view="attendance">{{ icon('star') }}<span>Ball berish</span></a>
+        {% else %}
+        <a class="nav__link" href="#lesson" data-view="lesson">{{ icon('target') }}<span>Dars savollari</span></a>
         {% endif %}
         <a class="nav__link" href="#rating" data-view="rating">{{ icon('trophy') }}<span>Reyting</span></a>
       </nav>
@@ -44,6 +47,22 @@
         <h1 class="topbar__title" id="view-title">O'yinlar</h1>
 
         <div class="topbar__actions">
+          {% if is_owner %}
+          <!-- Kim qaysi akkauntga kirgan (faqat owner) -->
+          <div class="pop" id="online-pop">
+            <button type="button" class="online-chip" id="online-btn" aria-haspopup="true" aria-expanded="false" title="Kim kirgan">
+              {{ icon('users', 18) }}<span id="online-count">0</span><span class="online-chip__warn" id="online-warn" hidden>{{ icon('shield', 14) }}</span>
+            </button>
+            <div class="menu pop__menu" id="online-menu" hidden></div>
+          </div>
+          {% endif %}
+          <!-- Bildirishnomalar: @eslatish, test, savollar -->
+          <div class="pop" id="bell-pop">
+            <button type="button" class="icon-btn bell" id="bell-btn" aria-haspopup="true" aria-expanded="false" aria-label="Bildirishnomalar" title="Bildirishnomalar">
+              {{ icon('bell') }}<span class="bell__badge" id="bell-badge" hidden>0</span>
+            </button>
+            <div class="menu pop__menu bell__menu" id="bell-menu" hidden></div>
+          </div>
           <button type="button" class="icon-btn theme-toggle" data-theme-toggle aria-label="Mavzuni almashtirish" title="Mavzuni almashtirish">
             {{ icon('moon') }}{{ icon('sun') }}
           </button>
@@ -124,7 +143,7 @@
               <span class="card__icon">{{ icon('book') }}</span>
               <div>
                 <h2>Yangi uy vazifa</h2>
-                <p>Vazifa bering — foydalanuvchilar bajarib, fayl qilib yuklaydi. AI faylni ochib tekshiradi, −{{ max_score }} dan {{ max_score }} gacha ball qo'yadi (xato ish — minus) va xatolarini aytadi.</p>
+                <p>Vazifa bering — foydalanuvchilar bajarib, fayl qilib yuklaydi. AI faylni ochib tekshiradi, {{ min_score }} dan {{ max_score }} gacha ball qo'yadi (xato ish — minus; vazifaga aloqasiz rasm yoki fayl — −5…−10; AI yasagan — −10) va xatolarini aytadi.</p>
               </div>
             </div>
 
@@ -232,12 +251,19 @@
               </div>
             </form>
 
+          </div>
+        </section>
+
+        <!-- Ball berish: davomat, dars savollari, uy vazifa holati (faqat owner) -->
+        <section class="view" data-view="attendance" data-title="Ball berish" hidden>
+          <div class="att" id="att-root"></div>
+          <div class="owner-grid att-extra" id="att-extra">
             <form class="card form-card" id="points-form" novalidate>
               <div class="card__head">
                 <span class="card__icon card__icon--gold">{{ icon('star') }}</span>
                 <div>
-                  <h2>Ball berish</h2>
-                  <p>Odamni tanlang va ball bering yoki ayiring. Ball «Reyting»ga qo'shiladi.</p>
+                  <h2>Qo'shimcha ball</h2>
+                  <p>Darsdan tashqari ball berish yoki ayirish. Ball «Reyting»ga qo'shiladi.</p>
                 </div>
               </div>
 
@@ -279,6 +305,11 @@
               </div>
             </form>
           </div>
+        </section>
+        {% else %}
+        <!-- Dars savollari (o'quvchi) -->
+        <section class="view" data-view="lesson" data-title="Dars savollari" hidden>
+          <div class="lesson" id="lesson-root"></div>
         </section>
         {% endif %}
 
@@ -368,16 +399,18 @@
   <!-- JS ishlatadigan ikonkalar -->
   <template id="icons">
     {% for name in ['medal', 'trash', 'book', 'upload', 'download', 'file', 'bot', 'refresh', 'alert', 'check', 'clock', 'chevron-down', 'send', 'star', 'camera', 'calendar', 'target', 'home', 'car', 'coins', 'lock', 'user', 'trophy', 'gamepad',
-                  'target', 'x', 'sparkles', 'plus', 'arrow-left', 'link'] %}
+                  'target', 'x', 'sparkles', 'plus', 'arrow-left', 'link', 'bell', 'shield', 'gift', 'users', 'chevron-left',
+                  'chevron-right', 'minus'] %}
     <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
     {% endfor %}
   </template>
 
-  <script>window.APP = {{ {"role": user.role, "id": user.get('id'), "name": user.name, "avatar": user.avatar, "aiEnabled": ai_enabled, "maxScore": max_score, "accept": accept}|tojson }};</script>
+  <script>window.APP = {{ {"role": user.role, "id": user.get('id'), "name": user.name, "avatar": user.avatar, "aiEnabled": ai_enabled, "maxScore": max_score, "minScore": min_score, "accept": accept}|tojson }};</script>
   <script src="{{ asset('js/common.js') }}"></script>
   <script src="{{ asset('js/homework.js') }}"></script>
   <script src="{{ asset('js/profile.js') }}"></script>
   <script src="{{ asset('js/exam.js') }}"></script>
+  <script src="{{ asset('js/classroom.js') }}"></script>
   <script src="{{ asset('js/panel.js') }}"></script>
 </body>
 </html>
