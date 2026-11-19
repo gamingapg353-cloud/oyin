@@ -1,5 +1,5 @@
 // Panel: qo'ng'iroq (bildirishnomalar), kim kirgani (owner), ball sovg'asi,
-// «Ball berish» (davomat, owner)
+// «Ball berish» (davomat + dars savollari, owner) va «Dars savollari» (o'quvchi)
 (() => {
   const Oyin = window.Oyin;
   const { api, handleAuthError, el, icon, avatarEl, viewLoaders } = Oyin;
@@ -313,6 +313,26 @@
           scale.append(b);
         }
         pts.append(scale);
+        const go = el('button', 'btn btn--primary att-go');
+        go.type = 'button';
+        go.disabled = !u.status;
+        const q = u.quiz;
+        go.append(icon('target'), el('span', '', q && q.status !== 'done' ? 'Yuborilgan' : 'Boshlash'));
+        go.title = "O'quvchiga 5 ta HTML/CSS savol yuboriladi — to'g'ri javoblar soni ball bo'ladi";
+        go.addEventListener('click', async () => {
+          try {
+            await api('/api/attendance/quiz', { method: 'POST', body: { day: att.day, user_id: u.id } });
+            loadAttendance(att.day);
+          } catch (err) {
+            if (!handleAuthError(err)) window.alert(err.message);
+          }
+        });
+        pts.append(go);
+        if (q) {
+          const marks = el('span', 'att-marks');
+          q.marks.forEach((mk) => marks.append(el('span', mk === null ? '' : (mk ? 'is-ok' : 'is-bad'), mk === null ? '·' : (mk ? '✓' : '✗'))));
+          pts.append(marks);
+        }
       }
       row.append(who, st, pts, homeworkCell(u.homework));
       card.append(row);
@@ -327,4 +347,76 @@
     };
   }
 
+  // ---------------- Dars savollari (o'quvchi) ----------------
+  const lesson = { quiz: null, last: null };
+  async function loadLesson() {
+    try {
+      lesson.quiz = (await api('/api/lesson-quiz')).quiz;
+      renderLesson();
+    } catch (err) {
+      handleAuthError(err);
+    }
+  }
+  function renderLesson() {
+    const root = $('lesson-root');
+    if (!root) return;
+    root.replaceChildren();
+    const card = el('div', 'card lesson-card');
+    const q = lesson.quiz;
+    if (lesson.last && lesson.last.done) {
+      card.append(el('h2', '', 'Savollar tugadi! 🎉'),
+        el('p', '', `${lesson.last.score} / ${lesson.last.total} to'g'ri — shuncha ball reytingga qo'shildi.`));
+      root.append(card);
+      return;
+    }
+    if (!q) {
+      card.append(el('h2', '', 'Hozircha savol yo\'q'), el('p', 'muted', "Ustoz «Boshlash» ni bosganda shu yerda 5 ta HTML/CSS savol chiqadi."));
+      root.append(card);
+      return;
+    }
+    if (q.status === 'sent') {
+      card.append(el('span', 'badge badge--info', '📝 Dars savollari'), el('h2', '', `Ustoz sizga ${q.count} ta savol yubordi`),
+        el('p', '', `HTML va CSS bo'yicha ${q.count} ta savol. Har bir to'g'ri javob — 1 ball (bugungi darsga yoziladi). Javobni o'zgartirib bo'lmaydi.`));
+      const go = el('button', 'btn btn--primary btn--lg', 'Boshlash');
+      go.type = 'button';
+      go.addEventListener('click', async () => {
+        try {
+          lesson.quiz = (await api(`/api/lesson-quiz/${q.id}/begin`, { method: 'POST' })).quiz;
+          Oyin.hideLessonBanner?.();
+          renderLesson();
+        } catch (err) {
+          if (!handleAuthError(err)) window.alert(err.message);
+        }
+      });
+      card.append(go);
+      root.append(card);
+      return;
+    }
+    const cur = q.question;
+    card.append(el('small', 'muted', `${q.index + 1} / ${q.count} · ${cur.topic}`), el('h2', 'lesson-q', cur.question));
+    if (lesson.last && !lesson.last.done) {
+      card.prepend(el('p', lesson.last.correct ? 'lesson-res is-ok' : 'lesson-res is-bad',
+        lesson.last.correct ? "✓ To'g'ri! +1 ball" : `✗ Noto'g'ri. ${lesson.last.explain || ''}`));
+    }
+    const opts = el('div', 'lesson-opts');
+    cur.options.forEach((o, i) => {
+      const b = el('button', 'lesson-opt', o);
+      b.type = 'button';
+      b.addEventListener('click', async () => {
+        opts.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+        try {
+          const r = await api(`/api/lesson-quiz/${q.id}/answer`, { method: 'POST', body: { choice: i } });
+          lesson.last = r;
+          lesson.quiz = r.quiz;
+          renderLesson();
+        } catch (err) {
+          if (!handleAuthError(err)) window.alert(err.message);
+        }
+      });
+      opts.append(b);
+    });
+    card.append(opts);
+    root.append(card);
+  }
+  if (!isOwner) viewLoaders.lesson = () => { lesson.last = null; loadLesson(); };
 })();

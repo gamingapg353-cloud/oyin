@@ -30,6 +30,8 @@
         {% if is_owner %}
         <a class="nav__link" href="#add-user" data-view="add-user">{{ icon('user-plus') }}<span>Odam qo'shish</span></a>
         <a class="nav__link" href="#attendance" data-view="attendance">{{ icon('star') }}<span>Ball berish</span></a>
+        {% else %}
+        <a class="nav__link" href="#lesson" data-view="lesson">{{ icon('target') }}<span>Dars savollari</span></a>
         {% endif %}
         <a class="nav__link" href="#rating" data-view="rating">{{ icon('trophy') }}<span>Reyting</span></a>
         <a class="nav__link" href="#polls" data-view="polls">{{ icon('vote') }}<span>So'rovnoma</span></a>
@@ -317,6 +319,11 @@
               </div>
             </form>
           </div>
+        </section>
+        {% else %}
+        <!-- Dars savollari (o'quvchi) -->
+        <section class="view" data-view="lesson" data-title="Dars savollari" hidden>
+          <div class="lesson" id="lesson-root"></div>
         </section>
         {% endif %}
 
