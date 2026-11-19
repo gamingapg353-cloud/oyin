@@ -83,6 +83,8 @@ def guard(user: dict, action: str):
     dev = device_id()
     if primary_device(db, key) in (None, dev):
         return None
+    if db.execute("SELECT 1 FROM devices WHERE user_key = ? AND device = ? AND trusted = 1", (key, dev)).fetchone():
+        return None  # owner «O'zining akkaunti» deb tasdiqlagan qurilma
     if action == "sell":
         db.execute("UPDATE game_plots SET sale_price = NULL WHERE owner_key = ?", (key,))
     db.execute("INSERT INTO security_log (user_key, device, action, t) VALUES (?, ?, ?, ?)", (key, dev, action, time.time()))
@@ -100,20 +102,39 @@ def api_online_accounts():
     db = get_db()
     now = time.time()
     names = {f"u{r['id']}": r["name"] for r in db.execute("SELECT id, name FROM users")}
-    rows = db.execute("SELECT * FROM devices WHERE last_at > ? ORDER BY first_at", (now - ONLINE_WINDOW,)).fetchall()
+    rows = db.execute("SELECT rowid, * FROM devices WHERE last_at > ? ORDER BY first_at", (now - ONLINE_WINDOW,)).fetchall()
     accounts = {}
     for r in rows:
         if r["user_key"] not in names:
             continue
         acc = accounts.setdefault(r["user_key"], {"key": r["user_key"], "name": names[r["user_key"]], "devices": []})
-        acc["devices"].append({"label": _ua_label(r["ua"]), "primary": r["device"] == primary_device(db, r["user_key"]),
-                               "ago": int(now - r["last_at"])})
+        acc["devices"].append({"id": r["rowid"], "label": _ua_label(r["ua"]), "primary": r["device"] == primary_device(db, r["user_key"]),
+                               "trusted": bool(r["trusted"]), "ago": int(now - r["last_at"])})
     out = sorted(accounts.values(), key=lambda a: (-len(a["devices"]), a["name"].lower()))
     for a in out:
-        a["shared"] = len(a["devices"]) > 1 or not any(d["primary"] for d in a["devices"])
+        a["shared"] = any(not d["primary"] and not d["trusted"] for d in a["devices"])
     log = [{"name": names.get(r["user_key"], "?"), "action": r["action"], "t": r["t"]}
            for r in db.execute("SELECT * FROM security_log ORDER BY id DESC LIMIT 10")]
     return jsonify(accounts=out, log=log)
+
+
+@bp.post("/api/devices/trust")
+@owner_required
+def api_devices_trust():
+    """Owner: begona qurilmani «O'zining akkaunti» deb tasdiqlash — unga ham hamma narsa ruxsat."""
+    data = request.get_json(silent=True) or {}
+    dev_id, trusted = data.get("id"), bool(data.get("trusted", True))
+    if not isinstance(dev_id, int) or isinstance(dev_id, bool):
+        return jsonify(error="Qurilma topilmadi"), 400
+    db = get_db()
+    row = db.execute("SELECT user_key FROM devices WHERE rowid = ?", (dev_id,)).fetchone()
+    if not row:
+        return jsonify(error="Qurilma topilmadi"), 404
+    db.execute("UPDATE devices SET trusted = ? WHERE rowid = ?", (int(trusted), dev_id))
+    db.commit()
+    if trusted:
+        notify(row["user_key"], "✅ Ustoz bu qurilmani sizning akkauntingiz deb tasdiqladi — endi hamma narsa ruxsat")
+    return jsonify(ok=True, trusted=trusted)
 
 
 @bp.post("/api/devices/reset")

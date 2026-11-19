@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS devices (
     ua          TEXT,
     first_at    REAL NOT NULL,
     last_at     REAL NOT NULL,
+    trusted     INTEGER NOT NULL DEFAULT 0,       -- owner «O'zining akkaunti» deb tasdiqlagan
     PRIMARY KEY (user_key, device)
 );
 
@@ -388,6 +389,8 @@ def init_db() -> None:
                 db.execute(f"ALTER TABLE submissions ADD COLUMN {name} {'TEXT' if name == 'copy_of' else 'INTEGER'}")
         if "game_bonus" not in sub_columns:  # uy vazifasi uchun o'yinda berilgan pul
             db.execute("ALTER TABLE submissions ADD COLUMN game_bonus INTEGER NOT NULL DEFAULT 0")
+        if "trusted" not in {row[1] for row in db.execute("PRAGMA table_info(devices)")}:
+            db.execute("ALTER TABLE devices ADD COLUMN trusted INTEGER NOT NULL DEFAULT 0")
         plot_columns = {row[1] for row in db.execute("PRAGMA table_info(game_plots)")}
         if "sale_price" not in plot_columns:
             db.execute("ALTER TABLE game_plots ADD COLUMN sale_price INTEGER")

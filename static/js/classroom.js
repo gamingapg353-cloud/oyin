@@ -89,8 +89,26 @@
         const head = el('div', 'online-acc__head');
         head.append(el('strong', '', a.name), el('span', 'pill', `${a.devices.length} qurilma`));
         row.append(head);
-        a.devices.forEach((d) => row.append(el('small', d.primary ? '' : 'online-acc__other',
-          `${d.primary ? '✓ Asosiy' : '⚠ Boshqa qurilma'} · ${d.label} · ${ago(Date.now() / 1000 - d.ago)}`)));
+        a.devices.forEach((d) => {
+          const ok = d.primary || d.trusted;
+          row.append(el('small', ok ? '' : 'online-acc__other',
+            `${d.primary ? '✓ Asosiy' : d.trusted ? "✓ O'zining akkaunti" : '⚠ Boshqa qurilma'} · ${d.label} · ${ago(Date.now() / 1000 - d.ago)}`));
+          if (d.primary) return;
+          // Owner tasdiqlasa — bu qurilmaga ham hamma narsa ruxsat (uy sotish, sovg'a, ball)
+          const b = el('button', d.trusted ? 'link-btn' : 'btn btn--primary btn--sm online-acc__trust',
+            d.trusted ? 'Tasdiqni bekor qilish' : "✓ O'zining akkaunti");
+          b.type = 'button';
+          b.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+              await api('/api/devices/trust', { method: 'POST', body: { id: d.id, trusted: !d.trusted } });
+            } catch (err) {
+              if (!handleAuthError(err)) window.alert(err.message);
+            }
+            load();
+          });
+          row.append(b);
+        });
         if (a.shared) {
           const reset = el('button', 'link-btn', "Qurilmalarni tozalash (yangi telefon bo'lsa)");
           reset.type = 'button';

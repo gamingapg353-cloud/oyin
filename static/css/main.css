@@ -2574,6 +2574,11 @@ a {
   margin: 4px 0 8px;
 }
 
+.online-acc__trust {
+  justify-self: start;
+  margin: 2px 0 4px;
+}
+
 .avatar {
   overflow: hidden;
 }
