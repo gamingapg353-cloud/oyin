@@ -284,6 +284,25 @@
     head.append(el('h2', '', 'Davomat va ball'),
       el('span', 'list-card__hint', `✅ Keldi / ⏰ Kechikdi — 0…${d.max} ball · ❌ Kelmadi — −1 · «Boshlash» — o'quvchiga 5 ta HTML/CSS savol`));
     card.append(head);
+    // Bitta bosishda — kelgan va hali savol olmaganlarning hammasiga
+    const waiting = d.users.filter((u) => (u.status === 'keldi' || u.status === 'kechikdi') && !u.quiz).length;
+    const all = el('button', 'btn btn--primary att-go-all');
+    all.type = 'button';
+    all.disabled = !waiting;
+    all.append(icon('target'), el('span', '', waiting ? `Kelganlarning hammasiga boshlash (${waiting})` : 'Kelganlarning hammasiga yuborilgan'));
+    all.title = "Kelgan (✅/⏰) va hali savol olmagan har bir o'quvchiga 5 ta HTML/CSS savol yuboriladi";
+    all.addEventListener('click', async () => {
+      all.disabled = true;
+      try {
+        const r = await api('/api/attendance/quiz-all', { method: 'POST', body: { day: att.day } });
+        await loadAttendance(att.day);
+        window.alert(`${r.sent} ta o'quvchiga savollar yuborildi 📝`);
+      } catch (err) {
+        all.disabled = false;
+        if (!handleAuthError(err)) window.alert(err.message);
+      }
+    });
+    card.append(all);
     if (!d.users.length) card.append(el('p', 'empty empty--inline', "Hali o'quvchi yo'q"));
     d.users.forEach((u) => {
       const row = el('div', 'att-row');
@@ -345,6 +364,18 @@
       loadAttendance();
       Oyin.loadPeople?.();
     };
+    // O'quvchi savollarga javob berayotgan bo'lsa — ✓/✗ va ball o'zi yangilanib turadi
+    setInterval(async () => {
+      const view = document.querySelector('.view[data-view="attendance"]');
+      if (!view || view.hidden || document.hidden || att.step !== 'mark' || !att.data) return;
+      if (!att.data.users.some((u) => u.quiz && u.quiz.status !== 'done')) return;
+      try {
+        const fresh = await api(`/api/attendance?day=${att.day}`);
+        if (JSON.stringify(fresh.users) === JSON.stringify(att.data.users)) return;
+        att.data = fresh;
+        renderAttendance();
+      } catch { /* keyingi safar */ }
+    }, 4000);
   }
 
   // ---------------- Dars savollari (o'quvchi) ----------------

@@ -367,6 +367,12 @@ def api_attendance_quiz():
     a = db.execute("SELECT status FROM attendance WHERE day = ? AND user_id = ?", (day, user_id)).fetchone()
     if not day or a is None or a["status"] not in ("keldi", "kechikdi"):
         return jsonify(error="Avval «Keldi» yoki «Kechikdi» ni belgilang"), 400
+    _send_quiz(db, user_id, day)
+    return jsonify(ok=True)
+
+
+def _send_quiz(db, user_id: int, day: str) -> None:
+    """O'quvchiga 5 ta tasodifiy HTML/CSS savol yuborish."""
     rng = random.Random()
     pool = [i for i, q in enumerate(quiz.QUESTIONS) if q["topic"] in ("HTML", "CSS")]
     questions = []
@@ -379,7 +385,24 @@ def api_attendance_quiz():
                (user_id, day, json.dumps(questions, ensure_ascii=False), time.time()))
     db.commit()
     notify(f"u{user_id}", "📝 Ustoz sizga savollar yubordi — «Boshlash» ni bosing", "/panel#lesson")
-    return jsonify(ok=True)
+
+
+@bp.post("/api/attendance/quiz-all")
+@owner_required
+def api_attendance_quiz_all():
+    """«Hammaga boshlash»: shu kuni kelgan (keldi/kechikdi) va hali savol olmaganlarning hammasiga yuboriladi."""
+    day = _day((request.get_json(silent=True) or {}).get("day"))
+    if not day:
+        return jsonify(error="Sanani tanlang"), 400
+    db = get_db()
+    rows = db.execute(
+        "SELECT a.user_id FROM attendance a WHERE a.day = ? AND a.status IN ('keldi', 'kechikdi') "
+        "AND NOT EXISTS (SELECT 1 FROM lesson_quiz q WHERE q.user_id = a.user_id AND q.day = a.day)", (day,)).fetchall()
+    if not rows:
+        return jsonify(error="Yuboradigan o'quvchi yo'q: avval kelganlarni ✅ yoki ⏰ bilan belgilang"), 400
+    for r in rows:
+        _send_quiz(db, r["user_id"], day)
+    return jsonify(ok=True, sent=len(rows))
 
 
 def _my_quiz(db, user_id: int):

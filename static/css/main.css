@@ -2569,6 +2569,11 @@ a {
   word-break: break-all;
 }
 
+.att-go-all {
+  justify-self: start;
+  margin: 4px 0 8px;
+}
+
 .avatar {
   overflow: hidden;
 }
