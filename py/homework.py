@@ -72,7 +72,8 @@ def save_files(folder: Path, files) -> None:
 def homework_json(row) -> dict:
     return {"id": row["id"], "title": row["title"], "description": row["description"],
             "link": row["link"] if "link" in row.keys() else "",
-            "files": json.loads(row["files"] or "[]"), "created_at": row["created_at"]}
+            "files": json.loads(row["files"] or "[]"), "created_at": row["created_at"],
+            "deadline": row["deadline"] if "deadline" in row.keys() else None}
 
 
 def submission_json(row, *, for_owner: bool) -> dict:
@@ -194,14 +195,18 @@ def create_homework():
         parsed = urlparse(link)
         if parsed.scheme not in ("http", "https") or not parsed.netloc or len(link) > MAX_LINK or any(c.isspace() for c in link):
             return jsonify(error="Havola https:// bilan boshlanadigan to'g'ri manzil bo'lsin (masalan, Figma linki)"), 400
+    import extras
+    deadline, bad = extras.parse_deadline(data.get("deadline"))
+    if bad:
+        return jsonify(error=bad), 400
     files, error = read_uploads("files")
     if error:
         return error
 
     db = get_db()
     cur = db.execute(
-        "INSERT INTO homeworks (title, description, link, files, created_at) VALUES (?, ?, ?, ?, ?)",
-        (title, description, link, json.dumps([name for name, _ in files]), now_iso()),
+        "INSERT INTO homeworks (title, description, link, files, created_at, deadline) VALUES (?, ?, ?, ?, ?, ?)",
+        (title, description, link, json.dumps([name for name, _ in files]), now_iso(), deadline),
     )
     hw_id = cur.lastrowid
     if files:
@@ -288,8 +293,10 @@ def submit(hw_id: int):
     import school
     school.check_copy(db, sub_id, submission_dir)  # boshqa o'quvchining ishiga juda o'xshashmi?
 
+    import extras
+    on_time = extras.deadline_mark(db, hw_id, user["id"])  # muddat: vaqtida +1, kechiksa -1
     run_check(sub_id)
-    return jsonify(submission=submission_json(load_submission(sub_id), for_owner=False)), 201
+    return jsonify(submission=submission_json(load_submission(sub_id), for_owner=False), deadline_points=on_time), 201
 
 
 @bp.get("/api/submissions/<int:sub_id>/files/<int:index>")
@@ -299,7 +306,8 @@ def download_file(sub_id: int, index: int):
     row = load_submission(sub_id)
     if row is None:
         return jsonify(error="Topilmadi"), 404
-    if user["role"] != "owner" and row["user_id"] != user.get("id"):
+    import extras
+    if user["role"] != "owner" and row["user_id"] != user.get("id") and not extras.in_portfolio(get_db(), sub_id):
         return jsonify(error="Ruxsat yo'q"), 403
     names = json.loads(row["files"])
     if not 0 <= index < len(names):

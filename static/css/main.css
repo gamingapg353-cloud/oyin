@@ -2369,6 +2369,206 @@ a {
   white-space: nowrap;
 }
 
+.hw__deadline {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.hw__deadline.is-late {
+  color: var(--danger);
+}
+
+.code-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .code-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.code-eds {
+  display: grid;
+  gap: 10px;
+}
+
+.code-ed {
+  display: grid;
+  gap: 4px;
+}
+
+.code-ed__label {
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.code-ed__area {
+  min-height: 180px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.code-out {
+  min-height: 300px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.code-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  border: 0;
+}
+
+.code-item {
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.code-item summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.code-item .code-grid {
+  margin-top: 10px;
+}
+
+.code-pre {
+  max-height: 320px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.badges {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.badge-item {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 12px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  text-align: center;
+  opacity: 0.45;
+  filter: grayscale(1);
+}
+
+.badge-item.is-got {
+  border-style: solid;
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  opacity: 1;
+  filter: none;
+}
+
+.badge-item__icon {
+  font-size: 28px;
+}
+
+.badge-item small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.portfolio {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.portfolio__item {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.portfolio__item p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.portfolio__score {
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--success-soft);
+  color: var(--success);
+  font-weight: 700;
+}
+
+.portfolio__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.portfolio__files .chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pw-out {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.twofa {
+  display: grid;
+  gap: 8px;
+}
+
+.twofa p {
+  margin: 0;
+}
+
+.twofa__on {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.twofa__key {
+  justify-self: start;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  font-size: 16px;
+  letter-spacing: 1px;
+  word-break: break-all;
+}
+
 .avatar {
   overflow: hidden;
 }
@@ -5767,6 +5967,63 @@ button.hud-online:hover {
 .chat__chan {
   color: #fcd34d;
   font-style: normal;
+}
+
+.life-h3 {
+  margin: 14px 0 6px;
+  font-size: 15px;
+}
+
+.lic-q {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.lic-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.lic-opts .btn {
+  white-space: normal;
+}
+
+.kitchen__dish {
+  margin: 4px 0;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.kitchen__plate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 8px 0;
+  padding: 8px;
+  border: 2px dashed rgba(148, 163, 184, 0.5);
+  border-radius: 14px;
+}
+
+.kitchen__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kitchen__ok {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.kitchen__bad {
+  color: #dc2626;
+  font-weight: 700;
 }
 
 .exam {

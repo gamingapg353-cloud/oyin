@@ -1473,6 +1473,8 @@ def api_buy_car(car_id: str):
         cars = json.loads(row["cars"])
         if car_id in cars:
             raise GameError("Bu mashina sizda bor")
+        if car["speed"] >= 2.0 and not row["license"] and key != "owner":  # game_life.LICENSE_SPEED
+            raise GameError("Bu tez mashina uchun haydovchilik guvohnomasi kerak — Menyu → Haydovchilik testi")
         if money < car["price"]:
             raise GameError("Pul yetarli emas")
         return -car["price"], lambda: db.execute(

@@ -1960,10 +1960,10 @@ import * as THREE from 'three';
     list.forEach((p) => {
       const n = riders.get(p.key) || 0;
       const tag = p.clan ? `[${p.clan.tag}] ` : '';
-      setRigLabel(others.get(p.key).rig, `${tag}${p.ring ? '💍 ' : ''}${p.name}${n ? ` (+${n})` : ''}`, p.avatar);
+      setRigLabel(others.get(p.key).rig, `${mayorKey === p.key ? '👑 ' : ''}${tag}${p.ring ? '💍 ' : ''}${p.name}${n ? ` (+${n})` : ''}`, p.avatar);
     });
     const mine = riders.get(me.key) || 0;
-    setRigLabel(me.rig, mine ? `Siz (+${mine})` : 'Siz', me.avatar);
+    setRigLabel(me.rig, `${mayorKey === me.key ? '👑 ' : ''}${mine ? `Siz (+${mine})` : 'Siz'}`, me.avatar);
     [...others.keys()].forEach((key) => {
       if (!seen.has(key)) {
         removeRig(others.get(key).rig);
@@ -2496,7 +2496,7 @@ import * as THREE from 'three';
     // Odamlar va pul berish oynalari sinxronda qayta chizilmaydi (yozilgan summa o'chib ketmasin)
     if (sheetState.kind === 'people') return `people|${sheetState.list ? sheetState.list.length : '-'}`;
     if (sheetState.kind === 'give') return `give|${sheetState.person.key}`;
-    if (['bank', 'top', 'clans', 'looks', 'race', 'hub', 'code', 'daily', 'spin', 'garage', 'flights', 'festadmin', 'metro', 'phone', 'chat', 'stocks', 'tour', 'pets'].includes(sheetState.kind)) return `${sheetState.kind}|${sheetState.v || 0}`;
+    if (['bank', 'top', 'clans', 'looks', 'race', 'hub', 'code', 'daily', 'spin', 'garage', 'flights', 'festadmin', 'metro', 'phone', 'chat', 'stocks', 'tour', 'pets', 'farm', 'kitchen', 'election', 'license', 'cup'].includes(sheetState.kind)) return `${sheetState.kind}|${sheetState.v || 0}`;
     if (sheetState.kind === 'gift') return `gift|${sheetState.person.key}|${economy.cars.join()}|${economy.plots.map((x) => x.plot).join()}`;
     if (sheetState.kind === 'market') {
       const m = money();
@@ -2722,7 +2722,7 @@ import * as THREE from 'three';
         grid.append(card);
         if (picked) grid.append(variantsBox(b));
       });
-      body.append(grid, saleBox(id, rec, own));
+      body.append(actionBtn('home', "Bino o'rniga ekin ekish 🌱", () => openFarm(id), 'btn btn--ghost btn--block'), grid, saleBox(id, rec, own));
       return;
     }
 
@@ -2735,6 +2735,7 @@ import * as THREE from 'three';
     body.append(now);
     if (rec.owner === me.key) {
       body.append(actionBtn('home', "Ichkariga kirish — mebel qo'yish", () => enterRoom(id), 'btn btn--ghost btn--block'));
+      if (rec.kind === 'kafe') body.append(actionBtn('coffee', 'Oshxona — taom tayyorlab pul ishlash 🍳', openKitchen, 'btn btn--primary btn--block'));
     }
 
     if (own && own.next_price && IS_OWNER) {
@@ -3507,6 +3508,11 @@ import * as THREE from 'three';
     else if (sheetState.kind === 'stocks') renderStocksSheet(body, sheetState);
     else if (sheetState.kind === 'tour') renderTourSheet(body, sheetState);
     else if (sheetState.kind === 'pets') renderPetsSheet(body, sheetState);
+    else if (sheetState.kind === 'farm') renderFarmSheet(body, sheetState);
+    else if (sheetState.kind === 'kitchen') renderKitchenSheet(body, sheetState);
+    else if (sheetState.kind === 'election') renderElectionSheet(body, sheetState);
+    else if (sheetState.kind === 'license') renderLicenseSheet(body, sheetState);
+    else if (sheetState.kind === 'cup') renderCupSheet(body, sheetState);
     else renderMineSheet(body);
   }
 
@@ -5972,6 +5978,8 @@ import * as THREE from 'three';
       return { kind: 'fun', d: 0, text: biting ? 'TORT! 🎣' : "Kuting… po'kakni kuzating (F — tortish)", act: pullLine };
     }
     if (!car && me.h < 5 && nearPondEdge()) return { kind: 'fun', d: 1, text: 'Baliq ovlash 🎣', act: castLine };
+    const life = lifeSpot(car);
+    if (life) return life;
     const pier = world.port.pier;
     if (!car && (me.boat ? d(pier.x, pier.y) < 220 : d(pier.x, pier.y) < 120)) {
       return { kind: 'fun', d: 1, text: me.boat ? "Qirg'oqqa chiqish" : 'Qayiqqa o\'tirish ⛵', act: toggleBoat };
@@ -6339,6 +6347,334 @@ import * as THREE from 'three';
     for (let i = 0; i < 6; i += 1) scene.add(box(24, 18, 24, mat(i % 2 ? '#b45309' : '#a16207'), D.x + 16 + (i % 3) * 30, 9 + Math.floor(i / 3) * 18, D.y + 20));
     scene.add(cyl(3, 3, 120, mat('#f59e0b'), cx + 40, 60, cz, 8), box(110, 5, 5, mat('#f59e0b'), cx + 5, 118, cz));
     scene.add(placeSign('QURILISH BAZASI', 110, 16, '#b45309', cx, 40, D.y + D.h + 4));
+  }
+
+  // ---------------- Mahalla raisi, guvohnoma, ferma, oshxona, avtopoyga kubogi ----------------
+  let mayorKey = null;
+  let farmList = [];
+  const farmMeshes = new Map();
+  const CROP_INFO = { wheat: ['🌾', "Bug'doy", '#eab308'], tomato: ['🍅', 'Pomidor', '#ef4444'], melon: ['🍈', 'Qovun', '#facc15'] };
+  const plotMid = (id) => { const p = world.plots[id]; return { x: p.x + p.w / 2, y: p.y + p.h / 2 }; };
+
+  function cropModel(crop, stage) {
+    const g = new THREE.Group();
+    const leaf = mat(stage === 'ripe' && crop === 'wheat' ? '#d4a017' : '#22c55e');
+    const fruit = mat(CROP_INFO[crop][2]);
+    const s = stage === 'sprout' ? 0.4 : stage === 'grow' ? 0.75 : 1;
+    if (crop === 'wheat') {
+      const stem = new THREE.Mesh(new THREE.ConeGeometry(4, 26 * s, 5), leaf);
+      stem.position.y = 13 * s;
+      g.add(stem);
+    } else {
+      const bush = new THREE.Mesh(new THREE.SphereGeometry(8 * s, 7, 5), leaf);
+      bush.position.y = 6 * s;
+      g.add(bush);
+      if (stage === 'ripe') {
+        const f = new THREE.Mesh(new THREE.SphereGeometry(crop === 'melon' ? 6 : 3.5, 8, 6), fruit);
+        f.position.set(5, crop === 'melon' ? 4 : 9, 3);
+        g.add(f);
+      }
+    }
+    return g;
+  }
+
+  function setFarm(list) {
+    farmList = list || [];
+    const seen = new Set();
+    farmList.forEach((f) => {
+      seen.add(f.plot);
+      const stage = f.progress >= 1 ? 'ripe' : f.progress >= 0.34 ? 'grow' : 'sprout';
+      const key = `${f.crop}|${stage}|${f.owner === me.key}`;
+      const old = farmMeshes.get(f.plot);
+      if (old && old.key === key) return;
+      if (old) { scene.remove(old.group); disposeTree(old.group); }
+      const p = world.plots[f.plot];
+      if (!p) return;
+      const group = new THREE.Group();
+      group.add(flat(p.w - 30, p.h - 30, mat('#7c4a2d', { roughness: 1 }), p.x + p.w / 2, p.y + p.h / 2, 1.2));
+      for (let r = 0; r < 4; r += 1) {
+        for (let c = 0; c < 6; c += 1) {
+          const m = cropModel(f.crop, stage);
+          m.position.set(p.x + 35 + c * ((p.w - 70) / 5), 1.2, p.y + 35 + r * ((p.h - 70) / 3));
+          group.add(m);
+        }
+      }
+      if (stage === 'ripe' && f.owner === me.key) {
+        const lb = makeLabel(`${CROP_INFO[f.crop][0]} Hosil tayyor — F`, 'rgba(22,163,74,.92)', null, true);
+        lb.position.set(p.x + p.w / 2, 60, p.y + p.h / 2);
+        group.add(lb);
+      }
+      scene.add(group);
+      farmMeshes.set(f.plot, { group, key });
+    });
+    [...farmMeshes.keys()].forEach((plot) => {
+      if (!seen.has(plot)) {
+        scene.remove(farmMeshes.get(plot).group);
+        disposeTree(farmMeshes.get(plot).group);
+        farmMeshes.delete(plot);
+      }
+    });
+  }
+
+  // F tugmasi: ekin ekish / hosil yig'ish / oshxona
+  function lifeSpot(car) {
+    if (car) return null;
+    const near = (id, r) => { const c = plotMid(id); return Math.hypot(c.x - me.x, c.y - me.y) < r; };
+    for (const f of farmList) {
+      if (f.owner === me.key && near(f.plot, 200)) {
+        if (f.progress >= 1) return { kind: 'fun', d: 1, text: `Hosilni yig'ish ${CROP_INFO[f.crop][0]}`, act: () => harvest(f.plot) };
+      }
+    }
+    return null;
+  }
+
+  async function harvest(plot) {
+    try {
+      const d = await api('/api/game/farm/harvest', { method: 'POST', body: { plot } });
+      localVersion += 1;
+      setEconomy(d.economy);
+      setFarm(d.farm);
+      sound.cash();
+      toast(`Hosil sotildi: +${formatNumber(d.pay)} so'm 🌾`, 'success');
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+
+  // ---- Ferma oynasi ----
+  function openFarm(plot) {
+    const st = { kind: 'farm', v: 0, data: null, plot };
+    openSheet(st);
+    loadInto(st, '/api/game/farm', (d) => { st.data = d; });
+  }
+  function renderFarmSheet(body, st) {
+    setHead('home', 'Ferma', "Bo'sh yeringizga ekin eking, pishgach soting");
+    const d = st.data;
+    if (!d) return;
+    if (st.plot !== null && st.plot !== undefined && !d.mine.some((f) => f.plot === st.plot)) {
+      body.append(el('p', 'sheet-note', `${st.plot + 1}-yer: urug' tanlang`));
+      const list = el('div', 'car-list');
+      Object.entries(d.crops).forEach(([id, c]) => {
+        const r = el('div', 'car-row');
+        const sw = el('span', 'car-row__swatch', c.icon);
+        sw.style.setProperty('--car', '#dcfce7');
+        const info = el('div', 'car-row__info');
+        info.append(el('strong', '', c.name), el('small', '', `${Math.round(c.grow / 60)} daqiqada pishadi · sotiladi ${formatNumber(c.sell)} so'm`));
+        r.append(sw, info, priceButton('Ekish', c.seed, async () => {
+          const res = await api('/api/game/farm/plant', { method: 'POST', body: { plot: st.plot, crop: id } });
+          localVersion += 1;
+          setEconomy(res.economy);
+          setFarm(res.farm);
+          sound.cash();
+          toast(`${c.name} ekildi 🌱 — ${Math.round(c.grow / 60)} daqiqadan keyin keling`, 'success');
+          closeSheet();
+        }, 'btn--sm'));
+        list.append(r);
+      });
+      body.append(list);
+    }
+    body.append(el('h3', 'life-h3', 'Ekinlaringiz'));
+    if (!d.mine.length) body.append(el('p', 'sheet-note', "Hali ekin yo'q. Bo'sh yeringiz yoniga boring va F bosing."));
+    d.mine.forEach((f) => {
+      const c = d.crops[f.crop];
+      const r = el('div', 'car-row');
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', `${c.icon} ${c.name} — ${f.plot + 1}-yer`),
+        el('small', '', f.progress >= 1 ? "Tayyor! Borib F bosing" : `${Math.round(f.progress * 100)}% · ${Math.ceil(f.left / 60)} daqiqa qoldi`));
+      r.append(info, actionBtn('map-pin', "Yo'l", () => { const m = plotMid(f.plot); setGuide(m.x, m.y, 'Ferma'); closeSheet(); }, 'btn btn--ghost btn--sm'));
+      body.append(r);
+    });
+    if (!d.empty.length && !d.mine.length) body.append(el('p', 'sheet-note', "Bo'sh yeringiz yo'q — Bozordan yer sotib oling."));
+    else if (d.empty.length) {
+      const free = d.empty.filter((id) => !d.mine.some((f) => f.plot === id));
+      if (free.length) body.append(el('p', 'sheet-note', `Bo'sh yerlaringiz: ${free.map((x) => x + 1).join(', ')}`));
+    }
+  }
+
+  // ---- Oshxona (kafe egasi uchun) ----
+  async function openKitchen() {
+    const st = { kind: 'kitchen', v: 0, order: null, picked: [], result: null, ingredients: [] };
+    openSheet(st);
+    await newOrder(st);
+  }
+  async function newOrder(st) {
+    try {
+      const d = await api('/api/game/kitchen/order', { method: 'POST' });
+      if (sheetState !== st) return;
+      st.order = d.order;
+      st.ingredients = [...d.ingredients].sort(() => Math.random() - 0.5);
+      st.picked = [];
+      st.result = null;
+      st.fast = d.fast;
+      st.v += 1;
+      renderSheet();
+    } catch (err) {
+      closeSheet();
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+  function renderKitchenSheet(body, st) {
+    setHead('coffee', 'Oshxona', 'Retsept bo\'yicha tez tayyorlang — tez bo\'lsa ko\'proq pul');
+    if (!st.order) return;
+    const o = st.order;
+    body.append(el('p', 'kitchen__dish', `${o.icon} ${o.name}`),
+      el('p', 'sheet-note', `Retsept: ${o.recipe.join(' → ')} · ${st.fast} soniya ichida to'liq haq`));
+    const plate = el('div', 'kitchen__plate');
+    st.picked.forEach((x) => plate.append(el('span', 'chip', x)));
+    if (!st.picked.length) plate.append(el('small', '', 'Masalliqlarni tartib bilan bosing…'));
+    body.append(plate);
+    if (st.result) {
+      body.append(el('p', st.result.ok ? 'kitchen__ok' : 'kitchen__bad', st.result.msg),
+        actionBtn('refresh', 'Keyingi buyurtma', () => newOrder(st), 'btn btn--primary btn--block'));
+      return;
+    }
+    const grid = el('div', 'kitchen__grid');
+    st.ingredients.forEach((ing) => {
+      const b = el('button', 'btn btn--ghost', ing);
+      b.type = 'button';
+      b.addEventListener('click', async () => {
+        st.picked.push(ing);
+        st.v += 1;
+        if (st.picked.length >= o.recipe.length) {
+          try {
+            const r = await api('/api/game/kitchen/serve', { method: 'POST', body: { id: o.id, items: st.picked } });
+            st.result = r;
+            if (r.economy) { localVersion += 1; setEconomy(r.economy); }
+            if (r.ok) sound.cash();
+          } catch (err) {
+            st.result = { ok: false, msg: err.message };
+          }
+          st.v += 1;
+        }
+        renderSheet();
+      });
+      grid.append(b);
+    });
+    body.append(grid, actionBtn('x', 'Tozalash', () => { st.picked = []; st.v += 1; renderSheet(); }, 'btn btn--ghost btn--block'));
+  }
+
+  // ---- Saylov ----
+  function openElection() {
+    const st = { kind: 'election', v: 0, data: null };
+    openSheet(st);
+    loadInto(st, '/api/game/election', (d) => { st.data = d; });
+  }
+  function renderElectionSheet(body, st) {
+    const d = st.data;
+    setHead('vote', 'Mahalla raisi saylovi', d ? `${d.month} · ovoz berishga ${d.days_left} kun qoldi` : 'Yuklanmoqda…');
+    if (!d) return;
+    const post = async (url, b) => {
+      try {
+        st.data = await api(url, { method: 'POST', body: b });
+        localVersion += 1;
+        st.v += 1;
+        renderSheet();
+      } catch (err) {
+        if (!handleAuthError(err)) toast(err.message, 'warn');
+      }
+    };
+    body.append(el('p', 'sheet-note', d.mayor ? `👑 Hozirgi rais: ${d.mayor.name} (o'tgan oy g'olibi)` : "Hozircha rais yo'q — shu oy saylovida g'olib bo'lgan keyingi oy rais bo'ladi."),
+      el('p', 'sheet-note', `Rais imtiyozi: ismi yonida 👑 toj va har kuni ${formatNumber(d.salary)} so'm maosh.`));
+    if (d.can_salary) {
+      body.append(actionBtn('coins', `Kunlik maoshni olish (+${formatNumber(d.salary)})`, async () => {
+        try {
+          const r = await api('/api/game/election/salary', { method: 'POST' });
+          localVersion += 1;
+          setEconomy(r.economy);
+          sound.cash();
+          toast(`Rais maoshi: +${formatNumber(r.paid)} so'm 👑`, 'success');
+          loadInto(st, '/api/game/election', (x) => { st.data = x; });
+        } catch (err) { toast(err.message, 'warn'); }
+      }, 'btn btn--primary btn--block'));
+    }
+    body.append(el('h3', 'life-h3', 'Nomzodlar'));
+    if (!d.candidates.length) body.append(el('p', 'sheet-note', "Hali nomzod yo'q. Birinchi bo'ling!"));
+    d.candidates.forEach((c) => {
+      const r = el('div', 'car-row');
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', `${c.name}${c.me ? ' (siz)' : ''}`), el('small', '', `${c.votes} ovoz`));
+      r.append(info);
+      if (d.my_vote === c.key) r.append(el('span', 'chip', '✓ Ovozingiz'));
+      else if (!d.my_vote && !c.me) r.append(actionBtn('vote', 'Ovoz berish', () => post('/api/game/election/vote', { key: c.key }), 'btn btn--primary btn--sm'));
+      body.append(r);
+    });
+    if (!d.running && !IS_OWNER) {
+      body.append(priceButton("Nomzod bo'lish", d.fee, () => post('/api/game/election/run')));
+    }
+  }
+
+  // ---- Haydovchilik guvohnomasi ----
+  function openLicense() {
+    const st = { kind: 'license', v: 0, data: null, answers: {}, result: null };
+    openSheet(st);
+    loadInto(st, '/api/game/license', (d) => { st.data = d; });
+  }
+  function renderLicenseSheet(body, st) {
+    setHead('car', "Yo'l harakati qoidalari testi", 'Tez mashinalar uchun haydovchilik guvohnomasi');
+    const d = st.data;
+    if (!d) return;
+    if (d.has) {
+      body.append(el('p', 'kitchen__ok', '🪪 Haydovchilik guvohnomangiz bor — hamma mashinani sotib olishingiz mumkin.'));
+      return;
+    }
+    body.append(el('p', 'sheet-note', `Guvohnomasiz sotib bo'lmaydigan mashinalar: ${d.cars.join(', ')}. ${d.questions.length} ta savoldan kamida ${d.pass_n} tasiga to'g'ri javob bering.`));
+    if (st.result) {
+      body.append(el('p', st.result.passed ? 'kitchen__ok' : 'kitchen__bad', st.result.passed
+        ? `Tabriklaymiz! ${st.result.right}/${st.result.total} — guvohnoma berildi 🪪`
+        : `${st.result.right}/${st.result.total} — yetmadi. 1 daqiqadan keyin qayta urinib ko'ring.`));
+      if (!st.result.passed) body.append(actionBtn('refresh', 'Qaytadan', () => { st.result = null; st.answers = {}; loadInto(st, '/api/game/license', (x) => { st.data = x; }); }, 'btn btn--ghost btn--block'));
+      return;
+    }
+    if (d.wait > 0) {
+      body.append(el('p', 'sheet-note', `Qayta topshirish uchun ${d.wait} soniya kuting.`));
+      return;
+    }
+    d.questions.forEach((q, n) => {
+      const box = el('div', 'lic-q');
+      box.append(el('strong', '', `${n + 1}. ${q.q}`));
+      const opts = el('div', 'lic-opts');
+      q.options.forEach((o, i) => {
+        const b = el('button', `btn ${st.answers[q.id] === i ? 'btn--primary' : 'btn--ghost'} btn--sm`, o);
+        b.type = 'button';
+        b.addEventListener('click', () => { st.answers[q.id] = i; st.v += 1; renderSheet(); });
+        opts.append(b);
+      });
+      box.append(opts);
+      body.append(box);
+    });
+    const done = Object.keys(st.answers).length === d.questions.length;
+    const send = actionBtn('check', 'Javoblarni yuborish', async () => {
+      try {
+        st.result = await api('/api/game/license', { method: 'POST', body: { answers: st.answers } });
+        if (st.result.passed) sound.cash();
+      } catch (err) { toast(err.message, 'warn'); }
+      st.v += 1;
+      renderSheet();
+    }, 'btn btn--primary btn--block');
+    send.disabled = !done;
+    body.append(send);
+  }
+
+  // ---- Avtopoyga chempionati ----
+  function openCup() {
+    const st = { kind: 'cup', v: 0, data: null };
+    openSheet(st);
+    loadInto(st, '/api/game/cup', (d) => { st.data = d; });
+  }
+  function renderCupSheet(body, st) {
+    const d = st.data;
+    setHead('trophy', 'Avtopoyga chempionati', d ? `${d.week} · siz ${d.my_wins} marta yutdingiz` : 'Yuklanmoqda…');
+    if (!d) return;
+    body.append(el('p', 'sheet-note', `Hafta oxirida eng ko'p poyga yutgan 3 kishi kubok oladi: 🥇 ${formatNumber(d.prizes[0])} · 🥈 ${formatNumber(d.prizes[1])} · 🥉 ${formatNumber(d.prizes[2])} so'm. Poyga — Menyu → Poyga yoki boshqa o'yinchini chaqiring.`));
+    if (d.last.length) body.append(el('p', 'sheet-note', `O'tgan hafta chempionlari: ${d.last.map((n, i) => `${['🥇', '🥈', '🥉'][i]} ${n}`).join('  ')}`));
+    if (!d.top.length) body.append(el('p', 'sheet-note', "Bu hafta hali hech kim yutmagan."));
+    d.top.forEach((t) => {
+      const r = el('div', `car-row${t.me ? ' is-me' : ''}`);
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', `${t.place <= 3 ? ['🥇', '🥈', '🥉'][t.place - 1] : `${t.place}.`} ${t.name}`), el('small', '', `${t.wins} g'alaba`));
+      r.append(info);
+      body.append(r);
+    });
   }
 
   // ---------------- Kun va tun ----------------
@@ -6843,6 +7179,11 @@ import * as THREE from 'three';
     tile('users', "Hayvonot bog'i", "Sher, fil, jirafa…", () => { setGuide(1980, -60, "Hayvonot bog'i"); closeSheet(); toast("Hayvonot bog'i — shimoldagi o'rmonda (1940-ko'cha oxiri)"); });
     tile('navigation', 'Port va qayiq', 'Dengizda suzish', () => { setGuide(world.port.pier.x, world.port.pier.y, 'Port'); closeSheet(); toast("Port — janubi-sharqda (3420-ko'cha oxiri)"); });
     tile('megaphone', 'Konsert sahnasi', "Qo'shiq ayting — qarsak = pul", () => { const sp = world.places.stage.spot; setGuide(sp.x, sp.y, 'Sahna'); closeSheet(); });
+    tile('vote', 'Mahalla raisi saylovi', "Ovoz bering yoki nomzod bo'ling 👑", openElection);
+    tile('car', 'Haydovchilik testi', "Tez mashinalar uchun guvohnoma 🪪", openLicense);
+    tile('home', 'Ferma', "Ekin eking, hosil yig'ib soting 🌾", () => openFarm(null));
+    tile('coffee', 'Oshxona', "Kafengizda taom tayyorlang 🍳", openKitchen);
+    tile('trophy', 'Avtopoyga kubogi', "Haftalik chempionat 🏆", openCup);
     tile('trophy', 'Haftalik turnir', "Hafta g'oliblari mukofot oladi", openTournament);
     tile('map-pin', 'Pochtachi', '3 ta posilka yetkazish', () => startJob('post'));
     tile('coffee', 'Pitsa yetkazish', 'Issiqligida yetkazsangiz — choychaqa', () => startJob('pizza'));
@@ -7786,7 +8127,9 @@ import * as THREE from 'three';
         updateRideButton();
       }
     }
+    mayorKey = data.mayor || null;
     setPlayers(data.players);
+    setFarm(data.farm);
     // Kimdir pul bergan bo'lsa — xabar
     addChat(data.chat);
     addVoices(data.voices);

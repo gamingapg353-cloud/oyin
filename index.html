@@ -51,6 +51,14 @@
           </div>
         </div>
 
+        <div class="field" data-code-field hidden>
+          <label class="field__label" for="code">Authenticator kodi</label>
+          <div class="input">
+            {{ icon('shield', 18) }}
+            <input id="code" name="code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+          </div>
+        </div>
+
         <p class="form-error" role="alert" hidden></p>
 
         <button type="submit" class="btn btn--primary btn--lg btn--block">Kirish</button>

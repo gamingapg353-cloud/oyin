@@ -30,12 +30,11 @@
         {% if is_owner %}
         <a class="nav__link" href="#add-user" data-view="add-user">{{ icon('user-plus') }}<span>Odam qo'shish</span></a>
         <a class="nav__link" href="#attendance" data-view="attendance">{{ icon('star') }}<span>Ball berish</span></a>
-        {% else %}
-        <a class="nav__link" href="#lesson" data-view="lesson">{{ icon('target') }}<span>Dars savollari</span></a>
         {% endif %}
         <a class="nav__link" href="#rating" data-view="rating">{{ icon('trophy') }}<span>Reyting</span></a>
         <a class="nav__link" href="#polls" data-view="polls">{{ icon('vote') }}<span>So'rovnoma</span></a>
         <a class="nav__link" href="#shop" data-view="shop">{{ icon('gift') }}<span>Sovg'alar</span></a>
+        <a class="nav__link" href="#code" data-view="code">{{ icon('file') }}<span>Kod muharriri</span></a>
       </nav>
 
       <p class="sidebar__footer">&copy; 2026 O'yin</p>
@@ -169,6 +168,14 @@
               <div class="input">
                 {{ icon('link', 18) }}
                 <input id="hw-link" name="link" type="url" inputmode="url" placeholder="https://www.figma.com/design/..." maxlength="500" autocomplete="off">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="hw-deadline">Topshirish muddati <span class="optional">(ixtiyoriy — vaqtida topshirsa +1, kechiksa −1 ball)</span></label>
+              <div class="input">
+                {{ icon('clock', 18) }}
+                <input id="hw-deadline" name="deadline" type="datetime-local">
               </div>
             </div>
 
@@ -311,11 +318,6 @@
             </form>
           </div>
         </section>
-        {% else %}
-        <!-- Dars savollari (o'quvchi) -->
-        <section class="view" data-view="lesson" data-title="Dars savollari" hidden>
-          <div class="lesson" id="lesson-root"></div>
-        </section>
         {% endif %}
 
         <!-- Reyting (hamma ko'radi) -->
@@ -344,6 +346,11 @@
           <div class="school-stack" id="shop-root"></div>
         </section>
 
+        <!-- Kod muharriri: HTML/CSS va jonli natija -->
+        <section class="view" data-view="code" data-title="Kod muharriri" hidden>
+          <div class="school-stack" id="code-root"></div>
+        </section>
+
         <!-- Profil (reytingda odamni bossangiz ochiladi) -->
         <section class="view" data-view="profile" data-title="Profil" hidden>
           <div class="page-head">
@@ -352,6 +359,7 @@
           </div>
           <div class="profile" id="profile-root"></div>
           <div class="profile-extra" id="profile-extra"></div>
+          <div class="profile-extra" id="profile-extra2"></div>
         </section>
       </main>
     </div>
@@ -429,6 +437,7 @@
   <script src="{{ asset('js/exam.js') }}"></script>
   <script src="{{ asset('js/classroom.js') }}"></script>
   <script src="{{ asset('js/school.js') }}"></script>
+  <script src="{{ asset('js/extras.js') }}"></script>
   <script src="{{ asset('js/panel.js') }}"></script>
 </body>
 </html>

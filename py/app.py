@@ -21,6 +21,8 @@ import accounts
 import ai_check
 import config
 import exam
+import extras
+import game_life
 import game
 import game_social
 import game_fun
@@ -76,6 +78,8 @@ app.before_request(classroom.before_request)
 app.after_request(classroom.after_request)
 app.register_blueprint(poll.bp)
 app.register_blueprint(exam.bp)
+app.register_blueprint(extras.bp)
+app.register_blueprint(game_life.bp)
 
 
 def asset(filename: str) -> str:
@@ -148,10 +152,16 @@ def api_login():
     if not login or not password:
         return jsonify(error="Login va parolni kiriting"), 400
 
+    need_code = []
+
     def as_owner() -> bool:
         login_ok = same_text(login.lower(), config.OWNER_LOGIN.lower())
         password_ok = same_text(password, config.OWNER_PASSWORD)
         if not (login_ok and password_ok):
+            return False
+        secret = extras.twofa_secret()  # ikki bosqichli kirish yoqilgan bo'lsa — ilovadagi kod
+        if secret and not extras.totp_ok(secret, data.get("code")):
+            need_code.append(bool(data.get("code")))
             return False
         session.clear()
         session.permanent = True
@@ -177,6 +187,9 @@ def api_login():
         if attempt():
             return jsonify(ok=True, role=session["role"], redirect=url_for("panel"))
 
+    if need_code:
+        return jsonify(error="Kod noto'g'ri" if need_code[0] else "Authenticator ilovasidagi 6 xonali kodni yozing",
+                       need_code=True), 401
     return jsonify(error="Login yoki parol noto'g'ri"), 401
 
 

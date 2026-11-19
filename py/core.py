@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS game_players (
     week_id     TEXT,                          -- haftalik turnir: qaysi hafta
     week_start  REAL,                          -- hafta boshidagi boylik
     pet         TEXT,                          -- uy hayvoni: dog | cat | parrot
+    license     INTEGER NOT NULL DEFAULT 0,    -- haydovchilik guvohnomasi (tez mashinalar uchun)
+    license_try REAL NOT NULL DEFAULT 0,       -- oxirgi yiqilgan imtihon vaqti
     clan        INTEGER                        -- game_clans.id
 );
 
@@ -358,6 +360,8 @@ def init_db() -> None:
     db = sqlite3.connect(DB_PATH)
     try:
         db.executescript(SCHEMA)
+        import extras, game_life  # panel qo'shimchalari va o'yindagi yangi jadvallar
+        db.executescript(extras.SCHEMA + game_life.SCHEMA)
         # Eski bazada yangi ustunlar bo'lmasa — qo'shamiz
         columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
         if "score" not in columns:
@@ -372,6 +376,8 @@ def init_db() -> None:
         hw_columns = {row[1] for row in db.execute("PRAGMA table_info(homeworks)")}
         if "files" not in hw_columns:
             db.execute("ALTER TABLE homeworks ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
+        if "deadline" not in hw_columns:  # topshirish muddati (vaqtida +1, kechiksa -1)
+            db.execute("ALTER TABLE homeworks ADD COLUMN deadline TEXT")
         if "link" not in hw_columns:  # vazifa havolasi (masalan, Figma maketi)
             db.execute("ALTER TABLE homeworks ADD COLUMN link TEXT NOT NULL DEFAULT ''")
         sub_columns = {row[1] for row in db.execute("PRAGMA table_info(submissions)")}
@@ -396,7 +402,8 @@ def init_db() -> None:
                           ("clan", "INTEGER"), ("tuning", "TEXT NOT NULL DEFAULT '{}'"),
                           ("daily", "TEXT NOT NULL DEFAULT '{}'"), ("spin_day", "TEXT"),
                           ("stocks", "TEXT NOT NULL DEFAULT '{}'"), ("spouse", "TEXT"),
-                          ("week_id", "TEXT"), ("week_start", "REAL"), ("pet", "TEXT")):
+                          ("week_id", "TEXT"), ("week_start", "REAL"), ("pet", "TEXT"),
+                          ("license", "INTEGER NOT NULL DEFAULT 0"), ("license_try", "REAL NOT NULL DEFAULT 0")):
             if name not in player_columns:  # bank, kredit, ko'rinish, klan
                 db.execute(f"ALTER TABLE game_players ADD COLUMN {name} {ddl}")
         # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)

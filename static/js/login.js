@@ -55,12 +55,21 @@
 
     setLoading(true);
     try {
-      const data = await api('/api/login', { method: 'POST', body: { role, login, password } });
+      const codeInput = form.querySelector('#code');
+      const body = { role, login, password };
+      if (codeInput && !codeInput.closest('.field').hidden) body.code = codeInput.value.trim();
+      const data = await api('/api/login', { method: 'POST', body });
       store.set('lastRole', data.role || role);
       window.location.href = data.redirect || '/panel';
     } catch (err) {
       showError(err.message);
       setLoading(false);
+      const codeField = form.querySelector('[data-code-field]');
+      if (err.data && err.data.need_code && codeField) {
+        codeField.hidden = false;
+        form.querySelector('#code').select();
+        return;
+      }
       passwordInput.select();
     }
   });

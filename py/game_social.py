@@ -1479,6 +1479,8 @@ DAILY = [
     {"id": "furniture", "text": "Uyingizga 2 ta mebel qo'ying", "need": 2, "reward": 15000},
     {"id": "bank", "text": "Bankka pul qo'ying", "need": 1, "reward": 10000},
     {"id": "spin", "text": "Omad g'ildiragini aylantiring", "need": 1, "reward": 5000},
+    {"id": "farm", "text": "Fermada 2 marta hosil yig'ing", "need": 2, "reward": 20000},
+    {"id": "kitchen", "text": "Kafengizda 3 ta taom tayyorlang", "need": 3, "reward": 25000},
 ]
 DAILY_BY_ID = {d["id"]: d for d in DAILY}
 DAILY_COUNT = 3

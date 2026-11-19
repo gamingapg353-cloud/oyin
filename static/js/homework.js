@@ -262,6 +262,13 @@
     headIcon.append(icon('book'));
     const titles = el('div', 'hw__titles');
     titles.append(el('h3', '', hw.title), el('small', '', subtitle));
+    if (hw.deadline) {
+      const dl = new Date(hw.deadline);
+      const late = dl < new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      titles.append(el('small', `hw__deadline${late ? ' is-late' : ''}`,
+        `⏰ Muddat: ${pad(dl.getDate())}.${pad(dl.getMonth() + 1)} ${pad(dl.getHours())}:${pad(dl.getMinutes())}${late ? " — o'tgan (topshirsa −1)" : ' (vaqtida topshirsa +1)'}`));
+    }
     head.append(headIcon, titles, right);
     return head;
   }
@@ -487,6 +494,8 @@
         return;
       }
       if (link) data.append('link', link);
+      const deadline = form.elements.deadline ? form.elements.deadline.value : '';
+      if (deadline) data.append('deadline', deadline);
       [...fileInput.files].forEach((file) => data.append('files', file));
       submitBtn.disabled = true;
       try {

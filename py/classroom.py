@@ -17,7 +17,6 @@ from datetime import date, datetime, timedelta
 from flask import Blueprint, g, jsonify, request, session
 
 import config
-import quiz
 from core import avatar_url, current_user, get_db, get_setting, login_required, owner_required, set_setting
 
 bp = Blueprint("classroom", __name__)
@@ -250,7 +249,6 @@ def api_points_gift():
 STATUSES = ("keldi", "kechikdi", "kelmadi")
 MAX_POINTS = 5
 ABSENT_POINTS = -1
-QUIZ_SIZE = 5
 
 
 def _day(value) -> str | None:
@@ -277,18 +275,6 @@ def _homework_state(db, user_id: int) -> dict | None:
     return {"title": row["title"], "status": row["status"], "score": row["score"], "by": row["graded_by"]}
 
 
-def _quiz_state(db, user_id: int, day: str) -> dict | None:
-    q = db.execute("SELECT * FROM lesson_quiz WHERE user_id = ? AND day = ? ORDER BY id DESC LIMIT 1",
-                   (user_id, day)).fetchone()
-    if q is None:
-        return None
-    questions = json.loads(q["questions"])
-    answers = json.loads(q["answers"])
-    marks = [answers[i] == questions[i]["correct"] if i < len(answers) and answers[i] is not None else None
-             for i in range(len(questions))]
-    return {"id": q["id"], "status": q["status"], "marks": marks}
-
-
 @bp.get("/api/attendance")
 @owner_required
 def api_attendance():
@@ -303,7 +289,7 @@ def api_attendance():
         a = marks.get(u["id"])
         users.append({"id": u["id"], "name": u["name"], "avatar": avatar_url(u["avatar"]),
                       "status": a["status"] if a else None, "points": a["points"] if a else 0,
-                      "quiz": _quiz_state(db, u["id"], day), "homework": _homework_state(db, u["id"])})
+                      "homework": _homework_state(db, u["id"])})
     recorded = [r["day"] for r in db.execute("SELECT DISTINCT day FROM attendance WHERE day LIKE ?", (month + "%",))]
     return jsonify(day=day, users=users, recorded=recorded, lesson_days=lesson_days(), max=MAX_POINTS,
                    today=date.today().isoformat())
@@ -355,95 +341,3 @@ def _install() -> None:
 
 _install()
 
-
-@bp.post("/api/attendance/quiz")
-@owner_required
-def api_attendance_quiz():
-    """«Boshlash»: o'quvchiga 5 ta HTML/CSS savol yuboriladi."""
-    data = request.get_json(silent=True) or {}
-    day = _day(data.get("day"))
-    user_id = data.get("user_id")
-    db = get_db()
-    a = db.execute("SELECT status FROM attendance WHERE day = ? AND user_id = ?", (day, user_id)).fetchone()
-    if not day or a is None or a["status"] not in ("keldi", "kechikdi"):
-        return jsonify(error="Avval «Keldi» yoki «Kechikdi» ni belgilang"), 400
-    rng = random.Random()
-    pool = [i for i, q in enumerate(quiz.QUESTIONS) if q["topic"] in ("HTML", "CSS")]
-    questions = []
-    for qid in rng.sample(pool, QUIZ_SIZE):
-        item = quiz.shuffled(qid, rng)
-        questions.append({"topic": item["topic"], "question": item["question"], "options": item["options"],
-                          "correct": item["correct"], "explain": item["explain"]})
-    db.execute("DELETE FROM lesson_quiz WHERE user_id = ? AND day = ? AND status != 'done'", (user_id, day))
-    db.execute("INSERT INTO lesson_quiz (user_id, day, questions, answers, status, created_at) VALUES (?, ?, ?, '[]', 'sent', ?)",
-               (user_id, day, json.dumps(questions, ensure_ascii=False), time.time()))
-    db.commit()
-    notify(f"u{user_id}", "📝 Ustoz sizga savollar yubordi — «Boshlash» ni bosing", "/panel#lesson")
-    return jsonify(ok=True)
-
-
-def _my_quiz(db, user_id: int):
-    return db.execute("SELECT * FROM lesson_quiz WHERE user_id = ? AND status != 'done' ORDER BY id DESC LIMIT 1",
-                      (user_id,)).fetchone()
-
-
-def _quiz_public(q) -> dict:
-    questions = json.loads(q["questions"])
-    answers = json.loads(q["answers"])
-    return {"id": q["id"], "day": q["day"], "status": q["status"], "count": len(questions), "index": len(answers),
-            "question": ({"topic": questions[len(answers)]["topic"], "question": questions[len(answers)]["question"],
-                          "options": questions[len(answers)]["options"]} if q["status"] == "running" and len(answers) < len(questions) else None)}
-
-
-@bp.get("/api/lesson-quiz")
-@login_required
-def api_lesson_quiz():
-    user = current_user()
-    if user["role"] != "user":
-        return jsonify(quiz=None)
-    q = _my_quiz(get_db(), user["id"])
-    return jsonify(quiz=_quiz_public(q) if q else None)
-
-
-@bp.post("/api/lesson-quiz/<int:qid>/begin")
-@login_required
-def api_lesson_quiz_begin(qid: int):
-    user = current_user()
-    db = get_db()
-    q = db.execute("SELECT * FROM lesson_quiz WHERE id = ? AND user_id = ?", (qid, user.get("id"))).fetchone()
-    if q is None or q["status"] == "done":
-        return jsonify(error="Savollar topilmadi"), 404
-    db.execute("UPDATE lesson_quiz SET status = 'running' WHERE id = ?", (qid,))
-    db.commit()
-    return jsonify(quiz=_quiz_public(db.execute("SELECT * FROM lesson_quiz WHERE id = ?", (qid,)).fetchone()))
-
-
-@bp.post("/api/lesson-quiz/<int:qid>/answer")
-@login_required
-def api_lesson_quiz_answer(qid: int):
-    user = current_user()
-    choice = (request.get_json(silent=True) or {}).get("choice")
-    db = get_db()
-    q = db.execute("SELECT * FROM lesson_quiz WHERE id = ? AND user_id = ?", (qid, user.get("id"))).fetchone()
-    if q is None or q["status"] != "running":
-        return jsonify(error="Avval «Boshlash» ni bosing"), 400
-    if isinstance(choice, bool) or not isinstance(choice, int) or not 0 <= choice < 4:
-        return jsonify(error="Javobni tanlang"), 400
-    questions = json.loads(q["questions"])
-    answers = json.loads(q["answers"])
-    i = len(answers)
-    cur = questions[i]
-    answers.append(choice)
-    done = len(answers) >= len(questions)
-    correct_count = sum(1 for k, a in enumerate(answers) if a == questions[k]["correct"])
-    db.execute("UPDATE lesson_quiz SET answers = ?, status = ? WHERE id = ?",
-               (json.dumps(answers), "done" if done else "running", qid))
-    # To'g'ri javoblar soni — o'sha kunning bali (0..5), darhol yoziladi
-    db.execute("UPDATE attendance SET points = ? WHERE day = ? AND user_id = ? AND status != 'kelmadi'",
-               (min(MAX_POINTS, correct_count), q["day"], user["id"]))
-    db.commit()
-    if done:
-        notify("owner", f"📝 {user['name']} savollarni tugatdi: {correct_count}/{len(questions)} to'g'ri", "/panel#attendance")
-    return jsonify(correct=choice == cur["correct"], right=cur["correct"], explain=cur["explain"], done=done,
-                   score=correct_count, total=len(questions),
-                   quiz=_quiz_public(db.execute("SELECT * FROM lesson_quiz WHERE id = ?", (qid,)).fetchone()))

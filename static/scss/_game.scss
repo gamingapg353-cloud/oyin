@@ -2597,3 +2597,60 @@ button.hud-online {
   color: #fcd34d;
   font-style: normal;
 }
+
+.life-h3 {
+  margin: 14px 0 6px;
+  font-size: 15px;
+}
+
+.lic-q {
+  display: grid;
+  gap: 6px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.lic-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  .btn {
+    white-space: normal;
+  }
+}
+
+.kitchen__dish {
+  margin: 4px 0;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.kitchen__plate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 8px 0;
+  padding: 8px;
+  border: 2px dashed rgba(148, 163, 184, 0.5);
+  border-radius: 14px;
+}
+
+.kitchen__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.kitchen__ok {
+  color: #16a34a;
+  font-weight: 700;
+}
+
+.kitchen__bad {
+  color: #dc2626;
+  font-weight: 700;
+}
