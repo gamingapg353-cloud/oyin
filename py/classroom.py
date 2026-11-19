@@ -62,6 +62,8 @@ def touch_device(user_key: str, force: bool = False) -> None:
         "ON CONFLICT(user_key, device) DO UPDATE SET last_at = excluded.last_at, ua = excluded.ua",
         (user_key, dev, ua, now, now),
     )
+    import school
+    school.add_minute(db, user_key)  # faollik: saytda yana bir daqiqa
     db.commit()
 
 
@@ -295,7 +297,9 @@ def api_attendance():
     db = get_db()
     marks = {r["user_id"]: r for r in db.execute("SELECT * FROM attendance WHERE day = ?", (day,))}
     users = []
-    for u in db.execute("SELECT id, name, avatar FROM users ORDER BY name COLLATE NOCASE"):
+    group = request.args.get("group", type=int)
+    sql = "SELECT id, name, avatar FROM users " + ("WHERE group_id = ? " if group else "") + "ORDER BY name COLLATE NOCASE"
+    for u in db.execute(sql, (group,) if group else ()):
         a = marks.get(u["id"])
         users.append({"id": u["id"], "name": u["name"], "avatar": avatar_url(u["avatar"]),
                       "status": a["status"] if a else None, "points": a["points"] if a else 0,

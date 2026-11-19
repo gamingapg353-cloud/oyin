@@ -256,6 +256,170 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', lessonBannerLoop);
   else lessonBannerLoop();
 
+
+  // ---------------- Sayt tili: O'zbekcha (lotin), Ўзбекча (kirill), Русский, English ----------------
+  // Kirill — butun matn avtomatik o'giriladi. Rus va ingliz — asosiy tugma va sarlavhalar (qolgani o'zbekcha qoladi).
+  const LANGS = { uz: "O'zbekcha", cyr: 'Ўзбекча', ru: 'Русский', en: 'English' };
+  const DICT = {
+    "O'yinlar": ['Игры', 'Games'], 'Uy vazifa': ['Домашнее задание', 'Homework'], 'Test': ['Тест', 'Test'],
+    "Odam qo'shish": ['Добавить ученика', 'Add student'], 'Ball berish': ['Баллы', 'Give points'],
+    'Reyting': ['Рейтинг', 'Rating'], 'Dars savollari': ['Вопросы урока', 'Lesson questions'],
+    "So'rovnoma": ['Опрос', 'Polls'], "Sovg'alar": ['Подарки', 'Rewards'], 'Profil': ['Профиль', 'Profile'],
+    'Profilim': ['Мой профиль', 'My profile'], 'Chiqish': ['Выйти', 'Log out'], 'Kirish': ['Войти', 'Enter'],
+    'Rasmni almashtirish': ['Сменить фото', 'Change photo'], "Rasmni o'chirish": ['Удалить фото', 'Remove photo'],
+    "O'yinchilar": ['Игроки', 'Players'], 'Ballar bo\'yicha': ['По баллам', 'By points'], 'Siz': ['Вы', 'You'],
+    'Hammasi': ['Все', 'All'], 'Saqlash': ['Сохранить', 'Save'], "Qo'shish": ['Добавить', 'Add'],
+    'Boshlash': ['Начать', 'Start'], 'Yopish': ['Закрыть', 'Close'], "O'chirish": ['Удалить', 'Delete'],
+    'Keldi': ['Пришёл', 'Present'], 'Kechikdi': ['Опоздал', 'Late'], 'Kelmadi': ['Не пришёл', 'Absent'],
+    'Dars jadvali': ['Расписание', 'Schedule'], "Oy o'quvchisi": ['Ученик месяца', 'Student of the month'],
+    'Yutuqlar devori': ['Доска достижений', 'Wall of fame'], 'AI yordamchi': ['AI помощник', 'AI helper'],
+    "Maslahat so'rash": ['Спросить подсказку', 'Ask for a hint'], 'Guruhlar': ['Группы', 'Groups'],
+    'Bildirishnomalar': ['Уведомления', 'Notifications'], 'Mahalla 3D': ['Махалля 3D', 'Mahalla 3D'],
+    "Yangi uy vazifa": ['Новое задание', 'New homework'], 'Vazifa berish': ['Дать задание', 'Give homework'],
+    'Yuborish': ['Отправить', 'Send'], 'Olish': ['Получить', 'Get'], 'Berildi': ['Выдано', 'Given'], 'Bekor': ['Отмена', 'Cancel'],
+    'Menyu': ['Меню', 'Menu'], 'Bozor': ['Рынок', 'Market'], 'Mulklarim': ['Моё имущество', 'My property'],
+    'Avtosalon': ['Автосалон', 'Car shop'], "Mashinaga o'tirish": ['Сесть в машину', 'Get in car'],
+    'Piyoda yurish': ['Идти пешком', 'Walk'], 'Signal': ['Сигнал', 'Horn'], 'Bank': ['Банк', 'Bank'],
+    'Boylar reytingi': ['Рейтинг богачей', 'Richest players'], 'Klanlar': ['Кланы', 'Clans'],
+    "Ko'rinishim": ['Мой вид', 'My look'], 'Poyga': ['Гонка', 'Race'], 'Futbol': ['Футбол', 'Football'],
+    'Garaj': ['Гараж', 'Garage'], 'Telefon': ['Телефон', 'Phone'], 'Aeroport': ['Аэропорт', 'Airport'],
+    'Login': ['Логин', 'Login'], 'Parol': ['Пароль', 'Password'], 'Ism': ['Имя', 'Name'],
+    'Foydalanuvchi': ['Пользователь', 'User'], 'Owner': ['Владелец', 'Owner'],
+  };
+  const LAT = [["sh", 'ш'], ["ch", 'ч'], ["o'", 'ў'], ['oʻ', 'ў'], ["o‘", 'ў'], ["g'", 'ғ'], ['gʻ', 'ғ'], ["g‘", 'ғ'],
+    ['yo', 'ё'], ['yu', 'ю'], ['ya', 'я'], ['ye', 'е'], ['ng', 'нг']];
+  const ONE = { a: 'а', b: 'б', d: 'д', e: 'е', f: 'ф', g: 'г', h: 'ҳ', i: 'и', j: 'ж', k: 'к', l: 'л', m: 'м', n: 'н',
+    o: 'о', p: 'п', q: 'қ', r: 'р', s: 'с', t: 'т', u: 'у', v: 'в', x: 'х', y: 'й', z: 'з', "'": 'ъ', 'ʼ': 'ъ', '’': 'ъ', c: 'с', w: 'в' };
+  function toCyr(text) {
+    let out = '';
+    let i = 0;
+    const isLetter = (ch) => /[a-zA-Z]/.test(ch || '');
+    while (i < text.length) {
+      const two = text.slice(i, i + 2);
+      const low2 = two.toLowerCase();
+      const pair = LAT.find(([l]) => l === low2);
+      if (pair) {
+        const up = two[0] !== two[0].toLowerCase();
+        out += up ? pair[1].toUpperCase() : pair[1];
+        i += 2;
+        continue;
+      }
+      const ch = text[i];
+      const low = ch.toLowerCase();
+      if (low === 'e' && !isLetter(text[i - 1])) {
+        out += ch === 'E' ? 'Э' : 'э'; // so'z boshidagi e — э
+      } else if (ONE[low] && (low !== "'" || isLetter(text[i - 1]))) {
+        out += ch !== low ? ONE[low].toUpperCase() : ONE[low];
+      } else out += ch;
+      i += 1;
+    }
+    return out;
+  }
+  let lang = store.get('lang') || 'uz';
+  const orig = new WeakMap();
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'CODE', 'PRE', 'INPUT', 'SELECT', 'OPTION', 'TEMPLATE', 'CANVAS']);
+  function convert(text) {
+    if (lang === 'uz' || !text.trim()) return text;
+    if (lang === 'cyr') return toCyr(text);
+    const hit = DICT[text.trim()];
+    return hit ? text.replace(text.trim(), hit[lang === 'ru' ? 0 : 1]) : text;
+  }
+  function translateNode(node) {
+    if (node.nodeType === 3) {
+      const p = node.parentElement;
+      if (!p || SKIP.has(p.tagName) || p.closest('[data-no-translate]')) return;
+      const saved = orig.get(node);
+      const base = saved && node.nodeValue === saved.out ? saved.src : node.nodeValue;
+      const out = convert(base);
+      orig.set(node, { src: base, out });
+      if (node.nodeValue !== out) node.nodeValue = out;
+      return;
+    }
+    if (node.nodeType !== 1) return;
+    if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
+      translateAttrs(node);
+      return;
+    }
+    if (SKIP.has(node.tagName) || node.hasAttribute('data-no-translate')) return;
+    translateAttrs(node);
+    node.childNodes.forEach(translateNode);
+  }
+  function translateAttrs(node) {
+    ['placeholder', 'title', 'aria-label'].forEach((a) => {
+      if (!node.hasAttribute || !node.hasAttribute(a)) return;
+      const key = `data-orig-${a}`;
+      const cur = node.getAttribute(a);
+      let src = node.getAttribute(key);
+      if (src === null || (cur !== convert(src) && cur !== src)) {
+        src = cur;
+        node.setAttribute(key, src);
+      }
+      const out = convert(src);
+      if (cur !== out) node.setAttribute(a, out);
+    });
+  }
+  let pending = false;
+  const observer = new MutationObserver((list) => {
+    if (lang === 'uz' && !document.documentElement.dataset.langWas) return;
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      observer.disconnect();
+      list.forEach((m) => {
+        if (m.type === 'characterData') translateNode(m.target);
+        m.addedNodes.forEach(translateNode);
+      });
+      start();
+    });
+  });
+  const start = () => observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  function setLang(next) {
+    lang = next;
+    store.set('lang', next);
+    document.documentElement.lang = { uz: 'uz', cyr: 'uz-Cyrl', ru: 'ru', en: 'en' }[next];
+    document.documentElement.dataset.langWas = '1';
+    observer.disconnect();
+    translateNode(document.body);
+    start();
+    const btn = document.getElementById('lang-btn');
+    if (btn) btn.textContent = `🌐 ${{ uz: 'UZ', cyr: 'ЎЗ', ru: 'RU', en: 'EN' }[next]}`;
+  }
+  function langMenu() {
+    const host = document.querySelector('.topbar__actions');
+    if (!host) return;
+    const wrap = el('div', 'pop');
+    const btn = el('button', 'online-chip', '🌐 UZ');
+    btn.id = 'lang-btn';
+    btn.type = 'button';
+    btn.title = 'Til / Язык / Language';
+    btn.setAttribute('data-no-translate', '');
+    const menu = el('div', 'menu pop__menu lang-menu');
+    menu.hidden = true;
+    menu.setAttribute('data-no-translate', '');
+    Object.entries(LANGS).forEach(([id, name]) => {
+      const b = el('button', 'menu__item', name);
+      b.type = 'button';
+      b.addEventListener('click', () => { menu.hidden = true; setLang(id); });
+      menu.append(b);
+    });
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.pop__menu').forEach((m) => { if (m !== menu) m.hidden = true; });
+      menu.hidden = !menu.hidden;
+    });
+    document.addEventListener('click', (e) => { if (!menu.contains(e.target)) menu.hidden = true; });
+    wrap.append(btn, menu);
+    host.prepend(wrap);
+  }
+  function initLang() {
+    langMenu();
+    if (lang !== 'uz') setLang(lang);
+    else start();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initLang);
+  else initLang();
+
   window.Oyin = {
     store, avatarColor, api, handleAuthError, el, icon, formatDate, avatarEl, setAvatar,
     uploadAvatar, MONTHS, formatNumber, viewLoaders: {}, hideExamBanner,

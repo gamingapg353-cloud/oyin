@@ -34,6 +34,8 @@
         <a class="nav__link" href="#lesson" data-view="lesson">{{ icon('target') }}<span>Dars savollari</span></a>
         {% endif %}
         <a class="nav__link" href="#rating" data-view="rating">{{ icon('trophy') }}<span>Reyting</span></a>
+        <a class="nav__link" href="#polls" data-view="polls">{{ icon('vote') }}<span>So'rovnoma</span></a>
+        <a class="nav__link" href="#shop" data-view="shop">{{ icon('gift') }}<span>Sovg'alar</span></a>
       </nav>
 
       <p class="sidebar__footer">&copy; 2026 O'yin</p>
@@ -122,6 +124,7 @@
               </div>
             </div>
           </article>
+          <div class="home-extra" id="home-extra"></div>
         </section>
 
         <!-- Uy vazifa -->
@@ -185,6 +188,7 @@
           </form>
           {% endif %}
 
+          <div id="ai-helper"></div>
           <div class="hw-list" id="hw-list"></div>
           <div class="card empty" id="hw-empty" hidden>
             <span class="empty__icon">{{ icon('book', 30) }}</span>
@@ -251,6 +255,7 @@
               </div>
             </form>
 
+            <div class="card form-card" id="groups-card"></div>
           </div>
         </section>
 
@@ -321,11 +326,22 @@
               <span class="pill" id="rating-count">0</span>
               <span class="list-card__hint">Ballar bo'yicha</span>
             </div>
+            <div class="chips rating-groups" id="rating-groups" hidden></div>
             <ol class="user-list" id="rating-list"></ol>
             <p class="empty empty--inline" id="rating-empty" hidden>
               {% if is_owner %}Hali hech kim yo'q. «Odam qo'shish» bo'limidan odam qo'shing.{% else %}Hali hech kim yo'q.{% endif %}
             </p>
           </div>
+        </section>
+
+        <!-- So'rovnoma (hamma) -->
+        <section class="view" data-view="polls" data-title="So'rovnoma" hidden>
+          <div class="school-stack" id="polls-root"></div>
+        </section>
+
+        <!-- Sovg'alar do'koni: ballni sovg'aga almashtirish -->
+        <section class="view" data-view="shop" data-title="Sovg'alar" hidden>
+          <div class="school-stack" id="shop-root"></div>
         </section>
 
         <!-- Profil (reytingda odamni bossangiz ochiladi) -->
@@ -335,6 +351,7 @@
             <h2>Foydalanuvchi profili</h2>
           </div>
           <div class="profile" id="profile-root"></div>
+          <div class="profile-extra" id="profile-extra"></div>
         </section>
       </main>
     </div>
@@ -400,7 +417,7 @@
   <template id="icons">
     {% for name in ['medal', 'trash', 'book', 'upload', 'download', 'file', 'bot', 'refresh', 'alert', 'check', 'clock', 'chevron-down', 'send', 'star', 'camera', 'calendar', 'target', 'home', 'car', 'coins', 'lock', 'user', 'trophy', 'gamepad',
                   'target', 'x', 'sparkles', 'plus', 'arrow-left', 'link', 'bell', 'shield', 'gift', 'users', 'chevron-left',
-                  'chevron-right', 'minus'] %}
+                  'chevron-right', 'minus', 'crown', 'vote', 'bot', 'calendar', 'message'] %}
     <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
     {% endfor %}
   </template>
@@ -411,6 +428,7 @@
   <script src="{{ asset('js/profile.js') }}"></script>
   <script src="{{ asset('js/exam.js') }}"></script>
   <script src="{{ asset('js/classroom.js') }}"></script>
+  <script src="{{ asset('js/school.js') }}"></script>
   <script src="{{ asset('js/panel.js') }}"></script>
 </body>
 </html>

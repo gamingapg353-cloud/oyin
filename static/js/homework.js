@@ -297,6 +297,9 @@
     who.append(el('strong', '', sub.user_name), el('small', '', formatDate(sub.created_at)));
     top.append(avatar, who, statusBadge(sub));
     if (sub.status === 'checked') top.append(el('span', 'pill score', `${sub.score}/${maxScore}`));
+    if (sub.copy_score) {
+      top.append(el('span', 'badge badge--danger', `⚠ ${sub.copy_score}% o'xshash: ${sub.copy_of}`));
+    }
     row.append(top, details(sub), fileChips(sub));
 
     // Amallar: bahoni qo'lda qo'yish, AI qayta tekshirsin, o'chirish

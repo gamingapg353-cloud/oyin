@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS game_players (
     spouse      TEXT,                          -- turmush o'rtog'i (to'y qilgan)
     week_id     TEXT,                          -- haftalik turnir: qaysi hafta
     week_start  REAL,                          -- hafta boshidagi boylik
+    pet         TEXT,                          -- uy hayvoni: dog | cat | parrot
     clan        INTEGER                        -- game_clans.id
 );
 
@@ -62,6 +63,68 @@ CREATE TABLE IF NOT EXISTS game_challenges (
     challenge   TEXT NOT NULL,
     solved_at   REAL NOT NULL,
     PRIMARY KEY (player_key, challenge)
+);
+
+-- Guruhlar (sinflar)
+CREATE TABLE IF NOT EXISTS groups (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL UNIQUE
+);
+
+-- Dars jadvali
+CREATE TABLE IF NOT EXISTS lessons (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    starts_at   TEXT NOT NULL,                 -- 2026-11-21T14:00
+    topic       TEXT NOT NULL,
+    group_id    INTEGER
+);
+
+-- Saytda necha daqiqa bo'lgan (kun bo'yicha)
+CREATE TABLE IF NOT EXISTS activity (
+    user_key    TEXT NOT NULL,
+    day         TEXT NOT NULL,
+    minutes     INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_key, day)
+);
+
+-- AI yordamchidan foydalanish (kunlik cheklov)
+CREATE TABLE IF NOT EXISTS ai_hint_use (
+    user_key    TEXT NOT NULL,
+    day         TEXT NOT NULL,
+    n           INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_key, day)
+);
+
+-- So'rovnomalar (panel)
+CREATE TABLE IF NOT EXISTS polls2 (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    question    TEXT NOT NULL,
+    options     TEXT NOT NULL,
+    active      INTEGER NOT NULL DEFAULT 1,
+    created_at  REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS poll_votes2 (
+    poll_id     INTEGER NOT NULL REFERENCES polls2(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    choice      INTEGER NOT NULL,
+    PRIMARY KEY (poll_id, user_id)
+);
+
+-- Sovg'alar do'koni: ballni sovg'aga almashtirish
+CREATE TABLE IF NOT EXISTS rewards (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    cost        INTEGER NOT NULL,
+    stock       INTEGER NOT NULL DEFAULT 0,
+    active      INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS reward_orders (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    reward_id   INTEGER NOT NULL,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    cost        INTEGER NOT NULL,
+    status      TEXT NOT NULL,                 -- pending | given | cancelled
+    t           REAL NOT NULL
 );
 
 -- Qurilmalar: akkauntga birinchi kirgan qurilma — asosiy (himoya uchun)
@@ -256,7 +319,7 @@ CREATE TABLE IF NOT EXISTS submissions (
 
 
 RATING_SQL = (
-    "SELECT u.id, u.name, u.login, u.avatar, u.created_at, "
+    "SELECT u.id, u.name, u.login, u.avatar, u.created_at, u.group_id, "
     "u.score + COALESCE((SELECT SUM(s.score) FROM submissions s WHERE s.user_id = u.id), 0) "
     "+ COALESCE((SELECT SUM(a.points) FROM attendance a WHERE a.user_id = u.id), 0) AS total "
     "FROM users u ORDER BY total DESC, u.id ASC"
@@ -303,6 +366,9 @@ def init_db() -> None:
             db.execute("ALTER TABLE users ADD COLUMN avatar TEXT")
         if "session_version" not in columns:
             db.execute("ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0")
+        for name, ddl in (("group_id", "INTEGER"), ("report_token", "TEXT"), ("birthday", "TEXT"), ("bday_paid", "TEXT")):
+            if name not in columns:  # guruh, ota-ona hisoboti havolasi, tug'ilgan kun
+                db.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
         hw_columns = {row[1] for row in db.execute("PRAGMA table_info(homeworks)")}
         if "files" not in hw_columns:
             db.execute("ALTER TABLE homeworks ADD COLUMN files TEXT NOT NULL DEFAULT '[]'")
@@ -311,6 +377,9 @@ def init_db() -> None:
         sub_columns = {row[1] for row in db.execute("PRAGMA table_info(submissions)")}
         if "mistakes" not in sub_columns:
             db.execute("ALTER TABLE submissions ADD COLUMN mistakes TEXT")
+        for name in ("copy_of", "copy_score"):
+            if name not in sub_columns:  # ko'chirish ehtimoli: kimning ishiga o'xshash va necha foiz
+                db.execute(f"ALTER TABLE submissions ADD COLUMN {name} {'TEXT' if name == 'copy_of' else 'INTEGER'}")
         if "game_bonus" not in sub_columns:  # uy vazifasi uchun o'yinda berilgan pul
             db.execute("ALTER TABLE submissions ADD COLUMN game_bonus INTEGER NOT NULL DEFAULT 0")
         plot_columns = {row[1] for row in db.execute("PRAGMA table_info(game_plots)")}
@@ -327,7 +396,7 @@ def init_db() -> None:
                           ("clan", "INTEGER"), ("tuning", "TEXT NOT NULL DEFAULT '{}'"),
                           ("daily", "TEXT NOT NULL DEFAULT '{}'"), ("spin_day", "TEXT"),
                           ("stocks", "TEXT NOT NULL DEFAULT '{}'"), ("spouse", "TEXT"),
-                          ("week_id", "TEXT"), ("week_start", "REAL")):
+                          ("week_id", "TEXT"), ("week_start", "REAL"), ("pet", "TEXT")):
             if name not in player_columns:  # bank, kredit, ko'rinish, klan
                 db.execute(f"ALTER TABLE game_players ADD COLUMN {name} {ddl}")
         # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)

@@ -32,6 +32,7 @@
     closeMenu();
     window.scrollTo(0, 0);
     viewLoaders[view.dataset.view]?.(param);
+    Oyin.extraLoaders?.[view.dataset.view]?.(param);
   }
 
   // ---------------- Hisob menyusi (yuqori o'ng burchak) ----------------
@@ -138,6 +139,8 @@
     users.forEach((user, index) => {
       const place = index + 1;
       const li = el('li', user.me ? 'user-row is-me' : 'user-row');
+      li.dataset.uid = user.id;
+      li.dataset.group = user.group_id ?? '';
 
       // O'rin: 1-3 o'rin (ball bo'lsa) — medal, qolganlari — raqam
       const rank = el('span', 'rank');
@@ -192,6 +195,7 @@
     try {
       const data = await api('/api/rating');
       renderRating(data.users);
+      Oyin.extraLoaders?.rating?.();
       return data.users;
     } catch (err) {
       if (!handleAuthError(err)) window.alert(err.message);

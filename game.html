@@ -54,6 +54,9 @@
     <div class="chat__speaking" id="speaking" hidden aria-live="polite"></div>
     <div class="chat__log" id="chat-log" aria-live="polite"></div>
     <form class="chat__form" id="chat-form" autocomplete="off">
+      <select class="chat__chan-select" id="chat-channel" aria-label="Kimga" title="Kimga yozasiz">
+        <option value="all">Hammaga</option><option value="clan">Klan</option><option value="friends">Do'stlar</option>
+      </select>
       <input class="chat__input" id="chat-input" maxlength="200" placeholder="Xabar yozing… (Enter)" aria-label="Chat xabari">
       <button type="submit" class="chat__btn" aria-label="Yuborish" title="Yuborish">{{ icon('send', 18) }}</button>
       <button type="button" class="chat__btn" id="btn-emoji" aria-label="Emojilar" title="Emoji va raqs">😊</button>
@@ -129,6 +132,13 @@
       <button type="button" class="btn btn--primary" id="wed-yes">Roziman</button>
       <button type="button" class="btn btn--ghost" id="wed-no">Yo'q</button>
     </div>
+  </section>
+
+  <!-- Konsert sahnasi -->
+  <section class="race-card stage-card" id="stage-card" hidden aria-live="polite">
+    <span class="race-card__icon">🎤</span>
+    <div class="race-card__text"><strong id="stage-text"></strong></div>
+    <button type="button" class="btn btn--primary race-card__quit" id="btn-clap" hidden>👏 Qarsak</button>
   </section>
 
   <!-- Basketbol: otish o'lchagichi -->

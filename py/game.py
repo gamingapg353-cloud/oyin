@@ -268,7 +268,17 @@ PLACES = {
     "court": {"x": 2070, "y": 960, "w": 200, "h": 140, "hoop": {"x": 2092, "y": 1030}, "spot": {"x": 2180, "y": 1030}},
     "cinema": {"x": 2540, "y": 950, "w": 150, "h": 140, "door": {"x": 2615, "y": 1112}},
     "wash": {"x": 60, "y": 860, "w": 260, "h": 200, "door": {"x": 190, "y": 960}},
+    "depot": {"x": 2820, "y": 2760, "w": 120, "h": 90, "door": {"x": 2880, "y": 2875}},
+    "stage": {"x": 2560, "y": 680, "w": 130, "h": 90, "spot": {"x": 2625, "y": 725}},
 }
+# Hayvonot bog'i — shimoldagi o'rmonda (1940-ko'cha davomi), port — janubi-sharqda (3420-ko'cha davomi)
+ZOO = {"rect": {"x": 1700, "y": -1300, "w": 1700, "h": 1360},
+       "pens": [{"kind": "lion", "x": 1800, "y": -600, "w": 380, "h": 300}, {"kind": "elephant", "x": 2250, "y": -650, "w": 420, "h": 350},
+                {"kind": "giraffe", "x": 2750, "y": -650, "w": 380, "h": 350}, {"kind": "zebra", "x": 1800, "y": -1150, "w": 380, "h": 300},
+                {"kind": "monkey", "x": 2250, "y": -1150, "w": 420, "h": 300}, {"kind": "penguin", "x": 2750, "y": -1150, "w": 380, "h": 300}]}
+PORT = {"rect": {"x": 6600, "y": 2850, "w": 1600, "h": 1350},
+        "sea": {"x": 7000, "y": 2900, "w": 1150, "h": 1250},
+        "pier": {"x": 6960, "y": 3460}}
 METRO = [{"id": 0, "name": "Shimoli-g'arb", "x": 200, "y": 250}, {"id": 1, "name": "Aeroport yo'li", "x": 6680, "y": 2040},
          {"id": 2, "name": "Stadion", "x": 2840, "y": 3380}, {"id": 3, "name": "Janubi-g'arb", "x": 200, "y": 3600}]
 # Avtobus bekatlari (yo'l chetidagi trotuarda), aylana yo'nalish
@@ -342,7 +352,7 @@ WORLD_DATA = {
     "plots": PLOTS, "buildings": [building_rect(p) for p in PLOTS],
     "shop": SHOP, "fountain": FOUNTAIN, "pond": POND, "trees": _make_trees(),
     "field": FIELD, "goal_w": GOAL_W, "benches": BENCHES, "track": TRACK, "airport": AIRPORT, "bus_stops": BUS_STOPS,
-    "aqua": AQUA, "places": PLACES, "metro": METRO,
+    "aqua": AQUA, "places": PLACES, "metro": METRO, "zoo": ZOO, "port": PORT,
     "default_spawn": {"x": 1200, "y": 800}, "fly_height": FLY_HEIGHT, "fly_cruise": FLY_CRUISE,
 }
 
@@ -447,7 +457,7 @@ def _others(me: str, now: float) -> list[dict]:
          "seat": _seats.get(key),  # kimning mashinasida yo'lovchi bo'lib o'tiribdi
          "looks": p.get("looks") or {}, "clan": p.get("clan"), "pose": p.get("pose"),
          "drift": p.get("drift", False), "tune": p.get("tune"), "para": p.get("para", False),
-         "ring": p.get("ring", False), "dirt": round(p.get("dirt", 0), 2),
+         "ring": p.get("ring", False), "dirt": round(p.get("dirt", 0), 2), "pet": p.get("pet"), "boat": p.get("boat", False),
          "emote": p["emote"]["e"] if p.get("emote") and now - p["emote"]["t"] < 4 else None}
         for key, p in _live.items()
         if key != me and now - p["t"] < ONLINE_SECONDS
@@ -709,7 +719,7 @@ def api_state():
     with _lock:
         _tick_passengers(now)
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
-        chat = list(_chat)[-30:]
+        chat = [_chat_public(m) for m in list(_chat) if _chat_visible(m, key)][-30:]
         voice_last = _voices[-1]["id"] if _voices else 0
     return jsonify(
         me={"key": key, "name": user["name"], "avatar": user["avatar"], "spawn": spawn},
@@ -755,7 +765,7 @@ def api_sync():
         height = min(height, prev0.get("h", 0))  # parashyutda faqat pastga tushiladi
     height = min(max(height, 0), FLY_HEIGHT + 20 if (flying or para) else 120)
     world_rect = {"x": 0, "y": 0, "w": WORLD_W, "h": WORLD_H}
-    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"]]
+    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"], ZOO["rect"], PORT["rect"]]
     inside_rect = lambda a: a["x"] + 10 <= x <= a["x"] + a["w"] - 10 and a["y"] + 10 <= y <= a["y"] + a["h"] - 10
     in_area = any(inside_rect(a) for a in areas)
     if not in_area:  # chegaradan tashqarida — eng yaqin ruxsat etilgan joyga
@@ -803,7 +813,8 @@ def api_sync():
         pose = data.get("pose") if data.get("pose") in ("sit", "dance") and not car and not seat else None
         emote = prev.get("emote") if prev else None
         _live[key] = {"x": x, "y": y, "h": height if (flying or not car or seat) else 0, "dir": direction,
-                      "para": para and height > 0, "emote": emote, "ring": bool(row["spouse"]),
+                      "para": para and height > 0, "emote": emote, "ring": bool(row["spouse"]), "pet": row["pet"],
+                      "boat": bool(data.get("boat")) and not car and _overlaps(x, y, PORT["sea"], 20),
                       "dirt": _unit(data.get("dirt")),
                       "car": car, "t": now, "name": user["name"], "avatar": user["avatar"],
                       "looks": looks, "clan": clan, "pose": pose,
@@ -812,7 +823,7 @@ def api_sync():
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
         gifts = _gifts.pop(key, [])
         chat_since, voice_since = _int(data.get("chat_since")), _int(data.get("voice_since"))
-        chat = [m for m in _chat if m["id"] > chat_since]
+        chat = [_chat_public(m) for m in _chat if m["id"] > chat_since and _chat_visible(m, key)]
         voices = [{"id": v["id"], "key": v["key"], "name": v["name"]} for v in _voices
                   if v["id"] > voice_since and v["key"] != key and now - v["t"] < VOICE_TTL]
 
@@ -851,13 +862,30 @@ def api_chat():
     text = " ".join(str((request.get_json(silent=True) or {}).get("text") or "").split())
     if not text:
         return jsonify(error="Xabar bo'sh"), 400
+    channel = (request.get_json(silent=True) or {}).get("channel")
+    channel = channel if channel in ("clan", "friends") else "all"
     msg = {"id": 0, "key": player_key(user), "name": user["name"], "avatar": user["avatar"],
-           "text": text[:CHAT_MAX_LEN], "t": time.time()}
+           "text": text[:CHAT_MAX_LEN], "t": time.time(), "channel": channel}
+    if channel != "all":
+        msg["to"] = CHAT_AUDIENCE(player_key(user), channel)
+        if not msg["to"]:
+            return jsonify(error="Klaningiz yo'q" if channel == "clan" else "Hali do'stingiz yo'q"), 400
     with _lock:
         msg["id"] = next(_msg_ids)
         _chat.append(msg)
     MENTION(user, msg["text"])  # @ism — o'sha odamga bildirishnoma
-    return jsonify(message=msg)
+    return jsonify(message=_chat_public(msg))
+
+
+def _chat_visible(m: dict, key: str) -> bool:
+    return "to" not in m or key == m["key"] or key in m["to"]
+
+
+def _chat_public(m: dict) -> dict:
+    return {k: v for k, v in m.items() if k != "to"}
+
+
+CHAT_AUDIENCE = lambda key, channel: []   # game_fun: klan a'zolari yoki do'stlar
 
 
 @bp.post("/api/game/voice")

@@ -25,6 +25,7 @@ import game
 import game_social
 import game_fun
 import classroom
+import school
 import homework
 import poll
 from build_css import build_css
@@ -70,6 +71,7 @@ app.register_blueprint(game.bp)
 app.register_blueprint(game_social.bp)
 app.register_blueprint(game_fun.bp)
 app.register_blueprint(classroom.bp)
+app.register_blueprint(school.bp)
 app.before_request(classroom.before_request)
 app.after_request(classroom.after_request)
 app.register_blueprint(poll.bp)
@@ -207,7 +209,7 @@ def rating():
 
     result = []
     for row in rows:
-        item = {"id": row["id"], "name": row["name"], "avatar": avatar_url(row["avatar"]),
+        item = {"id": row["id"], "name": row["name"], "avatar": avatar_url(row["avatar"]), "group_id": row["group_id"],
                 "score": row["total"], "me": row["id"] == my_id}
         if is_owner:  # login faqat owner'ga ko'rinadi
             item["login"] = row["login"]

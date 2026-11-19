@@ -145,8 +145,9 @@
 
   // ---------------- Ball berish: davomat (owner) ----------------
   const WEEK = ['Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh', 'Ya'];
-  const STATUS = [['keldi', 'Keldi'], ['kechikdi', 'Kechikdi'], ['kelmadi', 'Kelmadi']];
-  const att = { day: null, month: null, data: null };
+  // Holatlar rasm bilan: keldi — yashil belgi, kechikdi — soat, kelmadi — qizil xoch
+  const STATUS = [['keldi', 'Keldi', '✅'], ['kechikdi', 'Kechikdi', '⏰'], ['kelmadi', 'Kelmadi', '❌']];
+  const att = { day: null, month: null, data: null, step: 'date' };
   const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   async function loadAttendance(day) {
@@ -201,7 +202,7 @@
       const b = el('button', cls, String(n));
       b.type = 'button';
       b.disabled = !past;
-      b.addEventListener('click', () => loadAttendance(dayIso));
+      b.addEventListener('click', () => { att.step = 'date'; loadAttendance(dayIso); });
       grid.append(b);
     }
     const legend = el('div', 'att-cal__legend');
@@ -248,14 +249,40 @@
     return cell;
   }
 
+  const dayTitle = (dayIso) => {
+    const [y, m, dd] = dayIso.split('-').map(Number);
+    return `${dd}-${Oyin.MONTHS[m - 1].toLowerCase()} ${y}`;
+  };
+
   function renderAttendance() {
     const root = $('att-root');
     const d = att.data;
-    root.replaceChildren(calendar());
+    $('att-extra').hidden = att.step !== 'date';
+    if (att.step === 'date') {
+      // 1-qadam: sana tanlanadi, pastda — «Ball berish» tugmasi
+      const go = el('button', 'btn btn--primary btn--lg att-start');
+      go.type = 'button';
+      go.append(icon('star'), el('span', '', `${dayTitle(att.day)} — ball berishni boshlash`));
+      go.addEventListener('click', () => {
+        att.step = 'mark';
+        renderAttendance();
+        window.scrollTo(0, 0);
+      });
+      root.replaceChildren(calendar(), go);
+      return;
+    }
+    // 2-qadam: kalendar yo'qoladi, ball berish ochiladi
+    const bar = el('div', 'att-bar');
+    const back = el('button', 'btn btn--ghost');
+    back.type = 'button';
+    back.append(icon('arrow-left'), el('span', '', "Sanani o'zgartirish"));
+    back.addEventListener('click', () => { att.step = 'date'; renderAttendance(); });
+    bar.append(back, el('strong', 'att-bar__day', `📅 ${dayTitle(att.day)}`));
+    root.replaceChildren(bar);
     const card = el('div', 'card att-table');
     const head = el('div', 'list-card__head');
-    head.append(el('h2', '', `${att.day} — davomat va ball`),
-      el('span', 'list-card__hint', `Keldi/Kechikdi — 0…${d.max} ball · Kelmadi — −1 · «Boshlash» — o'quvchiga 5 ta HTML/CSS savol`));
+    head.append(el('h2', '', 'Davomat va ball'),
+      el('span', 'list-card__hint', `✅ Keldi / ⏰ Kechikdi — 0…${d.max} ball · ❌ Kelmadi — −1 · «Boshlash» — o'quvchiga 5 ta HTML/CSS savol`));
     card.append(head);
     if (!d.users.length) card.append(el('p', 'empty empty--inline', "Hali o'quvchi yo'q"));
     d.users.forEach((u) => {
@@ -263,8 +290,11 @@
       const who = el('div', 'att-row__who');
       who.append(avatarEl(u.name, u.avatar), el('strong', '', u.name));
       const st = el('div', 'att-status');
-      STATUS.forEach(([id, label]) => {
-        const b = el('button', `att-status__btn att-status__btn--${id}${u.status === id ? ' is-on' : ''}`, label);
+      STATUS.forEach(([id, label, pic]) => {
+        const b = el('button', `att-status__btn att-status__btn--${id}${u.status === id ? ' is-on' : ''}`);
+        b.append(el('span', 'att-status__pic', pic), el('small', '', label));
+        b.title = label;
+        b.setAttribute('aria-label', label);
         b.type = 'button';
         b.addEventListener('click', () => saveMark(u, u.status === id ? null : id, u.status === id ? 0 : Math.max(0, u.points || 0)));
         st.append(b);
@@ -272,13 +302,17 @@
       const pts = el('div', 'att-points');
       if (u.status === 'kelmadi') pts.append(el('strong', 'att-points__minus', '−1 ball'));
       else {
-        const sel = el('select', 'att-points__select');
-        for (let i = 0; i <= d.max; i += 1) sel.append(new Option(`${i} ball`, i));
-        sel.value = String(Math.max(0, u.points || 0));
-        sel.disabled = !u.status;
-        sel.title = u.status ? 'Ball (0–5)' : 'Avval Keldi yoki Kechikdi ni bosing';
-        sel.addEventListener('change', () => saveMark(u, u.status, Number(sel.value)));
-        pts.append(sel);
+        // Ball — kalendar kunlariga o'xshash tugmalar (0…5), tanlangani sariq hoshiyali
+        const scale = el('div', 'att-pts');
+        for (let i = 0; i <= d.max; i += 1) {
+          const b = el('button', `att-pt${Math.max(0, u.points || 0) === i && u.status ? ' is-selected' : ''}${i > 0 && i <= (u.points || 0) && u.status ? ' is-filled' : ''}`, String(i));
+          b.type = 'button';
+          b.disabled = !u.status;
+          b.title = u.status ? `${i} ball` : 'Avval ✅ yoki ⏰ ni bosing';
+          b.addEventListener('click', () => saveMark(u, u.status, i));
+          scale.append(b);
+        }
+        pts.append(scale);
         const go = el('button', 'btn btn--primary att-go');
         go.type = 'button';
         go.disabled = !u.status;

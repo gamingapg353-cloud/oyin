@@ -94,7 +94,9 @@ def submission_json(row, *, for_owner: bool) -> dict:
     }
     if for_owner:
         data.update(ai_probability=probability, user_id=row["user_id"], user_name=row["user_name"],
-                    user_avatar=avatar_url(row["user_avatar"]))
+                    user_avatar=avatar_url(row["user_avatar"]),
+                    copy_of=row["copy_of"] if "copy_of" in row.keys() else None,
+                    copy_score=row["copy_score"] if "copy_score" in row.keys() else None)
     return data
 
 
@@ -283,6 +285,8 @@ def submit(hw_id: int):
     sub_id = cur.lastrowid
     save_files(submission_dir(sub_id), files)
     db.commit()
+    import school
+    school.check_copy(db, sub_id, submission_dir)  # boshqa o'quvchining ishiga juda o'xshashmi?
 
     run_check(sub_id)
     return jsonify(submission=submission_json(load_submission(sub_id), for_owner=False)), 201

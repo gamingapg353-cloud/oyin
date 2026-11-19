@@ -2573,3 +2573,27 @@ button.hud-online {
     color: var(--on-primary);
   }
 }
+
+.stage-card {
+  top: 338px;
+
+  .race-card__icon {
+    background: #7c3aed;
+    font-size: 20px;
+  }
+}
+
+.chat__chan-select {
+  height: 36px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
+  font-size: 12px;
+}
+
+.chat__chan {
+  color: #fcd34d;
+  font-style: normal;
+}

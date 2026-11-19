@@ -70,15 +70,19 @@ def _job_json(key: str, now: float) -> dict | None:
 def api_job_start():
     key = _me()
     kind = (request.get_json(silent=True) or {}).get("kind")
-    if kind not in ("post", "pizza"):
+    if kind not in ("post", "pizza", "build"):
         return jsonify(error="Qaysi ish?"), 400
     now = time.time()
-    place = game.PLACES[kind]["door"]
+    place = game.PLACES[{"post": "post", "pizza": "pizza", "build": "depot"}[kind]]["door"]
     with game._lock:
         if key in _jobs:
             return jsonify(error="Avval hozirgi ishni tugating"), 400
-        n = POST_PARCELS if kind == "post" else 1
+        n = 1 if kind == "pizza" else POST_PARCELS
         plots = random.sample(range(len(game.PLOTS)), n)
+        if kind == "build":  # qurilish materiallarini boshqalarning binosiga olib borib qurib berasiz
+            built = [r["plot"] for r in get_db().execute("SELECT plot FROM game_plots WHERE kind IS NOT NULL AND owner_key != ?", (key,))]
+            if len(built) >= n:
+                plots = random.sample(built, n)
         _jobs[key] = {"kind": kind, "phase": "pickup", "pickup": place, "targets": [_gate(i) for i in plots],
                       "idx": 0, "t": now, "deadline": None, "earned": 0}
         return jsonify(job=_job_json(key, now))
@@ -103,11 +107,13 @@ def api_job_step():
         if j["phase"] == "pickup":
             j["phase"] = "deliver"
             j["t"] = now
-            if j["kind"] == "pizza":
+            if j["kind"] == "build":
+                msg = "Qurilish materiallarini oldingiz — 3 ta binoga olib borib quring"
+            elif j["kind"] == "pizza":
                 d = abs(j["targets"][0]["x"] - t["x"]) + abs(j["targets"][0]["y"] - t["y"])
                 j["deadline"] = now + max(25, d / (game.WALK_SPEED * 1.7) * 1.6)
                 msg = "Pitsani oldingiz! Issiqligida yetkazing — vaqt ketdi"
-            else:
+            elif j["kind"] == "post":
                 msg = f"{len(j['targets'])} ta posilkani oldingiz — manzillarga olib boring"
         else:
             prev = j["pickup"] if j["idx"] == 0 else j["targets"][j["idx"] - 1]
@@ -115,6 +121,9 @@ def api_job_step():
             if j["kind"] == "post":
                 pay = int(400 + dist * 0.5)
                 msg = f"Posilka topshirildi: +{pay:,} so'm".replace(",", " ")
+            elif j["kind"] == "build":
+                pay = int(900 + dist * 0.5)
+                msg = f"Qurilish ishi bajarildi: +{pay:,} so'm".replace(",", " ")
             else:
                 base = int(600 + dist * 0.6)
                 tip = int(base * 0.5) if now <= j["deadline"] else -int(base * 0.5)
@@ -885,3 +894,136 @@ def _forget(db, key: str) -> None:
 
 game.SYNC_HOOKS.append(_fun_hook)
 game.FORGET_HOOKS.append(_forget)
+
+
+# --------------------------------------------------------------------------- #
+#  Uy hayvoni
+# --------------------------------------------------------------------------- #
+PETS = {"dog": 20000, "cat": 15000, "parrot": 25000}
+
+
+@bp.post("/api/game/pet")
+@login_required
+def api_pet():
+    key = _me()
+    kind = (request.get_json(silent=True) or {}).get("kind")
+    if kind not in PETS and kind != "":
+        return jsonify(error="Qaysi hayvon?"), 400
+    db = get_db()
+    game.ensure_player(db, key)
+
+    def change(row, money):
+        if kind and row["pet"] == kind:
+            raise game.GameError("Bu hayvon sizda bor")
+        price = PETS.get(kind, 0)
+        if money < price:
+            raise game.GameError("Pul yetarli emas")
+        return -price, lambda: db.execute("UPDATE game_players SET pet = ? WHERE player_key = ?", (kind or None, key))
+
+    _, err = gs._change(db, key, change)
+    return err or jsonify(pet=kind or None, prices=PETS, economy=_econ(db, key))
+
+
+@bp.get("/api/game/pet")
+@login_required
+def api_pet_state():
+    key = _me()
+    db = get_db()
+    row = game.ensure_player(db, key)
+    return jsonify(pet=row["pet"], prices=PETS)
+
+
+# --------------------------------------------------------------------------- #
+#  Konsert sahnasi: sahnaga chiqing, tomoshabinlar qarsak chalsa — pul
+# --------------------------------------------------------------------------- #
+STAGE_TIME = 180
+CLAP_PAY = 200
+CLAP_COOLDOWN = 3
+_stage: dict = {}
+_clap_at: dict[str, float] = {}
+
+
+def _stage_json(key: str, now: float) -> dict | None:
+    if not _stage or now - _stage["since"] > STAGE_TIME:
+        _stage.clear()
+        return None
+    return {"key": _stage["key"], "name": _stage["name"], "claps": _stage["claps"], "earned": _stage["earned"],
+            "left": round(STAGE_TIME - (now - _stage["since"])), "me": _stage["key"] == key}
+
+
+@bp.post("/api/game/stage/up")
+@login_required
+def api_stage_up():
+    user = current_user()
+    key = game.player_key(user)
+    spot = game.PLACES["stage"]["spot"]
+    now = time.time()
+    with game._lock:
+        if not _near(key, spot["x"], spot["y"], 90, now):
+            return jsonify(error="Sahnaga yaqin boring"), 400
+        cur = _stage_json(key, now)
+        if cur and not cur["me"]:
+            return jsonify(error=f"Sahnada {cur['name']} chiqyapti — navbat kuting"), 400
+        _stage.update(key=key, name=user["name"], since=now, claps=0, earned=0)
+        game._chat.append({"id": next(game._msg_ids), "key": "owner", "name": "🎤 Sahna", "avatar": None, "t": now,
+                           "text": f"{user['name']} sahnaga chiqdi! Bog'dagi sahnaga keling va qarsak chaling 👏"})
+        return jsonify(stage=_stage_json(key, now))
+
+
+@bp.post("/api/game/stage/down")
+@login_required
+def api_stage_down():
+    key = _me()
+    with game._lock:
+        if _stage.get("key") == key:
+            _stage.clear()
+    return jsonify(ok=True)
+
+
+@bp.post("/api/game/stage/clap")
+@login_required
+def api_stage_clap():
+    key = _me()
+    now = time.time()
+    spot = game.PLACES["stage"]["spot"]
+    with game._lock:
+        st = _stage_json(key, now)
+        if not st:
+            return jsonify(error="Sahnada hech kim yo'q"), 400
+        if st["me"]:
+            return jsonify(error="O'zingizga qarsak chalib bo'lmaydi"), 400
+        if not _near(key, spot["x"], spot["y"], 650, now):
+            return jsonify(error="Sahnaga yaqinroq keling"), 400
+        if now - _clap_at.get(key, 0) < CLAP_COOLDOWN:
+            return jsonify(error="Sekinroq 🙂"), 429
+        _clap_at[key] = now
+        _stage["claps"] += 1
+        _stage["earned"] += CLAP_PAY
+        performer = _stage["key"]
+        if key in game._live:
+            game._live[key]["emote"] = {"e": "👏", "t": now}
+    gs.add_money(get_db(), performer, CLAP_PAY)
+    return jsonify(ok=True)
+
+
+def _stage_hook(db, key: str, row, now: float, response: dict) -> None:
+    with game._lock:
+        response["stage"] = _stage_json(key, now)
+
+
+# --------------------------------------------------------------------------- #
+#  Guruh chati: klan a'zolari yoki do'stlar
+# --------------------------------------------------------------------------- #
+def chat_audience(key: str, channel: str) -> list:
+    db = get_db()
+    if channel == "clan":
+        row = gs._row(db, key)
+        if not row or not row["clan"]:
+            return []
+        return [r["player_key"] for r in db.execute("SELECT player_key FROM game_players WHERE clan = ? AND player_key != ?", (row["clan"], key))]
+    rows = db.execute("SELECT a, b FROM game_friends WHERE status = 'ok' AND (a = ? OR b = ?)", (key, key)).fetchall()
+    return [r["b"] if r["a"] == key else r["a"] for r in rows]
+
+
+game.SYNC_HOOKS.append(_stage_hook)
+game.CHAT_AUDIENCE = chat_audience
