@@ -22,6 +22,7 @@ import ai_check
 import config
 import exam
 import game
+import game_social
 import homework
 import poll
 from build_css import build_css
@@ -64,6 +65,7 @@ app.teardown_appcontext(close_db)
 app.register_blueprint(homework.bp)
 app.register_blueprint(accounts.bp)
 app.register_blueprint(game.bp)
+app.register_blueprint(game_social.bp)
 app.register_blueprint(poll.bp)
 app.register_blueprint(exam.bp)
 

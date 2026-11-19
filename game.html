@@ -63,6 +63,34 @@
     <button type="button" class="icon-btn icon-btn--sm" id="taxi-cancel" aria-label="Bekor qilish">{{ icon('x', 18) }}</button>
   </section>
 
+  <!-- Poyga: taklif, sanoq, natija -->
+  <section class="race-card" id="race-card" hidden aria-live="polite">
+    <span class="race-card__icon">{{ icon('trophy', 20) }}</span>
+    <div class="race-card__text">
+      <strong id="race-title"></strong>
+      <small id="race-sub"></small>
+    </div>
+    <div class="race-card__actions" id="race-actions" hidden>
+      <button type="button" class="btn btn--primary" id="race-yes">Qabul</button>
+      <button type="button" class="btn btn--ghost" id="race-no">Yo'q</button>
+    </div>
+  </section>
+
+  <!-- Uy ichi: mebel do'koni -->
+  <section class="room-ui" id="room-ui" hidden aria-label="Uy ichi">
+    <header class="room-ui__head">
+      <div>
+        <strong id="room-title"></strong>
+        <small id="room-sub"></small>
+      </div>
+      <button type="button" class="btn btn--ghost" id="room-rotate" hidden>{{ icon('rotate', 18) }}<span>Burish</span></button>
+      <button type="button" class="btn btn--primary" id="room-exit">{{ icon('log-out', 18) }}<span>Chiqish</span></button>
+    </header>
+    <div class="room-ui__sel" id="room-sel" hidden></div>
+    <div class="room-ui__shop" id="room-shop"></div>
+    <small class="room-ui__hint" id="room-hint"></small>
+  </section>
+
   <!-- Yaqin turgan yer / Avtosalon / yo'lovchi -->
   <button type="button" class="prompt" id="prompt" hidden>
     <kbd>F</kbd><span id="prompt-text"></span>
@@ -71,6 +99,7 @@
   <!-- Amallar -->
   <div class="hud-actions">
     <button type="button" class="action-btn" id="btn-horn" hidden>{{ icon('megaphone', 22) }}<span>Signal</span><kbd>H</kbd></button>
+    <button type="button" class="action-btn" id="btn-menu">{{ icon('menu', 22) }}<span>Menyu</span></button>
     <button type="button" class="action-btn" id="btn-market">{{ icon('store', 22) }}<span>Bozor</span></button>
     <button type="button" class="action-btn" id="btn-mine">{{ icon('home', 22) }}<span>Mulklarim</span></button>
     <button type="button" class="action-btn" id="btn-shop">{{ icon('car', 22) }}<span>Avtosalon</span></button>
@@ -88,7 +117,7 @@
     <button type="button" class="dpad__btn dpad__btn--down" data-dir="down" tabindex="-1">{{ icon('chevron-down', 28) }}</button>
   </div>
 
-  <p class="hud-hint" id="hint">WASD — yurish · Probel — sakrash (Teslada — uchish) · E — mashina · F — yer/yo'lovchi · H — signal · M — katta xarita · Enter — chat · V — mikrofon (yoqish/o'chirish) · sichqoncha — kamera</p>
+  <p class="hud-hint" id="hint">WASD — yurish · Probel — sakrash (Teslada — uchish) · E — mashina · F — yer/yo'lovchi · H — signal · M — katta xarita · Enter — chat · V — mikrofon (yoqish/o'chirish) · sichqoncha — kamera · Menyu — bank, klan, reyting, kiyim</p>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <div class="conn" id="conn" role="alert" hidden>{{ icon('alert', 18) }} Server bilan aloqa uzildi… qayta ulanmoqda</div>
   <div class="loading" id="loading">{{ icon('gamepad', 34) }}<span>Mahalla yuklanmoqda…</span></div>
@@ -111,7 +140,8 @@
     {% for name in ['home', 'car', 'coins', 'check', 'lock', 'star', 'clock', 'footprints', 'trophy', 'alert',
                     'store', 'coffee', 'building', 'map-pin', 'hammer', 'arrow-up', 'trash', 'user',
                     'volume', 'volume-x', 'navigation', 'plane', 'megaphone', 'users', 'x',
-                    'mic', 'message', 'vote', 'send', 'sparkles'] %}
+                    'mic', 'message', 'vote', 'send', 'sparkles', 'menu', 'target', 'rotate', 'download', 'upload',
+                    'plus', 'log-out', 'user-plus', 'arrow-left', 'crown', 'medal', 'book', 'refresh'] %}
     <span data-icon="{{ name }}">{{ icon(name, 18) }}</span>
     {% endfor %}
   </template>

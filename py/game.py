@@ -230,6 +230,23 @@ PLOTS = _make_plots()
 SHOP = {"x": 40, "y": 560, "w": 300, "h": 190, "door": {"x": 190, "y": 790}}   # Avtosalon
 FOUNTAIN = {"x": 2300, "y": 730, "w": 140, "h": 140}                            # bog'dagi favvora
 POND = {"x": 40, "y": 1290, "w": 300, "h": 200}                                 # ko'l
+FIELD = {"x": 2880, "y": 2900, "w": 540, "h": 340}                              # futbol maydoni (ikkinchi bog'da)
+GOAL_W = 110                                                                     # darvoza kengligi
+
+
+def _make_benches() -> list[dict]:
+    """O'tiradigan skameykalar: favvora atrofida va futbol maydoni chetida. dir — qaragan tomoni (radian)."""
+    cx, cy = FOUNTAIN["x"] + FOUNTAIN["w"] / 2, FOUNTAIN["y"] + FOUNTAIN["h"] / 2
+    benches = [{"x": cx + dx * 105, "y": cy + dy * 105, "dir": math.atan2(-dy, -dx)}
+               for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1))]
+    for i in range(4):
+        x = FIELD["x"] + 90 + i * 120
+        benches.append({"x": x, "y": FIELD["y"] - 55, "dir": math.pi / 2})
+        benches.append({"x": x, "y": FIELD["y"] + FIELD["h"] + 55, "dir": -math.pi / 2})
+    return [{"id": i, "x": round(b["x"]), "y": round(b["y"]), "dir": round(b["dir"], 4)} for i, b in enumerate(benches)]
+
+
+BENCHES = _make_benches()
 
 
 def building_rect(plot: dict) -> dict:
@@ -269,13 +286,16 @@ def _make_trees() -> list[dict]:
         if any(math.hypot(x - t["x"], y - t["y"]) < 70 for t in trees):
             continue
         trees.append({"x": round(x), "y": round(y), "r": rng.choice([22, 26, 30])})
-    return trees
+    # Futbol maydoni va skameykalar ustida daraxt bo'lmasin
+    return [t for t in trees if not _overlaps(t["x"], t["y"], FIELD, 90)
+            and all(math.hypot(t["x"] - b["x"], t["y"] - b["y"]) > 45 for b in BENCHES)]
 
 
 WORLD_DATA = {
     "w": WORLD_W, "h": WORLD_H, "road": ROAD, "h_roads": H_ROADS, "v_roads": V_ROADS,
     "plots": PLOTS, "buildings": [building_rect(p) for p in PLOTS],
     "shop": SHOP, "fountain": FOUNTAIN, "pond": POND, "trees": _make_trees(),
+    "field": FIELD, "goal_w": GOAL_W, "benches": BENCHES,
     "default_spawn": {"x": 1200, "y": 800}, "fly_height": FLY_HEIGHT, "fly_cruise": FLY_CRUISE,
 }
 
@@ -351,7 +371,8 @@ def _others(me: str, now: float) -> list[dict]:
     return [
         {"key": key, "name": p["name"], "avatar": p["avatar"], "x": p["x"], "y": p["y"],
          "h": p.get("h", 0), "dir": p["dir"], "car": p["car"], "taxi": key in _rides,
-         "seat": _seats.get(key)}  # kimning mashinasida yo'lovchi bo'lib o'tiribdi
+         "seat": _seats.get(key),  # kimning mashinasida yo'lovchi bo'lib o'tiribdi
+         "looks": p.get("looks") or {}, "clan": p.get("clan"), "pose": p.get("pose")}
         for key, p in _live.items()
         if key != me and now - p["t"] < ONLINE_SECONDS
     ]
@@ -371,6 +392,8 @@ def forget_player(key: str) -> None:
         _gifts.pop(key, None)
         _seats.pop(key, None)
     db = get_db()
+    for hook in FORGET_HOOKS:  # klan, poyga (game_social.py)
+        hook(db, key)
     db.execute("DELETE FROM game_players WHERE player_key = ?", (key,))
     db.execute("DELETE FROM game_plots WHERE owner_key = ?", (key,))
     db.commit()
@@ -496,16 +519,47 @@ def summary_for(db, key: str) -> dict | None:
 
 def plots_list(db) -> list[dict]:
     rows = db.execute(
-        "SELECT g.plot, g.owner_key, g.kind, g.level, g.sale_price, g.variant, u.name, p.plot AS home_plot FROM game_plots g "
+        "SELECT g.plot, g.owner_key, g.kind, g.level, g.sale_price, g.variant, u.name, p.plot AS home_plot, "
+        "c.tag AS clan_tag, c.color AS clan_color FROM game_plots g "
         "LEFT JOIN users u ON g.owner_key = 'u' || u.id "
-        "LEFT JOIN game_players p ON p.player_key = g.owner_key"
+        "LEFT JOIN game_players p ON p.player_key = g.owner_key "
+        "LEFT JOIN game_clans c ON c.id = p.clan"
     ).fetchall()
     return [
         {"plot": r["plot"], "owner": r["owner_key"], "kind": r["kind"], "variant": r["variant"], "level": r["level"],
          "home": r["home_plot"] == r["plot"], "price": r["sale_price"],
+         "flag": {"tag": r["clan_tag"], "color": r["clan_color"]}
+         if r["clan_tag"] and r["home_plot"] == r["plot"] else None,
          "name": config.OWNER_NAME if r["owner_key"] == "owner" else (r["name"] or "?")}
         for r in rows
     ]
+
+
+FORGET_HOOKS: list = []  # game_social qo'shadi: hook(db, key)
+SYNC_HOOKS: list = []   # game_social qo'shadi: hook(db, key, row, now, response)
+LOOKS = {
+    "skin": ["#f0c08a", "#e0a96d", "#c68642", "#8d5524", "#ffdbac"],
+    "hair": ["#2b2b2b", "#6b3f1d", "#d4a017", "#b91c1c", "#f8fafc", "#7c3aed", "#2563eb"],
+    "shirt": ["#2563eb", "#dc2626", "#16a34a", "#f59e0b", "#7c3aed", "#ec4899", "#0f172a", "#f8fafc", "#14b8a6"],
+    "pants": ["#1f2937", "#1e3a8a", "#78350f", "#4b5563", "#f5f5f4", "#166534"],
+    "hat": ["", "cap", "hat", "beanie", "crown"],
+}
+
+
+def player_looks(row) -> dict:
+    """Saqlangan ko'rinish (faqat ruxsat etilgan qiymatlar)."""
+    try:
+        raw = json.loads(row["looks"] or "{}")
+    except (ValueError, TypeError, IndexError, KeyError):
+        raw = {}
+    return {k: raw[k] for k, allowed in LOOKS.items() if isinstance(raw, dict) and raw.get(k) in allowed}
+
+
+def clan_badge(db, row) -> dict | None:
+    if not row["clan"]:
+        return None
+    c = db.execute("SELECT id, tag, color FROM game_clans WHERE id = ?", (row["clan"],)).fetchone()
+    return {"id": c["id"], "tag": c["tag"], "color": c["color"]} if c else None
 
 
 def _live_pos(key: str, now: float):
@@ -586,6 +640,7 @@ def api_sync():
     x = min(max(x, 10), WORLD_W - 10)
     y = min(max(y, 10), WORLD_H - 10)
 
+    looks, clan = player_looks(row), clan_badge(db, row)
     now = time.time()
     corrected = False
     seat = None
@@ -612,8 +667,10 @@ def api_sync():
             limit = WALK_SPEED * max(speeds + [1]) * dt * 1.6 + 40
             if math.hypot(x - prev["x"], y - prev["y"]) > limit:
                 x, y, corrected = prev["x"], prev["y"], True
+        pose = "sit" if data.get("pose") == "sit" and not car and not seat else None
         _live[key] = {"x": x, "y": y, "h": height if (flying or not car or seat) else 0, "dir": direction,
-                      "car": car, "t": now, "name": user["name"], "avatar": user["avatar"]}
+                      "car": car, "t": now, "name": user["name"], "avatar": user["avatar"],
+                      "looks": looks, "clan": clan, "pose": pose}
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
         gifts = _gifts.pop(key, [])
         chat_since, voice_since = _int(data.get("chat_since")), _int(data.get("voice_since"))
@@ -624,6 +681,8 @@ def api_sync():
     response = {"economy": economy_json(db, row), "passengers": passengers, "ride": ride,
                 "players": players, "plots": plots_list(db), "gifts": gifts, "seat": seat,
                 "chat": chat, "voices": voices}
+    for hook in SYNC_HOOKS:  # bank, poyga, futbol to'pi (game_social.py)
+        hook(db, key, row, now, response)
     if corrected:
         response["correct"] = {"x": x, "y": y}
     return jsonify(response)

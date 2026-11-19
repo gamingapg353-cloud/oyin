@@ -1291,7 +1291,7 @@ button.hud-online {
 
   @media (hover: none), (max-width: $bp-sm) {
     bottom: 220px;
-    width: unquote("min(280px, calc(100% - 28px))");
+    width: unquote("min(280px, calc(100% - 140px))"); // o'ngdagi tugmalar ustiga chiqmasin
 
     &__log {
       max-height: 110px;
@@ -1517,4 +1517,536 @@ button.hud-online {
     height: 40px;
     font-size: 14px;
   }
+}
+
+// ---------------- Menyu, bank, reyting, klan, ko'rinish ----------------
+.hub {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+
+  &__tile {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: $radius;
+    background: var(--surface-solid);
+    color: var(--text);
+    text-align: left;
+    transition: border-color 0.15s, transform 0.1s;
+
+    &:hover {
+      border-color: var(--primary);
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+
+    strong {
+      font-size: 15px;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+  }
+
+  &__icon {
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    margin-bottom: 4px;
+    border-radius: 12px;
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+}
+
+.bank-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bank-stat {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: $radius;
+
+  small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  strong {
+    overflow-wrap: anywhere;
+    font-size: 15px;
+  }
+
+  &--good strong {
+    color: var(--success);
+  }
+
+  &--bad strong {
+    color: var(--danger);
+  }
+}
+
+.bank-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+
+  .btn {
+    justify-content: center;
+    height: 42px;
+    font-size: 14px;
+  }
+}
+
+.sheet-note--warn {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.top-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: $radius;
+
+  &.is-me {
+    border-color: var(--primary);
+    background: var(--primary-soft);
+  }
+
+  .avatar {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  &__place {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--border);
+    font-size: 13px;
+    font-weight: 700;
+
+    &--1 {
+      background: #facc15;
+      color: #422006;
+    }
+
+    &--2 {
+      background: #cbd5e1;
+      color: #1e293b;
+    }
+
+    &--3 {
+      background: #d97706;
+      color: #ffffff;
+    }
+  }
+
+  &__sum {
+    flex-shrink: 0;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  @include mq($bp-sm) {
+    flex-wrap: wrap;
+
+    &__sum {
+      width: 100%;
+      padding-left: 38px;
+    }
+  }
+}
+
+.top-gap {
+  color: var(--muted);
+  text-align: center;
+}
+
+.clan-tag {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: var(--clan);
+  color: #ffffff;
+  font-size: 11px;
+  vertical-align: 2px;
+}
+
+.clan-flag {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 44px;
+  height: 30px;
+  border-radius: 4px 10px 10px 4px;
+  background: var(--clan);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  box-shadow: inset 4px 0 0 rgba(0, 0, 0, 0.25);
+
+  &--big {
+    width: 64px;
+    height: 44px;
+    font-size: 16px;
+  }
+}
+
+.clan-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.btn--icon {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--sw);
+  cursor: pointer;
+
+  &.is-on {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-soft);
+  }
+}
+
+.chip.is-on {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.looks-row {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+
+  strong {
+    font-size: 14px;
+  }
+}
+
+// ---------------- Poyga kartasi ----------------
+.race-card {
+  @extend %glass;
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  z-index: 12;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: unquote("min(420px, calc(100% - 28px))");
+  padding: 10px 12px;
+  border-radius: 16px;
+  transform: translateX(-50%);
+  animation: toast-in 0.2s ease;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__icon {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    background: var(--gold);
+    color: #ffffff;
+  }
+
+  &__text {
+    display: grid;
+    flex: 1;
+    min-width: 0;
+
+    strong {
+      font-size: 16px;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 6px;
+
+    &[hidden] {
+      display: none;
+    }
+
+    .btn {
+      height: 38px;
+      font-size: 14px;
+    }
+  }
+}
+
+// ---------------- Uy ichi ----------------
+.room-ui {
+  @extend %glass;
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 14px;
+  z-index: 20;
+  display: grid;
+  gap: 10px;
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 12px;
+  border-radius: 18px;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    > div {
+      display: grid;
+      flex: 1;
+      min-width: 0;
+    }
+
+    strong {
+      font-size: 16px;
+    }
+
+    small {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .btn {
+      height: 40px;
+      font-size: 14px;
+    }
+  }
+
+  &__sel {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--primary);
+    border-radius: 12px;
+    background: var(--primary-soft);
+
+    &[hidden] {
+      display: none;
+    }
+
+    strong {
+      flex: 1;
+    }
+
+    .btn {
+      height: 36px;
+      font-size: 13px;
+    }
+  }
+
+  &__shop {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  &__hint {
+    color: var(--muted);
+    font-size: 12px;
+  }
+}
+
+.room-item {
+  display: grid;
+  flex-shrink: 0;
+  justify-items: start;
+  gap: 2px;
+  width: 116px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-solid);
+  color: var(--text);
+  text-align: left;
+
+  &.is-on {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px var(--primary) inset;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+  }
+
+  &__sw {
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    background: var(--sw);
+  }
+
+  strong {
+    font-size: 13px;
+  }
+
+  small {
+    color: var(--muted);
+    font-size: 12px;
+  }
+}
+
+// Uy ichida ko'cha tugmalari yashiriladi
+.is-room {
+  .hud-actions,
+  .dpad,
+  .chat,
+  .minimap,
+  .prompt,
+  .hud-hint,
+  .hud-friends,
+  .taxi-card {
+    display: none !important;
+  }
+}
+
+// ---------------- Kod chellenji ----------------
+.code-task {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: $radius;
+  background: var(--primary-soft);
+
+  p {
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  &__prize {
+    color: var(--success);
+  }
+}
+
+.code-result {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: $radius;
+
+  p,
+  ul {
+    margin: 0;
+  }
+
+  ul {
+    padding-left: 18px;
+  }
+
+  &--ok {
+    background: var(--success-soft);
+    color: var(--success);
+  }
+
+  &--bad {
+    background: var(--danger-soft);
+
+    strong {
+      color: var(--danger);
+    }
+  }
+}
+
+.code-label {
+  display: block;
+  margin: 8px 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.code-input {
+  width: 100%;
+  min-height: 160px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+  resize: vertical;
+  tab-size: 2;
+
+  &:focus {
+    border-color: var(--primary);
+    outline: none;
+  }
+}
+
+.code-preview {
+  width: 100%;
+  height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #ffffff;
 }

@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 
 import ai_check
+import game_social
 import config
 from core import UPLOAD_DIR, avatar_url, current_user, get_db, login_required, now_iso, owner_required, text_field
 
@@ -143,6 +144,7 @@ def run_check(sub_id: int) -> None:
          json.dumps(grade.mistakes, ensure_ascii=False), sub_id),
     )
     db.commit()
+    game_social.homework_bonus(db, sub_id)
 
 
 # --------------------------------------------------------------------------- #
@@ -322,6 +324,7 @@ def grade_submission(sub_id: int):
     db.commit()
     if cur.rowcount == 0:
         return jsonify(error="Topilmadi"), 404
+    game_social.homework_bonus(db, sub_id)
     return jsonify(submission=submission_json(load_submission(sub_id), for_owner=True))
 
 

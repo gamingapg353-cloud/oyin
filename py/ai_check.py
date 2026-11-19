@@ -78,6 +78,18 @@ if genai is not None:
         ai_probability: int
         ai_reason: str
 
+    class CodeOutput(BaseModel):
+        passed: bool
+        mistakes: list[str]
+        feedback: str
+
+
+@dataclass
+class CodeResult:
+    passed: bool
+    feedback: str
+    mistakes: list[str] = field(default_factory=list)
+
 
 def api_key() -> str:
     return (config.GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
@@ -265,21 +277,43 @@ def check(title: str, description: str, files: list[tuple[str, bytes]],
     }
     if config.AI_THINKING:  # o'ylash darajasi: past bo'lsa tezroq javob beradi
         options["thinking_config"] = types.ThinkingConfig(thinking_level=config.AI_THINKING.upper())
+    response = _generate(key, _to_parts(blocks), options)
 
+    feedback = getattr(response, "prompt_feedback", None)
+    if feedback is not None and getattr(feedback, "block_reason", None):
+        raise AICheckError("AI bu ishni tekshirmadi. Owner qo'lda baholashi kerak.")
+    out = response.parsed
+    if not isinstance(out, GradeOutput):
+        raise AICheckError("AI javobi to'liq kelmadi. Qayta tekshirib ko'ring.")
+
+    probability = _clamp(out.ai_probability, 0, 100)
+    score = _clamp(out.score, config.HOMEWORK_MIN_SCORE, max_score)  # xato ish — minus ball
+    if probability >= config.AI_THRESHOLD:
+        score = -config.AI_PENALTY  # AI ishlatgan — reytingdan 5 ball ayiriladi
+    mistakes = [m.strip() for m in out.mistakes if isinstance(m, str) and m.strip()][:15]
+    return Grade(score=score, ai_probability=probability, ai_reason=out.ai_reason.strip(),
+                 feedback=out.feedback.strip(), mistakes=mistakes)
+
+
+def _generate(key: str, parts: list, options: dict, timeout_ms: int = 120_000, attempts: int = 2,
+              max_models: int = 99, models: list | None = None):
+    """Gemini'ga so'rov: asosiy model band bo'lsa — zaxira modellarga o'tadi."""
     # Server band bo'lsa (429/500/503/504) har model 2 marta urinadi; baribir band bo'lsa — zaxira modelga o'tamiz
     client = genai.Client(api_key=key, http_options=types.HttpOptions(
-        timeout=120_000,
-        retry_options=types.HttpRetryOptions(attempts=2, initial_delay=2.0, max_delay=10.0,
+        timeout=timeout_ms,
+        retry_options=types.HttpRetryOptions(attempts=attempts, initial_delay=2.0, max_delay=10.0,
                                              http_status_codes=[429, 500, 502, 503, 504]),
     ))
-    models = [config.AI_MODEL] + [m for m in getattr(config, "AI_FALLBACK_MODELS", []) if m != config.AI_MODEL]
+    if models is None:
+        models = [config.AI_MODEL] + [m for m in getattr(config, "AI_FALLBACK_MODELS", []) if m != config.AI_MODEL]
+    models = models[:max_models]
     response = None
     last_busy = None
     for model in models:
         try:
             response = client.models.generate_content(
                 model=model,
-                contents=_to_parts(blocks),
+                contents=parts,
                 config=types.GenerateContentConfig(**options),
             )
             break
@@ -297,6 +331,9 @@ def check(title: str, description: str, files: list[tuple[str, bytes]],
         except genai_errors.APIError as err:
             raise AICheckError(f"AI xatosi ({err.code}). Birozdan keyin «Qayta tekshirish»ni bosing.", transient=True) from None
         except Exception as err:  # internet yo'q, vaqt tugadi va h.k.
+            if "timeout" in type(err).__name__.lower():
+                last_busy = err  # bu model sekin — keyingisini sinaymiz
+                continue
             raise AICheckError(
                 f"AI serveriga ulanib bo'lmadi ({type(err).__name__}). Birozdan keyin «Qayta tekshirish»ni bosing.",
                 transient=True,
@@ -306,18 +343,42 @@ def check(title: str, description: str, files: list[tuple[str, bytes]],
         raise AICheckError(f"Gemini serverlari hozir band ({code}) — barcha {len(models)} model sinab ko'rildi. "
                            "Birozdan keyin «Qayta tekshirish»ni bosing — faylni qayta yuklash shart emas.",
                            transient=True)
+    return response
 
-    feedback = getattr(response, "prompt_feedback", None)
-    if feedback is not None and getattr(feedback, "block_reason", None):
-        raise AICheckError("AI bu ishni tekshirmadi. Owner qo'lda baholashi kerak.")
+
+CODE_PROMPT = """You check a tiny HTML/CSS exercise in a game for beginner programmers (school students).
+The student got a short task and wrote HTML (CSS may be inside <style> or style="" attributes).
+Decide whether the code fulfils EVERY requirement of the task when rendered in a browser.
+- Be strict about the requirements that are written in the task (elements, attributes, colours, layout, text).
+- Do not require anything the task does not ask for. Small style differences that still satisfy the task are fine.
+- Close colour names/values are fine (e.g. "blue", "#00f", "#2563eb" all count as blue).
+- If the code is empty, unrelated, or only copies the task text, it does not pass.
+Reply in Uzbek (Latin script), simply and kindly. "mistakes": each unmet requirement as one short sentence
+saying what to fix (empty list if passed). "feedback": one or two sentences overall."""
+
+
+def check_code(task: str, code: str) -> CodeResult:
+    """O'yindagi kod chellenji: o'quvchi kodi topshiriqni bajaradimi? Muammo bo'lsa AICheckError."""
+    if genai is None:
+        raise AICheckError("AI ulanmagan (google-genai kutubxonasi yo'q)")
+    key = api_key()
+    if not key:
+        raise AICheckError("AI ulanmagan — owner .env fayliga GEMINI_API_KEY qo'yishi kerak")
+    options = {
+        "system_instruction": CODE_PROMPT,
+        "response_mime_type": "application/json",
+        "response_schema": CodeOutput,
+    }
+    if config.AI_THINKING:
+        options["thinking_config"] = types.ThinkingConfig(thinking_level=config.AI_THINKING.upper())
+    parts = [types.Part.from_text(text=f"<task>\n{task}\n</task>\n<student_code>\n{code}\n</student_code>")]
+    # O'yinda o'quvchi kutib turadi: kichik kod uchun tez ("lite") modellar oldin, har biri 25 soniya
+    every = [config.AI_MODEL] + list(getattr(config, "AI_FALLBACK_MODELS", []))
+    fast = [m for m in every if "lite" in m] + [m for m in every if "lite" not in m]
+    response = _generate(key, parts, options, timeout_ms=25_000, attempts=1, max_models=3,
+                         models=list(dict.fromkeys(fast)))
     out = response.parsed
-    if not isinstance(out, GradeOutput):
-        raise AICheckError("AI javobi to'liq kelmadi. Qayta tekshirib ko'ring.")
-
-    probability = _clamp(out.ai_probability, 0, 100)
-    score = _clamp(out.score, config.HOMEWORK_MIN_SCORE, max_score)  # xato ish — minus ball
-    if probability >= config.AI_THRESHOLD:
-        score = -config.AI_PENALTY  # AI ishlatgan — reytingdan 5 ball ayiriladi
-    mistakes = [m.strip() for m in out.mistakes if isinstance(m, str) and m.strip()][:15]
-    return Grade(score=score, ai_probability=probability, ai_reason=out.ai_reason.strip(),
-                 feedback=out.feedback.strip(), mistakes=mistakes)
+    if not isinstance(out, CodeOutput):
+        raise AICheckError("AI javobi to'liq kelmadi. Qayta urinib ko'ring.", transient=True)
+    mistakes = [m.strip() for m in out.mistakes if isinstance(m, str) and m.strip()][:8]
+    return CodeResult(passed=bool(out.passed) and not mistakes, feedback=out.feedback.strip(), mistakes=mistakes)

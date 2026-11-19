@@ -39,7 +39,33 @@ CREATE TABLE IF NOT EXISTS game_players (
     income_at   REAL NOT NULL,                 -- daromad shu vaqtgacha hisoblangan (unix soniya)
     house_level INTEGER NOT NULL DEFAULT 0,    -- eski (game_plots ga ko'chirilgan)
     cars        TEXT NOT NULL DEFAULT '[]',    -- JSON: sotib olingan mashinalar
-    plot        INTEGER                        -- Ota hovli — bepul berilgan birinchi yer
+    plot        INTEGER,                       -- Ota hovli — bepul berilgan birinchi yer
+    bank        REAL NOT NULL DEFAULT 0,       -- bankdagi omonat (foiz bilan o'sadi)
+    bank_at     REAL NOT NULL DEFAULT 0,
+    loan        REAL NOT NULL DEFAULT 0,       -- kredit qarzi (foiz bilan o'sadi)
+    loan_at     REAL NOT NULL DEFAULT 0,
+    loan_due    REAL NOT NULL DEFAULT 0,       -- shu vaqtdan keyin qarz puldan o'zi yechiladi
+    looks       TEXT NOT NULL DEFAULT '{}',    -- JSON: soch, kiyim, shapka ranglari
+    clan        INTEGER                        -- game_clans.id
+);
+
+-- O'yindagi kod chellenjlari: kim qaysi topshiriqni bajargan
+CREATE TABLE IF NOT EXISTS game_challenges (
+    player_key  TEXT NOT NULL,
+    challenge   TEXT NOT NULL,
+    solved_at   REAL NOT NULL,
+    PRIMARY KEY (player_key, challenge)
+);
+
+-- Klanlar (jamoalar): umumiy xazina va bayroq
+CREATE TABLE IF NOT EXISTS game_clans (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    tag         TEXT NOT NULL,
+    color       TEXT NOT NULL,
+    leader      TEXT NOT NULL,
+    money       REAL NOT NULL DEFAULT 0,
+    created_at  REAL NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS game_plots (
@@ -49,7 +75,8 @@ CREATE TABLE IF NOT EXISTS game_plots (
     level       INTEGER NOT NULL DEFAULT 0,
     bought_at   REAL NOT NULL,
     sale_price  INTEGER,                       -- sotuvga qo'yilgan narx (NULL = sotuvda emas)
-    variant     TEXT                           -- bino varianti (gadjet, pizza, bank ...)
+    variant     TEXT,                          -- bino varianti (gadjet, pizza, bank ...)
+    furniture   TEXT NOT NULL DEFAULT '[]'     -- JSON: bino ichidagi mebel
 );
 
 -- Haftalik mashina ovozi: o'yinchilar mashina taklif qiladi, g'olib Avtosalonga qo'shiladi
@@ -128,6 +155,7 @@ CREATE TABLE IF NOT EXISTS submissions (
     ai_reason      TEXT,
     feedback       TEXT,
     mistakes       TEXT,                         -- JSON: AI topgan xatolar ro'yxati
+    game_bonus     INTEGER NOT NULL DEFAULT 0,   -- shu ish uchun o'yinda berilgan pul (so'm)
     error          TEXT,
     graded_by      TEXT,                         -- ai | owner
     created_at     TEXT NOT NULL,
@@ -191,11 +219,22 @@ def init_db() -> None:
         sub_columns = {row[1] for row in db.execute("PRAGMA table_info(submissions)")}
         if "mistakes" not in sub_columns:
             db.execute("ALTER TABLE submissions ADD COLUMN mistakes TEXT")
+        if "game_bonus" not in sub_columns:  # uy vazifasi uchun o'yinda berilgan pul
+            db.execute("ALTER TABLE submissions ADD COLUMN game_bonus INTEGER NOT NULL DEFAULT 0")
         plot_columns = {row[1] for row in db.execute("PRAGMA table_info(game_plots)")}
         if "sale_price" not in plot_columns:
             db.execute("ALTER TABLE game_plots ADD COLUMN sale_price INTEGER")
         if "variant" not in plot_columns:  # bino varianti: gadjet do'kon, pitsa, bank ...
             db.execute("ALTER TABLE game_plots ADD COLUMN variant TEXT")
+        if "furniture" not in plot_columns:  # bino ichidagi mebel
+            db.execute("ALTER TABLE game_plots ADD COLUMN furniture TEXT NOT NULL DEFAULT '[]'")
+        player_columns = {row[1] for row in db.execute("PRAGMA table_info(game_players)")}
+        for name, ddl in (("bank", "REAL NOT NULL DEFAULT 0"), ("bank_at", "REAL NOT NULL DEFAULT 0"),
+                          ("loan", "REAL NOT NULL DEFAULT 0"), ("loan_at", "REAL NOT NULL DEFAULT 0"),
+                          ("loan_due", "REAL NOT NULL DEFAULT 0"), ("looks", "TEXT NOT NULL DEFAULT '{}'"),
+                          ("clan", "INTEGER")):
+            if name not in player_columns:  # bank, kredit, ko'rinish, klan
+                db.execute(f"ALTER TABLE game_players ADD COLUMN {name} {ddl}")
         # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)
         db.execute(
             "INSERT OR IGNORE INTO game_plots (plot, owner_key, kind, level, bought_at) "
