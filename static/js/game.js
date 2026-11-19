@@ -1651,7 +1651,7 @@ import * as THREE from 'three';
   function areas() {
     if (trackOn()) return [world.track.rect];
     if (me && me.boat) return [world.port.sea]; // qayiqda — faqat dengizda
-    return [{ x: 0, y: 0, w: world.w, h: world.h }, world.airport.rect, world.aqua.rect];
+    return [{ x: 0, y: 0, w: world.w, h: world.h }, world.airport.rect, world.aqua.rect, world.zoo.rect, world.port.rect];
   }
   function area() {
     return areas()[0];
