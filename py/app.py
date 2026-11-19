@@ -23,6 +23,7 @@ import config
 import exam
 import game
 import game_social
+import game_fun
 import homework
 import poll
 from build_css import build_css
@@ -66,6 +67,7 @@ app.register_blueprint(homework.bp)
 app.register_blueprint(accounts.bp)
 app.register_blueprint(game.bp)
 app.register_blueprint(game_social.bp)
+app.register_blueprint(game_fun.bp)
 app.register_blueprint(poll.bp)
 app.register_blueprint(exam.bp)
 

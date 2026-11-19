@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS game_players (
     tuning      TEXT NOT NULL DEFAULT '{}',    -- JSON: mashina -> {rang, tezlik darajasi, neon}
     daily       TEXT NOT NULL DEFAULT '{}',    -- JSON: kunlik vazifalar holati
     spin_day    TEXT,                          -- omad g'ildiragi oxirgi aylantirilgan kun
+    stocks      TEXT NOT NULL DEFAULT '{}',    -- JSON: aksiyalar {belgi: {qty, cost}}
+    spouse      TEXT,                          -- turmush o'rtog'i (to'y qilgan)
+    week_id     TEXT,                          -- haftalik turnir: qaysi hafta
+    week_start  REAL,                          -- hafta boshidagi boylik
     clan        INTEGER                        -- game_clans.id
 );
 
@@ -58,6 +62,31 @@ CREATE TABLE IF NOT EXISTS game_challenges (
     challenge   TEXT NOT NULL,
     solved_at   REAL NOT NULL,
     PRIMARY KEY (player_key, challenge)
+);
+
+-- Do'stlar: a — so'rov yuborgan, b — qabul qiluvchi
+CREATE TABLE IF NOT EXISTS game_friends (
+    a           TEXT NOT NULL,
+    b           TEXT NOT NULL,
+    status      TEXT NOT NULL,                 -- pending | ok
+    created_at  REAL NOT NULL,
+    PRIMARY KEY (a, b)
+);
+
+-- Telefon: shaxsiy xabarlar
+CREATE TABLE IF NOT EXISTS game_pm (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    a           TEXT NOT NULL,                 -- kimdan
+    b           TEXT NOT NULL,                 -- kimga
+    text        TEXT NOT NULL,
+    t           REAL NOT NULL
+);
+
+-- Haftalik turnir: qaysi hafta mukofotlari berilgan
+CREATE TABLE IF NOT EXISTS game_weekly (
+    week        TEXT PRIMARY KEY,
+    paid_at     REAL NOT NULL,
+    winners     TEXT NOT NULL
 );
 
 -- Klanlar (jamoalar): umumiy xazina va bayroq
@@ -236,7 +265,9 @@ def init_db() -> None:
                           ("loan", "REAL NOT NULL DEFAULT 0"), ("loan_at", "REAL NOT NULL DEFAULT 0"),
                           ("loan_due", "REAL NOT NULL DEFAULT 0"), ("looks", "TEXT NOT NULL DEFAULT '{}'"),
                           ("clan", "INTEGER"), ("tuning", "TEXT NOT NULL DEFAULT '{}'"),
-                          ("daily", "TEXT NOT NULL DEFAULT '{}'"), ("spin_day", "TEXT")):
+                          ("daily", "TEXT NOT NULL DEFAULT '{}'"), ("spin_day", "TEXT"),
+                          ("stocks", "TEXT NOT NULL DEFAULT '{}'"), ("spouse", "TEXT"),
+                          ("week_id", "TEXT"), ("week_start", "REAL")):
             if name not in player_columns:  # bank, kredit, ko'rinish, klan
                 db.execute(f"ALTER TABLE game_players ADD COLUMN {name} {ddl}")
         # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)
@@ -251,7 +282,7 @@ def init_db() -> None:
             db.execute("UPDATE game_plots SET level = ? WHERE kind = ? AND level > ?", (top, kind, top))
         # Eski mashinalar (Jajji, Shamol, Chaqmoq, Bo'ron) -> yangilari (BMW, Mercedes, Lamborghini)
         old_cars = {"jajji": "bmw", "shamol": "mercedes", "chaqmoq": "lambo", "boron": "lambo"}
-        known = {"bmw", "mercedes", "lambo", "tesla", "jiguli", "damas", "range", "porsche", "bugatti", "plane", "bus"}
+        known = {"bmw", "mercedes", "lambo", "tesla", "jiguli", "damas", "range", "porsche", "bugatti", "plane", "bus", "bike", "skate"}
         for key, cars_json in db.execute("SELECT player_key, cars FROM game_players").fetchall():
             cars = json.loads(cars_json or "[]")
             new = []

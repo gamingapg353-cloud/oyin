@@ -95,6 +95,10 @@ def variant_name(kind: str, variant: str | None) -> str:
 
 # Mashinalar (faqat Avtosalonda). fare — taksi haqi koeffitsienti.
 CARS = [  # narxi bo'yicha (Avtosalonda shu tartibda)
+    {"id": "skate", "name": "Skeytbord", "price": 1000, "speed": 1.15, "fare": 0,
+     "color": "#f97316", "style": "skate"},
+    {"id": "bike", "name": "Velosiped", "price": 2000, "speed": 1.25, "fare": 0,
+     "color": "#16a34a", "style": "bike"},
     {"id": "jiguli", "name": "Jiguli", "price": 12000, "speed": 1.4, "fare": 0.8,
      "color": "#16a34a", "style": "sedan"},
     {"id": "damas", "name": "Damas", "price": 20000, "speed": 1.5, "fare": 1.2,
@@ -253,6 +257,20 @@ AIRPORT = {"rect": {"x": 6600, "y": 1250, "w": 1380, "h": 1500},  # shahar cheti
            "runway": {"x": 7560, "y": 1330, "w": 150, "h": 1340},
            "terminal": {"x": 6960, "y": 1600, "w": 300, "h": 170},
            "gate": {"x": 7330, "y": 1860}}
+# Akvapark: xaritaning g'arbidagi o'rmonda (1140-ko'cha davomida). Doim kirish mumkin.
+AQUA = {"rect": {"x": -1300, "y": 900, "w": 1420, "h": 1150},
+        "pool": {"x": -1150, "y": 1300, "w": 760, "h": 480},
+        "slides": [{"x": -1180, "y": 1240}, {"x": -800, "y": 1240}, {"x": -420, "y": 1240}]}
+# Bog'dagi joylar (favvora bog'i): pochta, pitsa, basketbol, kino; Avtosalon yonida avtoyuvish
+PLACES = {
+    "post": {"x": 2070, "y": 500, "w": 120, "h": 80, "door": {"x": 2130, "y": 600}},
+    "pizza": {"x": 2560, "y": 500, "w": 120, "h": 80, "door": {"x": 2620, "y": 600}},
+    "court": {"x": 2070, "y": 960, "w": 200, "h": 140, "hoop": {"x": 2092, "y": 1030}, "spot": {"x": 2180, "y": 1030}},
+    "cinema": {"x": 2540, "y": 950, "w": 150, "h": 140, "door": {"x": 2615, "y": 1112}},
+    "wash": {"x": 60, "y": 860, "w": 260, "h": 200, "door": {"x": 190, "y": 960}},
+}
+METRO = [{"id": 0, "name": "Shimoli-g'arb", "x": 200, "y": 250}, {"id": 1, "name": "Aeroport yo'li", "x": 6680, "y": 2040},
+         {"id": 2, "name": "Stadion", "x": 2840, "y": 3380}, {"id": 3, "name": "Janubi-g'arb", "x": 200, "y": 3600}]
 # Avtobus bekatlari (yo'l chetidagi trotuarda), aylana yo'nalish
 BUS_STOPS = [{"x": 810, "y": 1128}, {"x": 2370, "y": 1128}, {"x": 3930, "y": 1128}, {"x": 5490, "y": 1128},
              {"x": 5490, "y": 2648}, {"x": 3930, "y": 2648}, {"x": 2370, "y": 2648}, {"x": 810, "y": 2648}]
@@ -314,7 +332,9 @@ def _make_trees() -> list[dict]:
         trees.append({"x": round(x), "y": round(y), "r": rng.choice([22, 26, 30])})
     # Futbol maydoni va skameykalar ustida daraxt bo'lmasin
     return [t for t in trees if not _overlaps(t["x"], t["y"], FIELD, 90)
-            and all(math.hypot(t["x"] - b["x"], t["y"] - b["y"]) > 45 for b in BENCHES)]
+            and all(math.hypot(t["x"] - b["x"], t["y"] - b["y"]) > 45 for b in BENCHES)
+            and not any(_overlaps(t["x"], t["y"], pl, 45) for pl in PLACES.values())
+            and all(math.hypot(t["x"] - m["x"], t["y"] - m["y"]) > 70 for m in METRO)]
 
 
 WORLD_DATA = {
@@ -322,6 +342,7 @@ WORLD_DATA = {
     "plots": PLOTS, "buildings": [building_rect(p) for p in PLOTS],
     "shop": SHOP, "fountain": FOUNTAIN, "pond": POND, "trees": _make_trees(),
     "field": FIELD, "goal_w": GOAL_W, "benches": BENCHES, "track": TRACK, "airport": AIRPORT, "bus_stops": BUS_STOPS,
+    "aqua": AQUA, "places": PLACES, "metro": METRO,
     "default_spawn": {"x": 1200, "y": 800}, "fly_height": FLY_HEIGHT, "fly_cruise": FLY_CRUISE,
 }
 
@@ -425,7 +446,9 @@ def _others(me: str, now: float) -> list[dict]:
          "h": p.get("h", 0), "dir": p["dir"], "car": p["car"], "taxi": key in _rides,
          "seat": _seats.get(key),  # kimning mashinasida yo'lovchi bo'lib o'tiribdi
          "looks": p.get("looks") or {}, "clan": p.get("clan"), "pose": p.get("pose"),
-         "drift": p.get("drift", False), "tune": p.get("tune")}
+         "drift": p.get("drift", False), "tune": p.get("tune"), "para": p.get("para", False),
+         "ring": p.get("ring", False), "dirt": round(p.get("dirt", 0), 2),
+         "emote": p["emote"]["e"] if p.get("emote") and now - p["emote"]["t"] < 4 else None}
         for key, p in _live.items()
         if key != me and now - p["t"] < ONLINE_SECONDS
     ]
@@ -642,6 +665,13 @@ def clan_badge(db, row) -> dict | None:
     return {"id": c["id"], "tag": c["tag"], "color": c["color"]} if c else None
 
 
+def _unit(value) -> float:
+    """0..1 oralig'idagi son (mashina iflosligi); noto'g'ri qiymat — 0."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return 0.0
+    return min(max(float(value), 0.0), 1.0)
+
+
 def _live_pos(key: str, now: float):
     p = _live.get(key)
     return p if p and now - p["t"] < ONLINE_SECONDS else None
@@ -716,9 +746,14 @@ def api_sync():
     owned = json.loads(row["cars"])
     car = data.get("car") if data.get("car") in owned else None
     flying = bool(car and CARS_BY_ID[car].get("flies"))
-    height = min(max(height, 0), FLY_HEIGHT + 20 if flying else 120)
+    prev0 = _live.get(key)
+    para = (not car and bool(data.get("para")) and prev0 is not None
+            and (prev0.get("para") or (prev0.get("car") in CARS_BY_ID and CARS_BY_ID[prev0["car"]].get("flies") and prev0.get("h", 0) > 150)))
+    if para and prev0:
+        height = min(height, prev0.get("h", 0))  # parashyutda faqat pastga tushiladi
+    height = min(max(height, 0), FLY_HEIGHT + 20 if (flying or para) else 120)
     world_rect = {"x": 0, "y": 0, "w": WORLD_W, "h": WORLD_H}
-    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"]]
+    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"]]
     inside_rect = lambda a: a["x"] + 10 <= x <= a["x"] + a["w"] - 10 and a["y"] + 10 <= y <= a["y"] + a["h"] - 10
     in_area = any(inside_rect(a) for a in areas)
     if not in_area:  # chegaradan tashqarida — eng yaqin ruxsat etilgan joyga
@@ -763,8 +798,11 @@ def api_sync():
             limit = WALK_SPEED * max(speeds + [1]) * dt * 1.6 + 40
             if math.hypot(x - prev["x"], y - prev["y"]) > limit:
                 x, y, corrected = prev["x"], prev["y"], True
-        pose = "sit" if data.get("pose") == "sit" and not car and not seat else None
+        pose = data.get("pose") if data.get("pose") in ("sit", "dance") and not car and not seat else None
+        emote = prev.get("emote") if prev else None
         _live[key] = {"x": x, "y": y, "h": height if (flying or not car or seat) else 0, "dir": direction,
+                      "para": para and height > 0, "emote": emote, "ring": bool(row["spouse"]),
+                      "dirt": _unit(data.get("dirt")),
                       "car": car, "t": now, "name": user["name"], "avatar": user["avatar"],
                       "looks": looks, "clan": clan, "pose": pose,
                       "drift": bool(data.get("drift")) and bool(car),
