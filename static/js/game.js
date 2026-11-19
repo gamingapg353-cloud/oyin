@@ -95,12 +95,13 @@ import * as THREE from 'three';
     mercedes: { type: 'sawtooth', base: 40, range: 55, cutoff: 420, vol: 0.18 },
     lambo: { type: 'sawtooth', base: 68, range: 150, cutoff: 950, vol: 0.17 },
     tesla: { type: 'sine', base: 170, range: 300, cutoff: 2400, vol: 0.07 },
+    plane: { type: 'sawtooth', base: 88, range: 170, cutoff: 1300, vol: 0.12 },
   };
   // Ovoz bilan qo'shilgan mashinalar — ko'rinishiga mos dvigatel ovozi
   function engineKey(carId) {
     if (!carId || ENGINE[carId]) return carId;
     const style = carsById[carId] ? carsById[carId].style : 'sedan';
-    return { sedan: 'bmw', suv: 'mercedes', super: 'lambo', fly: 'tesla' }[style] || 'bmw';
+    return { sedan: 'bmw', suv: 'mercedes', super: 'lambo', fly: 'tesla', van: 'mercedes', plane: 'plane', bus: 'mercedes' }[style] || 'bmw';
   }
   const sound = (() => {
     let ctx = null;
@@ -205,6 +206,7 @@ import * as THREE from 'three';
       wrong() { tone(196, 0, 0.35, { type: 'sawtooth', vol: 0.1, slide: 0.7 }); },
       door() { tone(140, 0, 0.12, { type: 'square', vol: 0.1, slide: 0.6 }); },
       whoosh(up) { tone(up ? 220 : 520, 0, 0.6, { type: 'sine', vol: 0.15, slide: up ? 3 : 0.4 }); },
+      screech() { tone(1400 + Math.random() * 300, 0, 0.18, { type: 'sawtooth', vol: 0.035, slide: 0.85 }); },
     };
   })();
 
@@ -602,16 +604,97 @@ import * as THREE from 'three';
     return g;
   }
 
-  const CAR_BUILDERS = { bmw: carBMW, mercedes: carG, lambo: carLambo, tesla: carTesla };
-  function makeCar(id) {
+  // Damas: kichkina quti-mikroavtobus
+  function carVan(color) {
+    const g = new THREE.Group();
+    const paint = mat(color, { roughness: 0.4, metalness: 0.3 });
+    g.add(box(30, 24, 58, paint, 0, 18, 0));
+    g.add(box(30.6, 8, 40, DARK_GLASS(), 0, 24, -6));
+    const front = box(28, 10, 2, DARK_GLASS(), 0, 23, 28.6);
+    front.rotation.x = -0.25;
+    g.add(front, box(31, 3, 59, mat('#2563eb'), 0, 13, 0)); // yon chiziq
+    [-1, 1].forEach((s2) => {
+      g.add(box(6, 3, 1, glow('#e0f2fe', 0.9), s2 * 10, 12, 29.2));
+      g.add(box(5, 5, 1, glow('#ef4444', 0.6), s2 * 11, 16, -29.2));
+    });
+    g.add(box(20, 2, 30, mat('#334155'), 0, 31, -4)); // tom bagaji
+    g.userData = { ...addWheels(g, [[-14, 19], [14, 19], [-14, -19], [14, -19]], 5.5, 4), roof: 32 };
+    return g;
+  }
+
+  // Samolyot: uchganda g'ildiraklar yig'iladi, parrak aylanadi
+  function carPlane(color) {
+    const g = new THREE.Group();
+    const paint = mat(color, { roughness: 0.3, metalness: 0.4 });
+    const stripe = mat('#dc2626', { roughness: 0.4 });
+    const body = cyl(8, 6, 76, paint, 0, 16, -2, 18);
+    body.rotation.x = Math.PI / 2;
+    const nose = mesh(new THREE.ConeGeometry(8, 14, 18), paint, 0, 16, 43);
+    nose.rotation.x = Math.PI / 2;
+    const tailCone = mesh(new THREE.ConeGeometry(6, 16, 16), paint, 0, 17, -47);
+    tailCone.rotation.x = -Math.PI / 2;
+    g.add(body, nose, tailCone);
+    g.add(box(118, 2, 18, paint, 0, 15, 4), box(118.5, 2.2, 3, stripe, 0, 15, -4)); // qanotlar
+    g.add(box(40, 1.5, 10, paint, 0, 19, -46), box(1.6, 18, 12, stripe, 0, 27, -47)); // dum
+    const glass = mesh(new THREE.SphereGeometry(6, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), DARK_GLASS(), 0, 22, 18);
+    glass.scale.z = 1.8;
+    g.add(glass);
+    [-1, 1].forEach((s2) => {
+      g.add(box(4, 1.2, 1, glow('#22c55e', 1), s2 * 59, 15, 4)); // qanot uchidagi chiroqlar
+      g.add(box(1, 12, 1, glow('#ef4444', 0.8), 0, 27, -53));
+    });
+    const prop = new THREE.Group();
+    prop.position.set(0, 16, 51);
+    prop.add(box(3, 34, 1.2, mat('#111827')), box(34, 3, 1.2, mat('#111827')), cyl(2.5, 2.5, 3, CHROME(), 0, 0, 0, 10));
+    g.add(prop);
+    const set = addWheels(g, [[-12, 12], [12, 12], [0, -36]], 4.5, 3);
+    const under = new THREE.Mesh(new THREE.CircleGeometry(1, 8), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 }));
+    under.visible = false;
+    g.add(under);
+    g.userData = { ...set, roof: 30, flies: true, wings: [], under, ringMat: new THREE.MeshBasicMaterial(), fly: 0, prop };
+    return g;
+  }
+
+  // Shahar avtobusi
+  function carBus(color) {
+    const g = new THREE.Group();
+    const paint = mat(color, { roughness: 0.4, metalness: 0.3 });
+    g.add(box(34, 32, 100, paint, 0, 23, 0));
+    g.add(box(34.6, 11, 84, DARK_GLASS(), 0, 30, -4));
+    g.add(box(30, 16, 1, DARK_GLASS(), 0, 29, 50.3));
+    g.add(box(34.8, 3, 100.4, mat('#2563eb'), 0, 14, 0));
+    const sign = signPlane('AVTOBUS', 24, 5, '#111827', '#f97316');
+    sign.position.set(0, 35, 50.6);
+    g.add(sign);
+    [-1, 1].forEach((s2) => {
+      g.add(box(6, 3, 1, glow('#e0f2fe', 0.9), s2 * 12, 12, 50.4));
+      g.add(box(5, 5, 1, glow('#ef4444', 0.6), s2 * 13, 14, -50.4));
+    });
+    g.userData = { ...addWheels(g, [[-16, 34], [16, 34], [-16, -32], [16, -32]], 7, 5), roof: 40 };
+    return g;
+  }
+
+  const CAR_BUILDERS = { bmw: carBMW, mercedes: carG, lambo: carLambo, tesla: carTesla, damas: carVan, plane: carPlane, bus: carBus };
+  // tune — garajdagi o'zgarishlar: rang va neon chiroq
+  function makeCar(id, tune = null) {
     const info = carsById[id] || catalog.cars[0];
-    const byStyle = { sedan: carBMW, suv: carG, super: carLambo, fly: carTesla };
-    return (CAR_BUILDERS[info.id] || byStyle[info.style] || carBMW)(info.color);
+    const byStyle = { sedan: carBMW, suv: carG, super: carLambo, fly: carTesla, van: carVan, plane: carPlane, bus: carBus };
+    const car = (CAR_BUILDERS[info.id] || byStyle[info.style] || carBMW)((tune && tune.color) || info.color);
+    if (tune && tune.neon) {
+      const neon = new THREE.Mesh(new THREE.PlaneGeometry(46, info.style === 'bus' ? 112 : 82), new THREE.MeshBasicMaterial({
+        color: tune.neon, transparent: true, opacity: 0.65, depthWrite: false, blending: THREE.AdditiveBlending,
+      }));
+      neon.rotation.x = -Math.PI / 2;
+      neon.position.y = 1.4;
+      car.add(neon);
+    }
+    return car;
   }
 
   // G'ildiraklar aylanadi; Tesla uchganda qanot va nurlar chiqadi
   function animateCar(car, dt, speed, fly) {
     const u = car.userData;
+    if (u.prop) u.prop.rotation.z += dt * (6 + speed * 0.12 + fly * 30); // samolyot parragi
     if (speed && (u.fly || 0) < 0.5) {
       const a = (speed * dt) / u.r;
       u.wheels.forEach((w) => { w.rotation.x += a; });
@@ -697,7 +780,8 @@ import * as THREE from 'three';
     const target = Math.PI / 2 - (p.dir || 0);
     rig.heading = lerpAngle(rig.heading, target, Math.min(1, dt * 12));
     const carId = car ? car.id : null;
-    if (carId !== rig.carId) {
+    const carKey = carId ? `${carId}|${p.tune ? `${p.tune.color || ''}|${p.tune.neon || ''}` : ''}` : null;
+    if (carKey !== rig.carKey) {
       if (rig.car) {
         rig.holder.remove(rig.car);
         disposeTree(rig.car);
@@ -705,10 +789,11 @@ import * as THREE from 'three';
         rig.taxiSign = null;
       }
       if (carId) {
-        rig.car = makeCar(carId);
+        rig.car = makeCar(carId, p.tune);
         rig.holder.add(rig.car);
       }
       rig.carId = carId;
+      rig.carKey = carKey;
     }
     rig.human.visible = !carId;
     rig.holder.rotation.y = rig.heading;
@@ -1213,19 +1298,32 @@ import * as THREE from 'three';
     trunkGeo.translate(0, 13, 0);
     const crownGeo = new THREE.ConeGeometry(1, 2.2, 7);
     crownGeo.translate(0, 1.1, 0);
-    const trunks = new THREE.InstancedMesh(trunkGeo, mat('#6b3f1d'), spots.length);
-    const crowns = new THREE.InstancedMesh(crownGeo, mat('#ffffff'), spots.length);
+    // Poyga trassasi joyidagi archalar alohida: poyga paytida yashiriladi
+    const TR = world.track ? world.track.rect : null;
+    const onTrack = ([x, y]) => TR && x > TR.x - 40 && x < TR.x + TR.w + 40 && y > TR.y - 40 && y < TR.y + TR.h + 40;
+    const AR = world.airport ? world.airport.rect : null;
+    const onAirport = ([x, y]) => AR && x > AR.x - 60 && x < AR.x + AR.w + 60 && y > AR.y - 60 && y < AR.y + AR.h + 60;
+    const groups = [spots.filter((sp) => !onTrack(sp) && !onAirport(sp)), spots.filter((sp) => onTrack(sp) && !onAirport(sp))];
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
     const color = new THREE.Color();
-    spots.forEach(([x, y, r], i) => {
-      m4.compose(new THREE.Vector3(x, 0, y), q, new THREE.Vector3(1, 1, 1));
-      trunks.setMatrixAt(i, m4);
-      m4.compose(new THREE.Vector3(x, 18, y), q, new THREE.Vector3(r, r * 1.3, r));
-      crowns.setMatrixAt(i, m4);
-      crowns.setColorAt(i, color.setHSL(0.31 + (i % 7) * 0.01, 0.45, 0.22 + (i % 4) * 0.03));
+    groups.forEach((list, gi) => {
+      if (!list.length) return;
+      const trunks = new THREE.InstancedMesh(trunkGeo, mat('#6b3f1d'), list.length);
+      const crowns = new THREE.InstancedMesh(crownGeo, mat('#ffffff'), list.length);
+      list.forEach(([x, y, r], i) => {
+        m4.compose(new THREE.Vector3(x, 0, y), q, new THREE.Vector3(1, 1, 1));
+        trunks.setMatrixAt(i, m4);
+        m4.compose(new THREE.Vector3(x, 18, y), q, new THREE.Vector3(r, r * 1.3, r));
+        crowns.setMatrixAt(i, m4);
+        crowns.setColorAt(i, color.setHSL(0.31 + (i % 7) * 0.01, 0.45, 0.22 + (i % 4) * 0.03));
+      });
+      if (gi === 1) {
+        trackForest = new THREE.Group();
+        trackForest.add(trunks, crowns);
+        scene.add(trackForest);
+      } else scene.add(trunks, crowns);
     });
-    scene.add(trunks, crowns);
     // Uzoqdagi tepaliklar
     const hillMat = mat('#4a7c35', { roughness: 1, flatShading: true });
     for (let i = 0; i < 26; i += 1) {
@@ -1466,12 +1564,31 @@ import * as THREE from 'three';
     plotsById.forEach((r) => {
       if (r.level > 0) solids.push({ ...world.buildings[r.plot], top: buildingTop(r.kind, r.level) });
     });
+    const t = world.airport.terminal;
+    solids.push({ ...t, top: 70 }, { x: t.x + 110, y: t.y + 560, w: 60, h: 60, top: 150 });
   }
 
   const inside = (x, y, s, r = 0) => x + r > s.x && x - r < s.x + s.w && y + r > s.y && y - r < s.y + s.h;
   // h — balandlik: uchayotgan mashina past binolar ustidan o'tadi
+  // Yurish mumkin bo'lgan joy: odatda shahar, poyga paytida — o'rmondagi trassa
+  function areas() {
+    if (trackOn()) return [world.track.rect];
+    return [{ x: 0, y: 0, w: world.w, h: world.h }, world.airport.rect];
+  }
+  function area() {
+    return areas()[0];
+  }
+  const inAreas = (x, y, r) => areas().some((a) => x >= a.x + r && y >= a.y + r && x <= a.x + a.w - r && y <= a.y + a.h - r);
+  function insideInfield(x, y, r) {
+    const T = world.track;
+    const dx = Math.abs(x - T.cx);
+    const dy = y - T.cy;
+    const inner = T.r - T.w / 2 - r;
+    return dx <= T.half ? Math.abs(dy) < inner : Math.hypot(dx - T.half, dy) < inner;
+  }
   function blocked(x, y, r, h = 0) {
-    if (x < r || y < r || x > world.w - r || y > world.h - r) return true;
+    if (!inAreas(x, y, r)) return true;
+    if (trackOn() && h < 40 && insideInfield(x, y, r)) return true;
     return solids.some((s) => h < s.top && inside(x, y, s, r));
   }
   function topUnder(x, y, r) {
@@ -1547,7 +1664,9 @@ import * as THREE from 'three';
   let guideView = null;
   function setRide(next) {
     const same = ride && next && ride.id === next.id;
+    const t0 = same ? ride.t0 : null;
     ride = next || null;
+    if (ride) ride.t0 = t0 || performance.now() - (ride.elapsed || 0) * 1000;
     me.taxi = Boolean(ride);
     if (same) return;
     rideView = dropBeacon(rideView);
@@ -1564,7 +1683,7 @@ import * as THREE from 'three';
 
   // O'yinchi tepasidagi strelka: manzilga / belgilangan joyga / eng yaqin yo'lovchiga
   const arrow = new THREE.Group();
-  const ARROW_COLORS = { ride: glow('#22c55e', 0.7), guide: glow('#3b82f6', 0.7), pass: glow('#facc15', 0.7) };
+  const ARROW_COLORS = { ride: glow('#22c55e', 0.7), guide: glow('#3b82f6', 0.7), pass: glow('#facc15', 0.7), bus: glow('#f97316', 0.7) };
   const arrowCone = mesh(new THREE.ConeGeometry(9, 22, 16), ARROW_COLORS.ride, 0, 0, 14, false);
   arrowCone.rotation.x = Math.PI / 2;
   const arrowTail = mesh(new THREE.BoxGeometry(6, 3, 18), ARROW_COLORS.ride, 0, 0, -4, false);
@@ -1584,6 +1703,7 @@ import * as THREE from 'three';
   function updateArrow() {
     let target = null;
     if (ride) target = { x: ride.tx, y: ride.ty, kind: 'ride' };
+    else if (busJob && me.car) target = { x: busJob.stop.x, y: busJob.stop.y, kind: 'bus' };
     else if (guide) target = { x: guide.x, y: guide.y, kind: 'guide' };
     else if (me.car && taxiOn) {
       const n = nearestPassenger();
@@ -1609,7 +1729,15 @@ import * as THREE from 'three';
       mode = 'ride';
       const car = carInfo();
       title = car ? "Yo'lovchini yashil nurga olib boring" : "Mashinaga o'tiring (E) — yo'lovchi kutyapti";
-      sub = `${meters(Math.hypot(ride.tx - me.x, ride.ty - me.y))} · haqi ${formatNumber(Math.floor(ride.fare * (car ? car.fare : 1)))} so'm`;
+      const secs = (performance.now() - ride.t0) / 1000;
+      const mult = taxiMult(secs);
+      const pay = Math.floor(ride.fare * (car ? car.fare : 1) * mult);
+      sub = `${meters(Math.hypot(ride.tx - me.x, ride.ty - me.y))} · ${Math.floor(secs)} s · ${formatNumber(pay)} so'm`
+        + (mult >= 1.95 ? ' · tez: ×2!' : ` · ×${String(mult).replace('.', ',')}`);
+    } else if (busJob) {
+      mode = 'bus';
+      title = `Avtobus: ${busJob.next + 1}-bekatga boring (to'q sariq nur)`;
+      sub = `${meters(Math.hypot(busJob.stop.x - me.x, busJob.stop.y - me.y))} · kutayotganlar: ${busJob.waiting} kishi · bekat ${busJob.done % busJob.total}/${busJob.total}`;
     } else if (guide) {
       mode = 'guide';
       title = `Yo'l: ${guide.label}`;
@@ -1624,7 +1752,7 @@ import * as THREE from 'three';
     if (!mode) return;
     if (modeChanged) {
       card.className = `taxi-card taxi-card--${mode}`;
-      $('taxi-icon').replaceChildren(icon(mode === 'ride' ? 'user' : 'navigation'));
+      $('taxi-icon').replaceChildren(icon(mode === 'ride' ? 'user' : (mode === 'bus' ? 'users' : 'navigation')));
       $('taxi-cancel').title = mode === 'ride' ? "Yo'lovchini tushirib yuborish" : "Yo'l ko'rsatkichni o'chirish";
     }
     $('taxi-title').textContent = title;
@@ -1664,7 +1792,12 @@ import * as THREE from 'three';
       setRide(null);
       sound.cash();
       floatText(`+${formatNumber(data.earned)} so'm`, me.x, me.y, me.rig.root.position.y);
-      toast(`Yo'lovchi manzilga yetdi! +${formatNumber(data.earned)} so'm`, 'success');
+      const m = String(data.mult).replace('.', ',');
+      toast(data.mult >= 1.95
+        ? `Juda tez yetkazdingiz (${data.seconds} s)! ×2 — +${formatNumber(data.earned)} so'm`
+        : (data.mult >= 1
+          ? `Yo'lovchi manzilga yetdi (${data.seconds} s, ×${m}) — +${formatNumber(data.earned)} so'm`
+          : `Kech qoldingiz (${data.seconds} s, ×${m}) — +${formatNumber(data.earned)} so'm. Tezroq yursangiz ko'proq beradi!`), 'success');
       taxiBusyUntil = 0;
     } catch (err) {
       if (handleAuthError(err)) return;
@@ -1683,6 +1816,8 @@ import * as THREE from 'three';
       } catch (err) {
         if (!handleAuthError(err)) toast(err.message, 'warn');
       }
+    } else if (busJob) {
+      toggleBus();
     } else if (guide) {
       setGuide();
     }
@@ -1691,6 +1826,7 @@ import * as THREE from 'three';
   // Avtomatik: yo'lovchi yonida — o'tiradi, manzilda — tushadi
   function taxiTick() {
     if (!me.car) return;
+    busTick();
     if (ride) {
       if (Math.hypot(ride.tx - me.x, ride.ty - me.y) < catalog.taxi_drop_dist - 25) dropoff();
       return;
@@ -1721,7 +1857,7 @@ import * as THREE from 'three';
       }
       Object.assign(o, {
         tx: p.x, ty: p.y, th: p.h || 0, dir: p.dir, car: p.car, taxi: p.taxi, name: p.name, avatar: p.avatar,
-        seat: p.seat || null, pose: p.pose || null, clan: p.clan || null,
+        seat: p.seat || null, pose: p.pose || null, clan: p.clan || null, drift: Boolean(p.drift), tune: p.tune || null,
       });
       setRigLooks(o.rig, p.looks);
     });
@@ -1791,7 +1927,16 @@ import * as THREE from 'three';
     $('ride-label').textContent = me && me.seat ? 'Mashinadan tushish' : (inCar ? 'Piyoda yurish' : "Mashinaga o'tirish");
     if (me && me.seat) $('ride-icon').replaceChildren(icon('footprints'));
     $('btn-horn').hidden = !inCar;
-    if (!inCar) taxiOn = false;
+    $('btn-drift').hidden = !inCar;
+    const inBus = Boolean(inCar && carInfo() && carInfo().style === 'bus');
+    $('btn-bus').hidden = !inBus && !busJob;
+    $('btn-bus').classList.toggle('is-on', Boolean(busJob));
+    if (!inCar) {
+      taxiOn = false;
+      driftOn = false;
+    }
+    $('btn-drift').classList.toggle('is-on', driftOn);
+    $('btn-drift').setAttribute('aria-pressed', String(driftOn));
     const yandex = $('btn-yandex');
     yandex.hidden = !inCar;
     yandex.classList.toggle('is-on', taxiOn);
@@ -1908,7 +2053,7 @@ import * as THREE from 'three';
     solids.forEach((s) => {
       if (inside(me.x, me.y, s, 90) || inside(ax, ay, s, 90)) top = Math.max(top, s.top);
     });
-    return Math.min(world.fly_height, Math.max(world.fly_cruise, top + 40));
+    return Math.min(world.fly_height, Math.max(car.cruise || world.fly_cruise, top + 40));
   }
 
   function step(dt) {
@@ -1937,10 +2082,11 @@ import * as THREE from 'three';
       if (isHeld('left', now) || touch.left) ix -= 1;
       if (isHeld('right', now) || touch.right) ix += 1;
     }
-    if (raceFrozen()) {
-      ix = 0; // poyga boshlanishini kutyapmiz
+    if (raceFrozen() || flight) {
+      ix = 0; // poyga boshlanishini kutyapmiz / reysda uchyapmiz
       iy = 0;
     }
+    me.tune = tuneOf(me.car);
     if (me.sit) {
       if (ix || iy) standUp();
       else {
@@ -1959,6 +2105,9 @@ import * as THREE from 'three';
     me.moving = Boolean(ix || iy);
     me.throttle += ((me.moving ? 1 : 0) - me.throttle) * Math.min(1, dt * 3);
     const car = carInfo();
+    // Tezlik: odatda darhol, drift paytida — sirpanib (inersiya bilan)
+    let wantX = 0;
+    let wantZ = 0;
     if (me.moving) {
       // Kamera qaragan tomonga nisbatan yurish
       const fx = -Math.sin(cam.yaw);
@@ -1970,15 +2119,32 @@ import * as THREE from 'three';
       const len = Math.hypot(dx, dz);
       dx /= len;
       dz /= len;
-      const speed = walkSpeed * (car ? car.speed : 1);
-      const r = car ? 20 : 12;
-      const stuck = blocked(me.x, me.y, r, me.h);
-      const nx = me.x + dx * speed * dt;
-      const ny = me.y + dz * speed * dt;
-      if (stuck || !blocked(nx, me.y, r, me.h)) me.x = clamp(nx, r, world.w - r);
-      if (stuck || !blocked(me.x, ny, r, me.h)) me.y = clamp(ny, r, world.h - r);
+      const speed = walkSpeed * (car ? car.speed * tuneSpeed(me.car) : 1) * (car && drifting() ? 1.08 : 1);
+      wantX = dx * speed;
+      wantZ = dz * speed;
       me.dir = Math.atan2(dz, dx);
     }
+    if (car && drifting() && me.h < 5) {
+      const k = Math.min(1, dt * 1.7);
+      me.vx += (wantX - me.vx) * k;
+      me.vz += (wantZ - me.vz) * k;
+    } else {
+      me.vx = wantX;
+      me.vz = wantZ;
+    }
+    if (Math.abs(me.vx) + Math.abs(me.vz) > 1) {
+      const r = car ? 20 : 12;
+      const stuck = blocked(me.x, me.y, r, me.h);
+      const nx = me.x + me.vx * dt;
+      const ny = me.y + me.vz * dt;
+      // Binoga tiqilib qolgan bo'lsa — chiqib ketishiga ruxsat (lekin xarita chegarasidan emas)
+      if ((stuck && inAreas(nx, me.y, r)) || !blocked(nx, me.y, r, me.h)) me.x = nx;
+      else me.vx *= -0.2;
+      if ((stuck && inAreas(me.x, ny, r)) || !blocked(me.x, ny, r, me.h)) me.y = ny;
+      else me.vz *= -0.2;
+      me.moving = true;
+    }
+    driftFx(dt, car);
     if (car && car.flies) {
       // Uchish / qo'nish (bino ustida qo'nmaydi — tomi ustida turadi)
       let target = 0;
@@ -2013,7 +2179,9 @@ import * as THREE from 'three';
       p.y += (p.ty - p.y) * k;
       p.h = (p.h || 0) + ((p.th || 0) - (p.h || 0)) * Math.min(1, dt * 14);
       p.rig.root.visible = !p.seat;
-      updateRig(p.rig, p, dt, Math.hypot(p.x - ox, p.y - oy) > 0.2);
+      const moved = Math.hypot(p.x - ox, p.y - oy);
+      updateRig(p.rig, p, dt, moved > 0.2);
+      if (p.drift && p.car && moved > dt * 120 && Math.random() < 0.6) smokeAt(p.x, p.y, p.dir);
     });
   }
 
@@ -2108,6 +2276,11 @@ import * as THREE from 'three';
         if (d < 110 && (!best || d < best.d)) best = { kind: 'seat', key, name: p.name, d };
       });
     }
+    if (!best && me.car && carInfo() && carInfo().style === 'plane' && !flight) {
+      const gate = world.airport.gate;
+      const dGate = Math.hypot(gate.x - me.x, gate.y - me.y);
+      if (dGate < 260) best = { kind: 'gate', d: dGate };
+    }
     if (!best && me.car && taxiOn && !ride) {
       const n = nearestPassenger();
       if (n && n.d < catalog.taxi_pick_dist) best = { kind: 'passenger', id: n.id, d: n.d };
@@ -2129,7 +2302,9 @@ import * as THREE from 'three';
       return;
     }
     let text = 'Avtosalon — mashina sotib olish';
-    if (best.kind === 'bench') {
+    if (best.kind === 'gate') {
+      text = 'Reyslar — boshqa shaharga uchish';
+    } else if (best.kind === 'bench') {
       text = "Skameykaga o'tirish";
     } else if (best.kind === 'stand') {
       text = "O'rningizdan turish";
@@ -2151,7 +2326,8 @@ import * as THREE from 'three';
 
   function interact() {
     if (!nearTarget || room.on) return;
-    if (nearTarget.kind === 'bench') sitDown(nearTarget.bench);
+    if (nearTarget.kind === 'gate') openFlights();
+    else if (nearTarget.kind === 'bench') sitDown(nearTarget.bench);
     else if (nearTarget.kind === 'stand') standUp();
     else if (nearTarget.kind === 'seat') seatIn(nearTarget.key);
     else if (nearTarget.kind === 'passenger') pickup(nearTarget.id, true);
@@ -2204,7 +2380,7 @@ import * as THREE from 'three';
     // Odamlar va pul berish oynalari sinxronda qayta chizilmaydi (yozilgan summa o'chib ketmasin)
     if (sheetState.kind === 'people') return `people|${sheetState.list ? sheetState.list.length : '-'}`;
     if (sheetState.kind === 'give') return `give|${sheetState.person.key}`;
-    if (['bank', 'top', 'clans', 'looks', 'race', 'hub', 'code'].includes(sheetState.kind)) return `${sheetState.kind}|${sheetState.v || 0}`;
+    if (['bank', 'top', 'clans', 'looks', 'race', 'hub', 'code', 'daily', 'spin', 'garage', 'flights', 'festadmin'].includes(sheetState.kind)) return `${sheetState.kind}|${sheetState.v || 0}`;
     if (sheetState.kind === 'gift') return `gift|${sheetState.person.key}|${economy.cars.join()}|${economy.plots.map((x) => x.plot).join()}`;
     if (sheetState.kind === 'market') {
       const m = money();
@@ -3194,6 +3370,11 @@ import * as THREE from 'three';
     else if (sheetState.kind === 'gift') renderGiftSheet(body, sheetState);
     else if (sheetState.kind === 'race') renderRaceSheet(body, sheetState);
     else if (sheetState.kind === 'code') renderCodeSheet(body, sheetState);
+    else if (sheetState.kind === 'daily') renderDailySheet(body, sheetState);
+    else if (sheetState.kind === 'spin') renderSpinSheet(body, sheetState);
+    else if (sheetState.kind === 'garage') renderGarageSheet(body, sheetState);
+    else if (sheetState.kind === 'flights') renderFlightsSheet(body, sheetState);
+    else if (sheetState.kind === 'festadmin') renderFestAdminSheet(body, sheetState);
     else renderMineSheet(body);
   }
 
@@ -3242,6 +3423,7 @@ import * as THREE from 'three';
 
   function releaseAll() {
     held.clear();
+    driftHeld = false;
     Object.keys(touch).forEach((k) => { touch[k] = false; });
     document.querySelectorAll('.dpad__btn.is-down').forEach((b) => b.classList.remove('is-down'));
   }
@@ -3290,6 +3472,10 @@ import * as THREE from 'three';
       releaseAll(); // Ctrl+W kabi tezkor tugmalardan keyin keyup kelmasligi mumkin
       return;
     }
+    if (e.key === 'Shift') {
+      driftHeld = true;
+      return;
+    }
     const action = actionOf(e);
     if (action) {
       held.set(action, true);
@@ -3313,6 +3499,7 @@ import * as THREE from 'three';
     }
   });
   window.addEventListener('keyup', (e) => {
+    if (e.key === 'Shift') driftHeld = false;
     const action = actionOf(e);
     if (action) held.delete(action);
     else if (!e.code && !e.key) releaseAll(); // ba'zi qurilmalar tugma nomini bermaydi
@@ -3688,6 +3875,786 @@ import * as THREE from 'three';
     mctx.stroke();
   }
 
+  // ---------------- Drift ----------------
+  let driftOn = false;     // tugma bilan yoqiladi
+  let driftHeld = false;   // Shift bosib turilganda
+  let driftTime = 0;
+  let screechAt = 0;
+  const drifting = () => driftOn || driftHeld;
+  const smoke = [];
+  const smokeGeo = new THREE.SphereGeometry(6, 8, 6);
+
+  function smokeAt(x, y, dir) {
+    if (smoke.length > 140) return;
+    [-1, 1].forEach((side) => {
+      const px = x - Math.cos(dir) * 24 + Math.cos(dir + Math.PI / 2) * side * 13;
+      const pz = y - Math.sin(dir) * 24 + Math.sin(dir + Math.PI / 2) * side * 13;
+      const m = new THREE.Mesh(smokeGeo, new THREE.MeshBasicMaterial({ color: '#d1d5db', transparent: true, opacity: 0.5, depthWrite: false }));
+      m.position.set(px + (Math.random() - 0.5) * 6, 5, pz + (Math.random() - 0.5) * 6);
+      scene.add(m);
+      smoke.push({ m, t: 0 });
+    });
+  }
+
+  function stepSmoke(dt) {
+    for (let i = smoke.length - 1; i >= 0; i -= 1) {
+      const s2 = smoke[i];
+      s2.t += dt;
+      s2.m.position.y += dt * 14;
+      s2.m.scale.setScalar(1 + s2.t * 2.2);
+      s2.m.material.opacity = Math.max(0, 0.5 - s2.t * 0.55);
+      if (s2.t > 0.9) {
+        scene.remove(s2.m);
+        s2.m.material.dispose();
+        smoke.splice(i, 1);
+      }
+    }
+  }
+
+  // Mashina qaragan tomon va haqiqiy harakat yo'nalishi farq qilsa — bu drift: tutun, g'ichirlash, ochko
+  function driftFx(dt, car) {
+    const speed = Math.hypot(me.vx, me.vz);
+    let slip = 0;
+    if (car && drifting() && speed > 120 && me.h < 5) {
+      const moveDir = Math.atan2(me.vz, me.vx);
+      slip = Math.abs(Math.atan2(Math.sin(me.dir - moveDir), Math.cos(me.dir - moveDir)));
+    }
+    if (slip > 0.25) {
+      driftTime += dt;
+      if (Math.random() < 0.7) smokeAt(me.x, me.y, me.dir);
+      const now = performance.now();
+      if (now - screechAt > 180) {
+        screechAt = now;
+        sound.screech();
+      }
+    } else if (driftTime > 0) {
+      if (driftTime > 1.2) floatText(`DRIFT ${driftTime.toFixed(1).replace('.', ',')} s!`, me.x, me.y, me.rig.root.position.y + 20);
+      driftTime = 0;
+    }
+  }
+
+  function toggleDrift() {
+    if (!me || !me.car) {
+      toast("Avval mashinaga o'tiring (E)", 'warn');
+      return;
+    }
+    driftOn = !driftOn;
+    updateRideButton();
+    toast(driftOn
+      ? "Drift yoqildi! Tez yurib turib keskin buriling — mashina sirpanadi. (Shift — bosib turib ham bo'ladi)"
+      : "Drift o'chdi");
+  }
+  $('btn-drift').addEventListener('click', toggleDrift);
+
+  // ---------------- Poyga trassasi (o'rmonda, faqat poyga paytida) ----------------
+  let trackGroup = null;
+  let trackForest = null;
+  const trackOn = () => Boolean(race && !race.result && world.track);
+
+  function stadiumShape(half, rad) {
+    const sh = new THREE.Shape();
+    sh.moveTo(-half, -rad);
+    sh.lineTo(half, -rad);
+    sh.absarc(half, 0, rad, -Math.PI / 2, Math.PI / 2, false);
+    sh.lineTo(-half, rad);
+    sh.absarc(-half, 0, rad, Math.PI / 2, Math.PI * 1.5, false);
+    return sh;
+  }
+  function stadiumRing(half, rOut, rIn, material, y) {
+    const sh = stadiumShape(half, rOut);
+    const hole = stadiumShape(half, rIn);
+    sh.holes.push(new THREE.Path(hole.getPoints(48)));
+    const m = new THREE.Mesh(new THREE.ShapeGeometry(sh, 48), material);
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = y;
+    m.receiveShadow = true;
+    return m;
+  }
+
+  function buildTrack() {
+    const T = world.track;
+    if (!T) return;
+    const g = new THREE.Group();
+    g.position.set(T.cx, 0, T.cy);
+    const outer = T.r + T.w / 2;
+    const inner = T.r - T.w / 2;
+    // Tashqi o't, asfalt, oq va qizil chetlar
+    g.add(stadiumRing(T.half, outer + 120, outer, mat('#4d8a3a', { roughness: 1 }), 0.3));
+    g.add(stadiumRing(T.half, outer, inner, mat('#2f3440', { roughness: 0.9 }), 0.6));
+    g.add(stadiumRing(T.half, outer, outer - 6, mat('#f8fafc', { roughness: 1 }), 0.9));
+    g.add(stadiumRing(T.half, inner + 6, inner, mat('#f8fafc', { roughness: 1 }), 0.9));
+    g.add(stadiumRing(T.half, inner, inner - 12, mat('#dc2626', { roughness: 1 }), 0.8));
+    const infield = new THREE.Mesh(new THREE.ShapeGeometry(stadiumShape(T.half, inner - 12), 32), mat('#5fa04a', { roughness: 1 }));
+    infield.rotation.x = -Math.PI / 2;
+    infield.position.y = 0.7;
+    g.add(infield);
+    // O'rtadagi uzuq chiziq
+    const dash = stadiumRing(T.half, T.r + 2, T.r - 2, new THREE.MeshBasicMaterial({ color: '#facc15' }), 1);
+    g.add(dash);
+    // Start/marra chizig'i — shaxmat katakli
+    const fx = -T.half + 200;
+    const check = tileTexture(64, (c, n) => {
+      c.fillStyle = '#ffffff';
+      c.fillRect(0, 0, n, n);
+      c.fillStyle = '#111827';
+      c.fillRect(0, 0, n / 2, n / 2);
+      c.fillRect(n / 2, n / 2, n / 2, n / 2);
+    }, 2, 10);
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(24, T.w), new THREE.MeshStandardMaterial({ map: check, roughness: 1 }));
+    line.rotation.x = -Math.PI / 2;
+    line.position.set(fx, 1.1, -T.r);
+    g.add(line);
+    // Marra darvozasi va yozuv
+    const post = mat('#e5e7eb', { metalness: 0.5, roughness: 0.3 });
+    g.add(cyl(3, 3, 70, post, fx, 35, -T.r - T.w / 2 - 8, 10), cyl(3, 3, 70, post, fx, 35, -T.r + T.w / 2 + 8, 10));
+    [1, -1].forEach((side) => {
+      // Ikki tomondan ham to'g'ri o'qiladi (orqa tomoni ko'zgudagidek teskari chiqmasin)
+      const banner = signPlane('MAHALLA GRAND PRIX', T.w + 30, 22, '#dc2626', '#ffffff');
+      banner.material.side = THREE.FrontSide;
+      banner.position.set(fx + side * 0.6, 70, -T.r);
+      banner.rotation.y = (side * Math.PI) / 2;
+      g.add(banner);
+    });
+    // Tribunalar (tomoshabin o'rindiqlari) tashqi tomonda
+    const seatCols = ['#2563eb', '#dc2626', '#f59e0b', '#16a34a'];
+    [-1, 1].forEach((side) => {
+      for (let i = -2; i <= 2; i += 1) {
+        const stand = new THREE.Group();
+        for (let row = 0; row < 4; row += 1) {
+          stand.add(box(240, 8, 16, mat('#9ca3af'), 0, 4 + row * 8, -row * 16));
+          stand.add(box(236, 3, 10, mat(seatCols[(row + i + 4) % 4]), 0, 9.5 + row * 8, -row * 16 + 2));
+        }
+        stand.add(box(250, 3, 80, mat('#334155'), 0, 66, -26));
+        [-120, 120].forEach((x) => stand.add(box(4, 66, 4, mat('#334155'), x, 33, -60)));
+        stand.position.set(i * 290, 0, side * (outer + 40));
+        stand.rotation.y = side < 0 ? 0 : Math.PI;
+        g.add(stand);
+      }
+    });
+    // Burchaklardagi shina to'siqlari
+    [-1, 1].forEach((sx) => {
+      for (let k = 0; k < 14; k += 1) {
+        const a = -Math.PI / 2 + (k / 13) * Math.PI;
+        const tire = cyl(9, 9, 10, mat(k % 2 ? '#111827' : '#f8fafc'), sx * (T.half + Math.cos(a) * (outer + 30)), 5, Math.sin(a) * (outer + 30) * sx, 12);
+        g.add(tire);
+      }
+    });
+    g.visible = false;
+    scene.add(g);
+    trackGroup = g;
+  }
+
+  function updateTrackVisibility() {
+    if (!trackGroup) return;
+    const on = trackOn() || inside(me.x, me.y, world.track.rect);
+    if (trackGroup.visible !== on) {
+      trackGroup.visible = on;
+      if (trackForest) trackForest.visible = !on;
+    }
+  }
+
+  async function quitRace() {
+    if (!window.confirm("Poygadan chiqasizmi? Raqib yutadi va tikilgan pulni oladi.")) return;
+    try {
+      await api('/api/game/race/quit', { method: 'POST' });
+      toast('Poygadan chiqdingiz');
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+  $('race-quit').addEventListener('click', quitRace);
+
+  // Taksi: tez yetkazsangiz ko'proq (server bilan bir xil formula)
+  function taxiMult(secs) {
+    if (!ride || !ride.expected) return 1;
+    const ratio = secs / ride.expected;
+    if (ratio <= 1.3) return 2;
+    if (ratio >= 4) return 0.6;
+    return Math.round((2 + (0.6 - 2) * ((ratio - 1.3) / 2.7)) * 100) / 100;
+  }
+
+  // ---------------- Garaj: rang, tezlik, neon ----------------
+  let myTuning = {};
+  const tuneOf = (id) => (id && myTuning[id] && (myTuning[id].color || myTuning[id].neon)
+    ? { color: myTuning[id].color || null, neon: myTuning[id].neon || null } : null);
+  const tuneSpeed = (id) => 1 + 0.08 * Math.min(3, (id && myTuning[id] && myTuning[id].speed) || 0);
+
+  async function loadTuning() {
+    try {
+      const d = await api('/api/game/garage');
+      myTuning = d.tuning || {};
+    } catch (err) {
+      handleAuthError(err);
+    }
+  }
+
+  function openGarage() {
+    const st = { kind: 'garage', data: null, v: 0, car: me.car };
+    openSheet(st);
+    loadInto(st, '/api/game/garage', (d) => {
+      st.data = d;
+      myTuning = d.tuning || {};
+      if (!st.car || !d.cars.some((c) => c.id === st.car)) st.car = d.cars.length ? d.cars[0].id : null;
+    });
+  }
+
+  async function garageCall(st, body, okText) {
+    try {
+      const d = await api('/api/game/garage', { method: 'POST', body: { car: st.car, ...body } });
+      localVersion += 1;
+      st.data = d;
+      st.v += 1;
+      myTuning = d.tuning || {};
+      setEconomy(d.economy);
+      sound.cash();
+      toast(okText, 'success');
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+    renderSheet();
+    return null;
+  }
+
+  function renderGarageSheet(body, st) {
+    const d = st.data;
+    setHead('hammer', 'Garaj', d ? "Mashinangizni o'zgartiring — hamma shunday ko'radi" : 'Yuklanmoqda…');
+    if (!d) return;
+    if (!d.cars.length) {
+      body.append(el('p', 'sheet-note', "Sizda hali mashina yo'q — avval Avtosalondan oling."));
+      return;
+    }
+    const chips = el('div', 'garage-cars');
+    d.cars.forEach((c) => {
+      const b = el('button', `chip${c.id === st.car ? ' is-on' : ''}`, c.name);
+      b.type = 'button';
+      b.addEventListener('click', () => { st.car = c.id; st.v += 1; renderSheet(); });
+      chips.append(b);
+    });
+    body.append(chips);
+    const car = d.cars.find((c) => c.id === st.car);
+    // Rang
+    const paint = el('div', 'looks-row');
+    paint.append(el('strong', '', `Bo'yash — ${formatNumber(d.paint_price)} so'm`));
+    const sw = el('div', 'swatches');
+    d.colors.forEach((col) => {
+      const b = el('button', `swatch${car.color === col ? ' is-on' : ''}`);
+      b.type = 'button';
+      b.style.setProperty('--sw', col);
+      b.setAttribute('aria-label', `Rang ${col}`);
+      b.addEventListener('click', () => garageCall(st, { action: 'paint', value: col }, `${car.name} bo'yaldi!`));
+      sw.append(b);
+    });
+    paint.append(sw);
+    // Neon
+    const neon = el('div', 'looks-row');
+    neon.append(el('strong', '', `Neon chiroq (pastdan) — ${formatNumber(d.neon_price)} so'm`));
+    const nw = el('div', 'swatches');
+    d.neons.forEach((col) => {
+      const b = el('button', `swatch${car.neon === col ? ' is-on' : ''}`);
+      b.type = 'button';
+      b.style.setProperty('--sw', col);
+      b.style.boxShadow = `0 0 10px ${col}`;
+      b.setAttribute('aria-label', `Neon ${col}`);
+      b.addEventListener('click', () => garageCall(st, { action: 'neon', value: col }, 'Neon chiroq yoqildi!'));
+      nw.append(b);
+    });
+    if (car.neon) {
+      const off = el('button', 'chip', "O'chirish");
+      off.type = 'button';
+      off.addEventListener('click', () => garageCall(st, { action: 'neon', value: '' }, "Neon olib tashlandi"));
+      nw.append(off);
+    }
+    neon.append(nw);
+    // Tezlik
+    const speed = el('div', 'looks-row');
+    speed.append(el('strong', '', `Dvigatel: +${Math.round(car.speed * d.step * 100)}% tezlik`));
+    const steps = el('div', 'speed-steps');
+    for (let i = 1; i <= d.max; i += 1) steps.append(el('span', i <= car.speed ? 'is-on' : ''));
+    speed.append(steps);
+    if (car.next_price) {
+      speed.append(priceButton(`+${Math.round(d.step * 100)}% tezlik`, car.next_price,
+        () => garageCall(st, { action: 'speed' }, 'Dvigatel kuchaytirildi!')));
+    } else speed.append(el('small', '', 'Eng yuqori daraja'));
+    body.append(paint, neon, speed);
+  }
+
+  // ---------------- Avtobus ishi ----------------
+  let busJob = null;
+  let busView = null;
+  let busBusyUntil = 0;
+
+  function setBus(b) {
+    const prev = busJob ? busJob.next : null;
+    busJob = b;
+    if (!b) busView = dropBeacon(busView);
+    else if (b.next !== prev || !busView) {
+      busView = dropBeacon(busView);
+      busView = makeBeacon(b.stop.x, b.stop.y, '#f97316', 110);
+    }
+    taxiCardKey = '';
+    updateRideButton();
+  }
+
+  async function toggleBus() {
+    try {
+      if (busJob) {
+        await api('/api/game/bus/end', { method: 'POST' });
+        localVersion += 1;
+        setBus(null);
+        toast('Avtobus ishi tugadi');
+        return;
+      }
+      const d = await api('/api/game/bus/start', { method: 'POST' });
+      localVersion += 1;
+      setBus(d.bus);
+      if (ride) toast('Diqqat: taksidagi yo\'lovchi ham kutyapti');
+      toast(`Avtobus ishi boshlandi! To'q sariq nurdagi ${d.bus.next + 1}-bekatga boring — ${d.bus.waiting} kishi kutyapti`, 'success');
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+  $('btn-bus').addEventListener('click', toggleBus);
+
+  async function busTick() {
+    if (!busJob || !me.car || performance.now() < busBusyUntil) return;
+    if (Math.hypot(busJob.stop.x - me.x, busJob.stop.y - me.y) > 130) return;
+    busBusyUntil = performance.now() + 1500;
+    try {
+      const d = await api('/api/game/bus/stop', { method: 'POST' });
+      localVersion += 1;
+      setEconomy(d.economy);
+      setBus(d.bus);
+      sound.cash();
+      floatText(`+${formatNumber(d.earned + d.bonus)} so'm`, me.x, me.y, me.rig.root.position.y);
+      toast(d.bonus
+        ? `Aylana tugadi! ${d.people} yo'lovchi: +${formatNumber(d.earned)} va bonus +${formatNumber(d.bonus)} so'm`
+        : `Bekat: ${d.people} yo'lovchi tushdi — +${formatNumber(d.earned)} so'm. Keyingi bekatga!`, 'success');
+    } catch (err) {
+      if (!handleAuthError(err)) busBusyUntil = performance.now() + 800;
+    }
+  }
+
+  // Bekatlar: soyabon, skameyka va «BEKAT» belgisi
+  function buildBusStops() {
+    world.bus_stops.forEach((b, i) => {
+      const g = new THREE.Group();
+      const frame = mat('#1e3a8a', { metalness: 0.4, roughness: 0.4 });
+      g.add(box(64, 30, 2, GLASS(), 0, 17, -14), box(70, 2.5, 30, frame, 0, 33, -2));
+      [-32, 32].forEach((x) => g.add(box(2.5, 32, 2.5, frame, x, 16, -14), box(2.5, 32, 2.5, frame, x, 16, 10)));
+      g.add(box(50, 3, 10, mat('#92400e'), 0, 11, -8));
+      g.add(cyl(1.4, 1.4, 50, mat('#64748b'), 42, 25, 6, 8));
+      const sign = signPlane(`BEKAT ${i + 1}`, 26, 10, '#2563eb', '#ffffff');
+      sign.position.set(42, 48, 6);
+      g.add(sign);
+      g.position.set(b.x, 0, b.y);
+      scene.add(g);
+    });
+  }
+
+  // ---------------- Aeroport ----------------
+  function buildAirport() {
+    const A = world.airport;
+    const R = A.rect;
+    const g = new THREE.Group();
+    const concrete = mat('#a8a29e', { roughness: 1 });
+    const white = mat('#f8fafc', { roughness: 1 });
+    // Ko'cha (1900-yo'l davomi) va beton maydon
+    g.add(flat(R.x + R.w - world.w, 96, mat('#9ca3af', { roughness: 1 }), (world.w + R.x + R.w) / 2, 1940, 0.25));
+    g.add(flat(R.x + R.w - world.w, 80, mat('#3b404c', { roughness: 0.95 }), (world.w + R.x + R.w) / 2, 1940, 0.45));
+    g.add(flat(R.x + R.w - 6900, R.h - 120, concrete, (6900 + R.x + R.w) / 2, R.y + R.h / 2, 0.3));
+    // Uchish yo'lagi
+    const W = A.runway;
+    const cx = W.x + W.w / 2;
+    g.add(flat(W.w, W.h, mat('#1f2937', { roughness: 0.9 }), cx, W.y + W.h / 2, 0.5));
+    g.add(flat(4, W.h, white, W.x + 6, W.y + W.h / 2, 0.6), flat(4, W.h, white, W.x + W.w - 6, W.y + W.h / 2, 0.6));
+    for (let y = W.y + 160; y < W.y + W.h - 160; y += 110) g.add(flat(5, 55, white, cx, y, 0.6));
+    [W.y + 40, W.y + W.h - 40].forEach((y) => {
+      for (let i = 0; i < 6; i += 1) g.add(flat(8, 50, white, W.x + 18 + i * 22, y, 0.6));
+    });
+    // Terminal
+    const T = A.terminal;
+    const term = box(T.w, 60, T.h, mat('#e2e8f0'), T.x + T.w / 2, 30, T.y + T.h / 2);
+    g.add(term, box(T.w - 30, 36, 2, GLASS(), T.x + T.w / 2, 26, T.y + T.h + 0.8));
+    g.add(box(T.w + 20, 6, T.h + 20, mat('#1e3a8a'), T.x + T.w / 2, 63, T.y + T.h / 2));
+    const sign = signPlane('AEROPORT', 180, 22, '#1e3a8a', '#ffffff');
+    sign.position.set(T.x + T.w / 2, 78, T.y + T.h + 2);
+    g.add(sign);
+    // Reyslar joyi (gate)
+    const gate = A.gate;
+    [0, Math.PI].forEach((rot) => {
+      // Ikki tomondan ham to'g'ri o'qiladi
+      const gs = signPlane('REYSLAR · F', 70, 16, '#16a34a', '#ffffff');
+      gs.material.side = THREE.FrontSide;
+      gs.position.set(gate.x, 46, gate.y - 60 + (rot ? -0.6 : 0.6));
+      gs.rotation.y = rot;
+      g.add(gs);
+    });
+    g.add(cyl(1.6, 1.6, 40, mat('#64748b'), gate.x - 38, 20, gate.y - 60, 8), cyl(1.6, 1.6, 40, mat('#64748b'), gate.x + 38, 20, gate.y - 60, 8));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(120, 130, 48), new THREE.MeshBasicMaterial({ color: '#22c55e', transparent: true, opacity: 0.6, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(gate.x, 0.8, gate.y);
+    g.add(ring);
+    // Boshqaruv minorasi
+    const tx = T.x + 140;
+    const tz = T.y + 590;
+    g.add(cyl(14, 18, 140, mat('#e5e7eb'), tx, 70, tz, 16), cyl(30, 26, 22, GLASS(), tx, 150, tz, 16), cyl(32, 32, 4, mat('#1e3a8a'), tx, 163, tz, 16));
+    // Turgan samolyotlar (bezak)
+    [[W.x - 170, R.y + 260, 0.3], [W.x - 170, R.y + R.h - 300, -0.3]].forEach(([x, z, rot]) => {
+      const pl = carPlane('#f8fafc');
+      pl.scale.setScalar(2.2);
+      pl.position.set(x, 0, z);
+      pl.rotation.y = Math.PI / 2 + rot;
+      g.add(pl);
+    });
+    // Shamol yo'nalishi ko'rsatkichi
+    g.add(cyl(1.2, 1.2, 40, mat('#64748b'), W.x + W.w + 60, 20, W.y + 120, 6));
+    const sock = mesh(new THREE.ConeGeometry(6, 26, 10, 1, true), mat('#f97316'), W.x + W.w + 72, 38, W.y + 120);
+    sock.rotation.z = Math.PI / 2;
+    g.add(sock);
+    scene.add(g);
+  }
+
+  // ---------------- Reys (boshqa shaharga) ----------------
+  let flight = null;
+
+  function setFlight(f) {
+    if (!f) {
+      flight = null;
+      $('flight').hidden = true;
+      return;
+    }
+    flight = { ...f, endsAt: performance.now() + f.left * 1000, landing: false };
+    me.fly = true;
+    $('flight').hidden = false;
+    $('flight-title').textContent = `${f.name}ga uchyapsiz ✈️`;
+  }
+
+  async function landFlight() {
+    flight.landing = true;
+    try {
+      const d = await api('/api/game/flight/land', { method: 'POST' });
+      localVersion += 1;
+      setEconomy(d.economy);
+      sound.cash();
+      toast(`${d.name}ga yetib bordingiz va qaytdingiz! Yo'lovchilar to'ladi: +${formatNumber(d.reward)} so'm`, 'success');
+      setFlight(null);
+      me.fly = false;
+    } catch (err) {
+      if (handleAuthError(err)) return;
+      flight.landing = false;
+      flight.endsAt = performance.now() + 1500;
+    }
+  }
+
+  function updateFlight(now) {
+    if (!flight) return;
+    const left = Math.max(0, (flight.endsAt - now) / 1000);
+    $('flight-fill').style.width = `${Math.min(100, (1 - left / flight.seconds) * 100)}%`;
+    $('flight-sub').textContent = left > 0
+      ? `Qo'nishga ${Math.ceil(left)} soniya · mukofot ${formatNumber(flight.reward)} so'm`
+      : "Qo'nyapmiz…";
+    if (left <= 0 && !flight.landing) landFlight();
+  }
+
+  function openFlights() {
+    const st = { kind: 'flights', data: null, v: 0 };
+    openSheet(st);
+    loadInto(st, '/api/game/flights', (d) => { st.data = d; });
+  }
+
+  function renderFlightsSheet(body, st) {
+    setHead('plane', 'Reyslar', 'Yo\'lovchilarni boshqa shaharga olib boring');
+    if (!st.data) return;
+    const list = el('div', 'car-list');
+    st.data.flights.forEach((f) => {
+      const r = el('div', 'car-row');
+      const sw = el('span', 'car-row__swatch');
+      sw.style.setProperty('--car', '#0ea5e9');
+      sw.append(icon('plane'));
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', f.name), el('small', '', `${f.seconds} soniya uchish · +${formatNumber(f.reward)} so'm`));
+      r.append(sw, info, actionBtn('plane', 'Uchish', async () => {
+        try {
+          const d = await api('/api/game/flight/start', { method: 'POST', body: { dest: f.id } });
+          localVersion += 1;
+          closeSheet();
+          setFlight(d.flight);
+          sound.whoosh(true);
+        } catch (err) {
+          if (!handleAuthError(err)) toast(err.message, 'warn');
+        }
+      }));
+      list.append(r);
+    });
+    body.append(list, el('p', 'sheet-note', "Uchish paytida samolyot boshqarilmaydi. Qo'ngandan keyin yana aeroportdasiz."));
+  }
+
+  // ---------------- Kunlik vazifalar ----------------
+  function openDaily() {
+    const st = { kind: 'daily', data: null, v: 0 };
+    openSheet(st);
+    loadInto(st, '/api/game/daily', (d) => { st.data = d; setEconomy(d.economy); });
+  }
+
+  async function claimDaily(st, id) {
+    try {
+      const d = await api('/api/game/daily/claim', { method: 'POST', body: { id } });
+      localVersion += 1;
+      st.data = d;
+      st.v += 1;
+      setEconomy(d.economy);
+      sound.cash();
+      toast('Mukofot olindi!', 'success');
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+    renderSheet();
+    return null;
+  }
+
+  function renderDailySheet(body, st) {
+    const d = st.data;
+    setHead('check', 'Kunlik vazifalar', d ? `Bugun (${d.day}) · ertaga yangilari chiqadi` : 'Yuklanmoqda…');
+    if (!d) return;
+    d.tasks.forEach((t) => {
+      const done = t.done >= t.need;
+      const row = el('div', `daily-row${done ? ' is-done' : ''}`);
+      const top = el('div', 'daily-row__top');
+      top.append(el('strong', '', t.text));
+      if (t.claimed) top.append(el('small', '', 'Olindi ✓'));
+      else if (done) top.append(actionBtn('coins', `+${formatNumber(t.reward)} so'm olish`, () => claimDaily(st, t.id)));
+      else top.append(el('small', '', `+${formatNumber(t.reward)} so'm`));
+      const bar = el('div', 'floors__bar');
+      const fill = el('span', 'floors__fill');
+      fill.style.width = `${Math.max(2, (t.done / t.need) * 100)}%`;
+      bar.append(fill);
+      row.append(top, bar, el('small', '', `${t.done} / ${t.need}`));
+      body.append(row);
+    });
+    const all = d.tasks.every((t) => t.claimed);
+    const bonus = el('div', `daily-row${d.bonus_claimed ? ' is-done' : ''}`);
+    const top = el('div', 'daily-row__top');
+    top.append(el('strong', '', `Hammasini bajarsangiz — bonus ${formatNumber(d.bonus)} so'm`));
+    if (d.bonus_claimed) top.append(el('small', '', 'Olindi ✓'));
+    else {
+      const b = actionBtn('trophy', 'Bonusni olish', () => claimDaily(st, 'bonus'));
+      b.disabled = !all;
+      top.append(b);
+    }
+    bonus.append(top);
+    body.append(bonus);
+  }
+
+  // ---------------- Omad g'ildiragi ----------------
+  const WHEEL_COLORS = ['#ef4444', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#facc15'];
+  const shortSum = (v) => (v >= 1000000 ? `${v / 1000000} mln` : `${v / 1000} ming`);
+
+  function openSpin() {
+    const st = { kind: 'spin', data: null, v: 0, angle: 0, spinning: false };
+    openSheet(st);
+    loadInto(st, '/api/game/spin', (d) => { st.data = d; });
+  }
+
+  function drawWheel(canvas, prizes) {
+    const g = canvas.getContext('2d');
+    const n = prizes.length;
+    const c = canvas.width / 2;
+    const seg = (Math.PI * 2) / n;
+    prizes.forEach((p, i) => {
+      // i-bo'lak markazi tepada (-90°) bo'lishi uchun
+      const a0 = -Math.PI / 2 + i * seg - seg / 2;
+      g.beginPath();
+      g.moveTo(c, c);
+      g.arc(c, c, c - 4, a0, a0 + seg);
+      g.closePath();
+      g.fillStyle = WHEEL_COLORS[i % WHEEL_COLORS.length];
+      g.fill();
+      g.save();
+      g.translate(c, c);
+      g.rotate(a0 + seg / 2);
+      g.fillStyle = '#ffffff';
+      g.font = '700 22px system-ui, sans-serif';
+      g.textAlign = 'right';
+      g.textBaseline = 'middle';
+      g.fillText(shortSum(p), c - 18, 0);
+      g.restore();
+    });
+    g.beginPath();
+    g.arc(c, c, 26, 0, Math.PI * 2);
+    g.fillStyle = '#ffffff';
+    g.fill();
+  }
+
+  function renderSpinSheet(body, st) {
+    const d = st.data;
+    setHead('rotate', "Omad g'ildiragi", d ? (d.ready ? 'Kuniga 1 marta bepul aylantiring!' : 'Bugun aylantirdingiz — ertaga yana keling') : 'Yuklanmoqda…');
+    if (!d) return;
+    const wrap = el('div', 'wheel');
+    const canvas = el('canvas');
+    canvas.width = 560;
+    canvas.height = 560;
+    canvas.style.transform = `rotate(${st.angle}deg)`;
+    drawWheel(canvas, d.prizes);
+    wrap.append(canvas, el('span', 'wheel__pin'));
+    const btn = actionBtn('rotate', st.spinning ? 'Aylanmoqda…' : 'Aylantirish', async () => {
+      btn.disabled = true;
+      try {
+        const r = await api('/api/game/spin', { method: 'POST' });
+        localVersion += 1;
+        st.spinning = true;
+        const seg = 360 / d.prizes.length;
+        // Yutgan bo'lak tepadagi ko'rsatkich tagiga keladi
+        st.angle = Math.ceil(st.angle / 360) * 360 + 360 * 6 - r.index * seg;
+        canvas.style.transform = `rotate(${st.angle}deg)`;
+        setTimeout(() => {
+          st.spinning = false;
+          d.ready = false;
+          st.v += 1;
+          setEconomy(r.economy);
+          sound.cash();
+          toast(`Tabriklaymiz! +${formatNumber(r.prize)} so'm`, 'success');
+          if (sheetState === st) renderSheet();
+        }, 4300);
+      } catch (err) {
+        if (!handleAuthError(err)) toast(err.message, 'warn');
+        btn.disabled = false;
+      }
+    }, 'btn btn--primary btn--block');
+    btn.disabled = !d.ready || st.spinning;
+    body.append(wrap, btn);
+  }
+
+  // ---------------- Mahalla bayrami ----------------
+  let fest = null;
+  let festCardSig = '';
+  let fireworkAt = 0;
+  const sparks = [];
+  const sparkGeo = new THREE.SphereGeometry(2.6, 6, 4);
+
+  function setFest(f) {
+    if (!f) {
+      fest = null;
+      return;
+    }
+    fest = { ...f, endsAt: performance.now() + f.left * 1000 };
+  }
+
+  function updateFestCard() {
+    let sig = '';
+    if (fest) {
+      const left = Math.max(0, Math.ceil((fest.endsAt - performance.now()) / 1000));
+      const mm = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+      sig = `${fest.name}|${mm}|${fest.claimed}|${fest.count}`;
+      if (sig !== festCardSig) {
+        $('fest-title').textContent = `🎉 Mahalla bayrami — ${fest.name}`;
+        $('fest-sub').textContent = fest.claimed
+          ? `Sovg'a olindi ✓ · ${mm} · keldi: ${fest.count} kishi`
+          : `${mm} ichida keling — har kimga ${formatNumber(fest.prize)} so'm!`;
+      }
+    }
+    if (sig === festCardSig) return;
+    festCardSig = sig;
+    $('fest-card').hidden = !fest;
+  }
+  $('fest-go').addEventListener('click', () => {
+    if (fest) setGuide(fest.x, fest.y, 'Bayram');
+  });
+
+  function stepFireworks(dt, now) {
+    if (fest && now > fireworkAt && Math.hypot(fest.x - me.x, fest.y - me.y) < 2500) {
+      fireworkAt = now + 500 + Math.random() * 500;
+      const color = WHEEL_COLORS[Math.floor(Math.random() * WHEEL_COLORS.length)];
+      const m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1, fog: false });
+      const ox = fest.x + (Math.random() - 0.5) * 300;
+      const oz = fest.y + (Math.random() - 0.5) * 300;
+      const oy = 180 + Math.random() * 120;
+      for (let i = 0; i < 28; i += 1) {
+        const a = Math.random() * Math.PI * 2;
+        const b = Math.acos(Math.random() * 2 - 1);
+        const sp = 90 + Math.random() * 60;
+        const p2 = new THREE.Mesh(sparkGeo, m);
+        p2.position.set(ox, oy, oz);
+        scene.add(p2);
+        sparks.push({ m: p2, mat: m, t: 0, vx: Math.sin(b) * Math.cos(a) * sp, vy: Math.cos(b) * sp, vz: Math.sin(b) * Math.sin(a) * sp });
+      }
+    }
+    for (let i = sparks.length - 1; i >= 0; i -= 1) {
+      const s2 = sparks[i];
+      s2.t += dt;
+      s2.vy -= 70 * dt;
+      s2.m.position.x += s2.vx * dt;
+      s2.m.position.y += s2.vy * dt;
+      s2.m.position.z += s2.vz * dt;
+      s2.mat.opacity = Math.max(0, 1 - s2.t / 1.6);
+      if (s2.t > 1.6) {
+        scene.remove(s2.m);
+        sparks.splice(i, 1);
+        if (!sparks.some((o) => o.mat === s2.mat)) s2.mat.dispose();
+      }
+    }
+  }
+
+  function openFestAdmin() {
+    const st = { kind: 'festadmin', data: null, v: 0, place: 'fountain', prize: '50 000', minutes: 5 };
+    openSheet(st);
+    loadInto(st, '/api/game/fest', (d) => { st.data = d; });
+  }
+
+  function renderFestAdminSheet(body, st) {
+    setHead('megaphone', 'Mahalla bayrami', "Hammani bir joyga yig'ing — kelganlar sovg'a oladi");
+    const d = st.data;
+    if (!d) return;
+    if (d.fest) {
+      const box2 = el('div', 'offer');
+      box2.append(el('strong', '', `Bayram davom etyapti: ${d.fest.name}`),
+        el('span', '', `Kelganlar: ${d.fest.count} · sovg'a ${formatNumber(d.fest.prize)} so'm · ${Math.ceil(d.fest.left / 60)} daqiqa qoldi`),
+        actionBtn('x', 'Bayramni tugatish', async () => {
+          await api('/api/game/fest/stop', { method: 'POST' }).catch(() => null);
+          toast('Bayram tugadi');
+          loadInto(st, '/api/game/fest', (x) => { st.data = x; });
+        }, 'btn btn--ghost btn--block'));
+      body.append(box2);
+      return;
+    }
+    const where = el('div', 'looks-row');
+    where.append(el('strong', '', 'Qayerda?'));
+    const chips = el('div', 'chips');
+    d.places.forEach((p2) => {
+      const b = el('button', `chip${st.place === p2.id ? ' is-on' : ''}`, p2.name);
+      b.type = 'button';
+      b.addEventListener('click', () => { st.place = p2.id; st.v += 1; renderSheet(); });
+      chips.append(b);
+    });
+    where.append(chips);
+    const prize = el('div', 'sale');
+    const input = amountInput({ draft: st.prize }, "Har kimga sovg'a (so'm)");
+    input.addEventListener('input', () => { st.prize = input.value; });
+    prize.append(el('strong', 'sale__title', "Har bir kelganga sovg'a"), input);
+    const mins = el('div', 'looks-row');
+    mins.append(el('strong', '', 'Davomiyligi'));
+    const mc = el('div', 'chips');
+    [2, 5, 10, 15, 30].forEach((m2) => {
+      const b = el('button', `chip${st.minutes === m2 ? ' is-on' : ''}`, `${m2} daqiqa`);
+      b.type = 'button';
+      b.addEventListener('click', () => { st.minutes = m2; st.v += 1; renderSheet(); });
+      mc.append(b);
+    });
+    mins.append(mc);
+    body.append(where, prize, mins, actionBtn('megaphone', 'Bayramni boshlash', async () => {
+      const amount = parseAmount(st.prize);
+      if (!amount) return toast("Sovg'a summasini yozing", 'warn');
+      try {
+        const r = await api('/api/game/fest/start', { method: 'POST', body: { place: st.place, prize: amount, minutes: st.minutes } });
+        setFest(r.fest);
+        toast("Bayram boshlandi! Hammaga xabar ketdi", 'success');
+        closeSheet();
+      } catch (err) {
+        if (!handleAuthError(err)) toast(err.message, 'warn');
+      }
+      return null;
+    }, 'btn btn--primary btn--block'));
+  }
+
   // ---------------- Kun va tun ----------------
   // Bir sutka — 20 daqiqa. Vaqt soatga bog'liq, shuning uchun hamma bir xil kun/tunni ko'radi.
   const DAY_MS = 20 * 60 * 1000;
@@ -3986,20 +4953,27 @@ import * as THREE from 'three';
 
   function setRace(r) {
     if (!r) {
-      if (race && !race.result) setGuide();
       race = null;
       return;
     }
     if (!race || race.id !== r.id) {
       race = { ...r, startAt: performance.now() + r.start_in * 1000, result: null };
-      setGuide(r.fx, r.fy, 'Marra');
+      if (guide) setGuide();
+      if (r.spot) {
+        me.x = r.spot[0];
+        me.y = r.spot[1];
+        me.dir = r.spot[2];
+        cam.yaw = -Math.PI / 2 - me.dir;
+        camReady = false;
+      }
       sound.ding();
-      toast(`Poyga! ${r.opp} bilan. Ko'k nur — marra, birinchi yeting!`, 'success');
+      toast(`Poyga! ${r.opp} bilan o'rmondagi trassada — ${r.total} aylana. Birinchi tugatgan yutadi!`, 'success');
     }
+    race.laps = r.laps;
+    race.opp_laps = r.opp_laps;
     if (r.result && !race.result) {
       race.result = r.result;
       race.shownAt = performance.now();
-      setGuide();
       if (r.result === 'me') {
         sound.cash();
         toast(`G'alaba! Siz birinchi keldingiz${r.bet ? ` va ${formatNumber(r.bet * 2)} so'm yutdingiz` : ''}!`, 'success');
@@ -4015,6 +4989,7 @@ import * as THREE from 'three';
     const inv = raceInvite;
     raceInvite = null;
     raceCardSig = '';
+    localVersion += 1; // shu paytgacha yuborilgan sinxron javoblari taklifni qaytarmasin
     if (!inv) return;
     try {
       if (!accept) {
@@ -4046,15 +5021,16 @@ import * as THREE from 'three';
         title = `${Math.ceil((race.startAt - now) / 1000)}…`;
         sub = `Poyga: ${race.opp} bilan · tikilgan ${formatNumber(race.bet)} so'm`;
       } else {
-        title = `Poyga: ${race.opp}`;
-        sub = `Marragacha ${meters(Math.hypot(race.fx - me.x, race.fy - me.y))}${race.bet ? ` · yutuq ${formatNumber(race.bet * 2)} so'm` : ''}`;
+        title = `Aylana ${clamp(race.laps + 1, 1, race.total)} / ${race.total}`;
+        sub = `${race.opp}: ${Math.max(0, race.opp_laps)} / ${race.total}${race.bet ? ` · yutuq ${formatNumber(race.bet * 2)} so'm` : ''}`;
       }
     } else if (raceInvite) {
       title = `${raceInvite.name} sizni poygaga chaqiryapti`;
       sub = `Tikish: ${formatNumber(raceInvite.bet)} so'm · ${Math.max(0, Math.ceil((raceInvite.until - now) / 1000))} s`;
       buttons = true;
     }
-    sig = `${title}|${sub}|${buttons}`;
+    const quit = Boolean(race && !race.result);
+    sig = `${title}|${sub}|${buttons}|${quit}`;
     if (sig === raceCardSig) return;
     raceCardSig = sig;
     card.hidden = !title;
@@ -4062,6 +5038,7 @@ import * as THREE from 'three';
     $('race-title').textContent = title;
     $('race-sub').textContent = sub;
     $('race-actions').hidden = !buttons;
+    $('race-quit').hidden = !quit;
   }
 
   // ---------------- Menyu: bank, reyting, klan, ko'rinish ----------------
@@ -4149,6 +5126,24 @@ import * as THREE from 'three';
     });
     tile('sparkles', 'Sovg\'a', "Mashina yoki uy sovg'a qilish", openPeople);
     tile('star', 'Kod chellenji', "HTML/CSS topshiriq — katta pul", openChallenge);
+    tile('check', 'Kunlik vazifalar', 'Har kuni 3 ta vazifa + bonus', openDaily);
+    tile('rotate', "Omad g'ildiragi", 'Kuniga 1 marta bepul', openSpin);
+    tile('hammer', 'Garaj', "Bo'yash, tezlik, neon", openGarage);
+    tile('users', 'Avtobus ishi', "Bekatlarda yo'lovchi tashish", () => {
+      if (carInfo() && carInfo().style === 'bus') {
+        closeSheet();
+        if (!busJob) toggleBus();
+        return;
+      }
+      toast("Avtosalondan Avtobus oling, unga o'tiring va tepadagi «AVTOBUS» tugmasini bosing", 'warn');
+    });
+    tile('plane', 'Aeroport', 'Samolyotda reysga uchish', () => {
+      const g = world.airport.gate;
+      setGuide(g.x, g.y, 'Aeroport');
+      closeSheet();
+      toast("Aeroport — sharqdagi o'rmonda. Samolyotda keling va terminal oldida F ni bosing");
+    });
+    if (IS_OWNER) tile('megaphone', 'Mahalla bayrami', "Hammani yig'ib sovg'a berish", openFestAdmin);
     tile('book', 'Uy vazifasi bonusi', "Har ball uchun +20 000 so'm", () => {
       toast("Panelda uy vazifasidan ijobiy ball olsangiz, har bir ball uchun o'yinda +20 000 so'm tushadi (5 ball = 100 000)");
     });
@@ -4338,10 +5333,43 @@ import * as THREE from 'three';
         }
         list.append(r);
       });
-      body.append(list, actionBtn('log-out', 'Klandan chiqish', () => clanCall(st, '/api/game/clans/leave', {}, 'Klandan chiqdingiz'), 'btn btn--ghost btn--block'));
+      body.append(list);
+      if (leader) {
+        // Boshliq odamlarni taklif qiladi — ular «Qabul» bossa klanga kiradi
+        const add = el('div', 'sale');
+        add.append(el('strong', 'sale__title', `A'zo qo'shish (${mine.members.length}/${d.max})`));
+        const cands = d.candidates || [];
+        if (!cands.length) add.append(el('small', '', "Taklif qiladigan odam yo'q — hamma klanda."));
+        const people = el('div', 'people');
+        cands.forEach((c) => {
+          const r = el('div', 'person');
+          const info = el('div', 'person__info');
+          info.append(el('strong', '', c.name), el('small', c.online ? 'person__on' : '', c.online ? "O'yinda" : "O'yinda emas"));
+          r.append(avatarEl(c), info);
+          const btn = actionBtn(c.invited ? 'check' : 'user-plus', c.invited ? 'Taklif yuborilgan' : 'Taklif qilish',
+            () => clanCall(st, '/api/game/clans/invite', { key: c.key }, `${c.name}ga taklif yuborildi. U «Qabul» bossa, klaningizga kiradi`),
+            c.invited ? 'btn btn--ghost' : 'btn btn--primary');
+          btn.disabled = c.invited || mine.members.length >= d.max;
+          r.append(btn);
+          people.append(r);
+        });
+        add.append(people);
+        body.append(add);
+      }
+      body.append(actionBtn('log-out', 'Klandan chiqish', () => clanCall(st, '/api/game/clans/leave', {}, 'Klandan chiqdingiz'), 'btn btn--ghost btn--block'));
       return;
     }
     setHead('users', 'Klanlar', d.clans.length ? `${d.clans.length} ta klan · qo'shiling yoki o'zingiz tuzing` : "Hali klan yo'q — birinchisini tuzing!");
+    (d.invites || []).forEach((inv) => {
+      // Klan boshlig'idan kelgan taklif
+      const r = el('div', 'clan-invite');
+      const info = el('div', 'person__info');
+      info.append(el('strong', '', `${inv.from} sizni «${inv.name}» klaniga taklif qildi`), el('small', '', "Qabul qilsangiz, klan a'zosi bo'lasiz"));
+      r.append(clanFlag(inv), info,
+        actionBtn('check', 'Qabul', () => clanCall(st, `/api/game/clans/${inv.clan}/join`, {}, `${inv.name} klaniga qo'shildingiz!`)),
+        actionBtn('x', 'Rad', () => clanCall(st, `/api/game/clans/${inv.clan}/decline`, {}, null), 'btn btn--ghost'));
+      body.append(r);
+    });
     if (d.clans.length) {
       const list = el('div', 'people');
       d.clans.forEach((c) => {
@@ -5014,8 +6042,18 @@ import * as THREE from 'three';
   // ---------------- Server bilan almashinuv ----------------
   function applySync(data, fresh) {
     if (data.correct) {
+      if (Math.hypot(data.correct.x - me.x, data.correct.y - me.y) > 600) {
+        // Server ko'chirdi (poyga trassasiga yoki qaytib) — kamera ham sakraydi
+        camReady = false;
+        if (data.correct.dir !== undefined) me.dir = data.correct.dir;
+        cam.yaw = -Math.PI / 2 - me.dir;
+        me.fly = false;
+        me.h = 0;
+      }
       me.x = data.correct.x;
       me.y = data.correct.y;
+      me.vx = 0;
+      me.vz = 0;
     }
     // So'rov ketgandan keyin xarid/taksi bo'lgan bo'lsa — bu javob eskirgan, faqat do'stlarni olamiz
     if (fresh) {
@@ -5040,8 +6078,19 @@ import * as THREE from 'three';
       toast(g.text || `${g.from} sizga ${formatNumber(g.amount)} so'm berdi!`, 'success');
     });
     if (data.loan_collected) toast(`Kredit muddati o'tdi: ${formatNumber(data.loan_collected)} so'm qarz pulingizdan yechildi`, 'warn');
-    setRaceInvite(data.race_invite || null);
-    setRace(data.race || null);
+    // Poyga holati faqat yangi javobdan (taklifni qabul qilgan zahoti kelgan eski javob uni o'chirib yubormasin)
+    if (fresh) {
+      setRaceInvite(data.race_invite || null);
+      setRace(data.race || null);
+      setBus(data.bus || null);
+      if (data.flight && !flight) setFlight(data.flight);
+    }
+    setFest(data.fest || null);
+    if (data.fest_paid) {
+      sound.cash();
+      floatText(`+${formatNumber(data.fest_paid)} so'm`, me.x, me.y, me.rig.root.position.y + 20);
+      toast(`Bayram sovg'asi: +${formatNumber(data.fest_paid)} so'm! 🎉`, 'success');
+    }
     if (data.ball) setBall(data.ball);
   }
 
@@ -5055,6 +6104,7 @@ import * as THREE from 'three';
           body: {
             x: Math.round(me.x), y: Math.round(me.y), h: Math.round(me.h), dir: me.dir, car: me.car,
             chat_since: chatSince, voice_since: voiceSince, pose: me.sit ? 'sit' : null,
+            drift: Boolean(me.car) && drifting(),
           },
         });
         applySync(data, version === localVersion);
@@ -5085,6 +6135,11 @@ import * as THREE from 'three';
     }
     step(dt);
     stepBall(dt);
+    stepSmoke(dt);
+    updateTrackVisibility();
+    stepFireworks(dt, now);
+    updateFlight(now);
+    updateFestCard();
     animatePassengers(dt, now);
     for (let i = floaters.length - 1; i >= 0; i -= 1) {
       const f = floaters[i];
@@ -5133,7 +6188,7 @@ import * as THREE from 'three';
       offlineCap = s.offline_cap_hours;
       me = {
         ...s.me, x: s.me.spawn.x, y: s.me.spawn.y, h: 0, vh: 0, dir: -Math.PI / 2, car: null,
-        moving: false, fly: false, throttle: 0, taxi: false, seat: null,
+        moving: false, fly: false, throttle: 0, taxi: false, seat: null, vx: 0, vz: 0,
       };
       me.rig = makeRig(me.name, me.avatar, true);
       me.looks = {};
@@ -5147,6 +6202,10 @@ import * as THREE from 'three';
       buildPark();
       buildField();
       buildLamps();
+      buildTrack();
+      buildAirport();
+      buildBusStops();
+      loadTuning();
       buildShop();
       updateDayNight(performance.now());
       setPlots(s.plots);

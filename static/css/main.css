@@ -2496,7 +2496,7 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   touch-action: none;
 }
 
-.room-ui, .race-card, .chat__form, .hud-yandex, .taxi-card, .prompt, .toast, .hud-hint, .dpad__btn, .action-btn, .hud-friends, .hud-online, .hud-money, .hud-btn {
+.flight-overlay__card, .hud-drift, .room-ui, .race-card, .chat__form, .hud-yandex, .taxi-card, .prompt, .toast, .hud-hint, .dpad__btn, .action-btn, .hud-friends, .hud-online, .hud-money, .hud-btn {
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
@@ -2938,6 +2938,7 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
 
 .sheet__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   overflow-y: auto;
   padding: 18px 20px 22px;
@@ -3487,6 +3488,7 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
 
 .sale {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   margin-top: 4px;
   padding: 14px;
@@ -4493,6 +4495,258 @@ button.hud-online:hover {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: #ffffff;
+}
+
+.clan-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--gold);
+  border-radius: 16px;
+  background: var(--gold-soft);
+}
+
+.clan-invite .person__info {
+  min-width: 160px;
+}
+
+.clan-invite .btn {
+  height: 38px;
+  font-size: 14px;
+}
+
+.sale .people .person,
+.people .person {
+  flex-wrap: wrap;
+}
+
+.sale .people .person .person__info,
+.people .person .person__info {
+  min-width: 120px;
+}
+
+.sale .people .person .btn,
+.people .person .btn {
+  margin-left: auto;
+}
+
+.sale .people {
+  margin-top: 8px;
+}
+
+.hud-drift {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  height: 52px;
+  padding: 0 14px;
+  border-radius: 16px;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.hud-drift strong {
+  font-size: 14px;
+  font-style: italic;
+  letter-spacing: 0.04em;
+}
+
+.hud-drift small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.hud-drift.is-on {
+  border-color: transparent;
+  background: linear-gradient(135deg, #f97316, #dc2626);
+  color: #ffffff;
+}
+
+.hud-drift.is-on small {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.hud-drift[hidden] {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .hud-drift {
+    height: 44px;
+    padding: 0 10px;
+  }
+  .hud-drift small {
+    display: none;
+  }
+}
+
+.race-card__quit {
+  height: 34px;
+  font-size: 13px;
+}
+
+.race-card__quit[hidden] {
+  display: none;
+}
+
+.hud-bus.is-on {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+}
+
+.fest-card {
+  top: 140px;
+}
+
+.fest-card .race-card__icon {
+  background: #ec4899;
+}
+
+.flight-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: linear-gradient(180deg, rgba(56, 189, 248, 0.35), rgba(224, 242, 254, 0.15));
+  pointer-events: none;
+}
+
+.flight-overlay[hidden] {
+  display: none;
+}
+
+.flight-overlay__card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: min(420px, 100%);
+  padding: 22px;
+  border-radius: 20px;
+  text-align: center;
+}
+
+.flight-overlay__card strong {
+  font-size: 18px;
+}
+
+.flight-overlay__card small {
+  color: var(--muted);
+}
+
+.flight-overlay__plane {
+  color: var(--primary);
+  animation: plane-bob 1.6s ease-in-out infinite;
+}
+
+.flight-overlay__bar {
+  overflow: hidden;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--border);
+}
+
+.flight-overlay__bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 0.3s linear;
+}
+
+@keyframes plane-bob {
+  50% {
+    transform: translateY(-6px) rotate(-4deg);
+  }
+}
+
+.daily-row {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.daily-row.is-done {
+  border-color: var(--success);
+  background: var(--success-soft);
+}
+
+.daily-row__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.daily-row__top strong {
+  flex: 1;
+  min-width: 160px;
+}
+
+.daily-row__top .btn {
+  height: 36px;
+  font-size: 13px;
+}
+
+.daily-row small {
+  color: var(--muted);
+}
+
+.wheel {
+  position: relative;
+  width: 280px;
+  max-width: 100%;
+  margin: 0 auto 12px;
+}
+
+.wheel canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  transition: transform 4.2s cubic-bezier(0.15, 0.8, 0.2, 1);
+}
+
+.wheel__pin {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-top: 22px solid #dc2626;
+  border-right: 12px solid transparent;
+  border-left: 12px solid transparent;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+}
+
+.garage-cars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.speed-steps {
+  display: flex;
+  gap: 4px;
+}
+
+.speed-steps span {
+  width: 32px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--border);
+}
+
+.speed-steps span.is-on {
+  background: var(--success);
 }
 
 .exam {

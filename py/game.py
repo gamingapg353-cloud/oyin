@@ -94,15 +94,29 @@ def variant_name(kind: str, variant: str | None) -> str:
     return BUILDINGS[kind]["name"]
 
 # Mashinalar (faqat Avtosalonda). fare — taksi haqi koeffitsienti.
-CARS = [
+CARS = [  # narxi bo'yicha (Avtosalonda shu tartibda)
+    {"id": "jiguli", "name": "Jiguli", "price": 12000, "speed": 1.4, "fare": 0.8,
+     "color": "#16a34a", "style": "sedan"},
+    {"id": "damas", "name": "Damas", "price": 20000, "speed": 1.5, "fare": 1.2,
+     "color": "#f8fafc", "style": "van"},
     {"id": "bmw", "name": "BMW M5", "price": 30000, "speed": 1.7, "fare": 1.0,
      "color": "#1d4ed8", "style": "sedan"},
+    {"id": "bus", "name": "Avtobus", "price": 60000, "speed": 1.5, "fare": 1.0,
+     "color": "#facc15", "style": "bus"},
     {"id": "mercedes", "name": "Mercedes G-Class", "price": 90000, "speed": 1.9, "fare": 1.3,
      "color": "#111827", "style": "suv"},
+    {"id": "range", "name": "Range Rover", "price": 140000, "speed": 2.0, "fare": 1.4,
+     "color": "#14532d", "style": "suv"},
+    {"id": "porsche", "name": "Porsche 911", "price": 180000, "speed": 2.2, "fare": 1.5,
+     "color": "#dc2626", "style": "super"},
     {"id": "lambo", "name": "Lamborghini Aventador", "price": 250000, "speed": 2.4, "fare": 1.7,
      "color": "#facc15", "style": "super"},
+    {"id": "bugatti", "name": "Bugatti Chiron", "price": 600000, "speed": 2.8, "fare": 1.9,
+     "color": "#1e40af", "style": "super"},
     {"id": "tesla", "name": "Tesla (uchadigan)", "price": 1000000, "speed": 3.0, "fare": 2.2,
      "color": "#e5e7eb", "style": "fly", "flies": True},
+    {"id": "plane", "name": "Samolyot", "price": 3000000, "speed": 4.0, "fare": 2.6,
+     "color": "#f8fafc", "style": "plane", "flies": True, "cruise": 420},
 ]
 CARS_BY_ID = {car["id"]: car for car in CARS}  # eski mashinalar core.init_db da ko'chiriladi
 
@@ -230,6 +244,18 @@ PLOTS = _make_plots()
 SHOP = {"x": 40, "y": 560, "w": 300, "h": 190, "door": {"x": 190, "y": 790}}   # Avtosalon
 FOUNTAIN = {"x": 2300, "y": 730, "w": 140, "h": 140}                            # bog'dagi favvora
 POND = {"x": 40, "y": 1290, "w": 300, "h": 200}                                 # ko'l
+# Poyga trassasi: xaritaning pastidagi o'rmonda (faqat poyga paytida ko'rinadi va kirish mumkin)
+TRACK = {"cx": 3360, "cy": 3800 + 620, "half": 1500, "r": 380, "w": 170, "laps": 3}
+TRACK["rect"] = {"x": TRACK["cx"] - TRACK["half"] - TRACK["r"] - 140, "y": TRACK["cy"] - TRACK["r"] - 140,
+                 "w": 2 * (TRACK["half"] + TRACK["r"] + 140), "h": 2 * (TRACK["r"] + 140)}
+# Aeroport: xaritaning sharqidagi o'rmonda (1900-ko'cha davomida). Doim kirish mumkin.
+AIRPORT = {"rect": {"x": 6600, "y": 1250, "w": 1380, "h": 1500},  # shahar cheti bilan biroz ustma-ust (o'tish uchun)
+           "runway": {"x": 7560, "y": 1330, "w": 150, "h": 1340},
+           "terminal": {"x": 6960, "y": 1600, "w": 300, "h": 170},
+           "gate": {"x": 7330, "y": 1860}}
+# Avtobus bekatlari (yo'l chetidagi trotuarda), aylana yo'nalish
+BUS_STOPS = [{"x": 810, "y": 1128}, {"x": 2370, "y": 1128}, {"x": 3930, "y": 1128}, {"x": 5490, "y": 1128},
+             {"x": 5490, "y": 2648}, {"x": 3930, "y": 2648}, {"x": 2370, "y": 2648}, {"x": 810, "y": 2648}]
 FIELD = {"x": 2880, "y": 2900, "w": 540, "h": 340}                              # futbol maydoni (ikkinchi bog'da)
 GOAL_W = 110                                                                     # darvoza kengligi
 
@@ -295,7 +321,7 @@ WORLD_DATA = {
     "w": WORLD_W, "h": WORLD_H, "road": ROAD, "h_roads": H_ROADS, "v_roads": V_ROADS,
     "plots": PLOTS, "buildings": [building_rect(p) for p in PLOTS],
     "shop": SHOP, "fountain": FOUNTAIN, "pond": POND, "trees": _make_trees(),
-    "field": FIELD, "goal_w": GOAL_W, "benches": BENCHES,
+    "field": FIELD, "goal_w": GOAL_W, "benches": BENCHES, "track": TRACK, "airport": AIRPORT, "bus_stops": BUS_STOPS,
     "default_spawn": {"x": 1200, "y": 800}, "fly_height": FLY_HEIGHT, "fly_cruise": FLY_CRUISE,
 }
 
@@ -360,11 +386,37 @@ def _passenger_list() -> list[dict]:
     return [{"id": pid, "x": p["x"], "y": p["y"], "fare": p["fare"]} for pid, p in _passengers.items()]
 
 
+TAXI_FAST_BONUS = 2.0        # juda tez yetkazsangiz — yo'l haqi 2 barobar
+TAXI_SLOW_MULT = 0.6         # juda sekin bo'lsa — 60%
+TAXI_FAST_RATIO = 1.3        # kutilgan vaqtdan 1.3 barobar tezroq (yoki teng) — to'liq bonus
+TAXI_SLOW_RATIO = 4.0        # 4 barobar sekin — eng kam haq
+
+
+def taxi_expected(ride: dict, car_id: str | None) -> float:
+    """Yo'lovchini yetkazish uchun kutilgan vaqt (soniya): ko'chalar bo'ylab masofa / mashina tezligi."""
+    speed = WALK_SPEED * (CARS_BY_ID[car_id]["speed"] if car_id in CARS_BY_ID else 1.7)
+    return max(4.0, (abs(ride["tx"] - ride["x"]) + abs(ride["ty"] - ride["y"])) / speed)
+
+
+def taxi_multiplier(elapsed: float, expected: float) -> float:
+    ratio = elapsed / expected
+    if ratio <= TAXI_FAST_RATIO:
+        return TAXI_FAST_BONUS
+    if ratio >= TAXI_SLOW_RATIO:
+        return TAXI_SLOW_MULT
+    k = (ratio - TAXI_FAST_RATIO) / (TAXI_SLOW_RATIO - TAXI_FAST_RATIO)
+    return round(TAXI_FAST_BONUS + (TAXI_SLOW_MULT - TAXI_FAST_BONUS) * k, 2)
+
+
 def _ride_json(key: str) -> dict | None:
     ride = _rides.get(key)
     if not ride:
         return None
-    return {"id": ride["id"], "tx": ride["tx"], "ty": ride["ty"], "fare": ride["fare"]}
+    live = _live.get(key)
+    expected = taxi_expected(ride, live["car"] if live else None)
+    return {"id": ride["id"], "tx": ride["tx"], "ty": ride["ty"], "fare": ride["fare"],
+            "elapsed": round(time.time() - ride.get("t", time.time()), 1), "expected": round(expected, 1),
+            "fast": round(expected * TAXI_FAST_RATIO, 1), "slow": round(expected * TAXI_SLOW_RATIO, 1)}
 
 
 def _others(me: str, now: float) -> list[dict]:
@@ -372,7 +424,8 @@ def _others(me: str, now: float) -> list[dict]:
         {"key": key, "name": p["name"], "avatar": p["avatar"], "x": p["x"], "y": p["y"],
          "h": p.get("h", 0), "dir": p["dir"], "car": p["car"], "taxi": key in _rides,
          "seat": _seats.get(key),  # kimning mashinasida yo'lovchi bo'lib o'tiribdi
-         "looks": p.get("looks") or {}, "clan": p.get("clan"), "pose": p.get("pose")}
+         "looks": p.get("looks") or {}, "clan": p.get("clan"), "pose": p.get("pose"),
+         "drift": p.get("drift", False), "tune": p.get("tune")}
         for key, p in _live.items()
         if key != me and now - p["t"] < ONLINE_SECONDS
     ]
@@ -536,6 +589,8 @@ def plots_list(db) -> list[dict]:
 
 
 FORGET_HOOKS: list = []  # game_social qo'shadi: hook(db, key)
+RACE_AREA_KEYS: set = set()  # poygadagilar — trassada yura oladi
+_teleports: dict = {}        # player_key -> (x, y, dir): keyingi sinxronda shu joyga ko'chiriladi
 SYNC_HOOKS: list = []   # game_social qo'shadi: hook(db, key, row, now, response)
 LOOKS = {
     "skin": ["#f0c08a", "#e0a96d", "#c68642", "#8d5524", "#ffdbac"],
@@ -553,6 +608,31 @@ def player_looks(row) -> dict:
     except (ValueError, TypeError, IndexError, KeyError):
         raw = {}
     return {k: raw[k] for k, allowed in LOOKS.items() if isinstance(raw, dict) and raw.get(k) in allowed}
+
+
+TUNE_SPEED_STEP = 0.08   # har tezlik darajasi +8%
+TUNE_MAX_SPEED = 3
+
+
+def player_tuning(row) -> dict:
+    try:
+        data = json.loads(row["tuning"] or "{}")
+    except (ValueError, TypeError, IndexError, KeyError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def tune_speed(tuning: dict, car: str | None) -> float:
+    lvl = (tuning.get(car) or {}).get("speed", 0) if car else 0
+    return 1 + TUNE_SPEED_STEP * min(max(int(lvl or 0), 0), TUNE_MAX_SPEED)
+
+
+EVENT_HOOKS: list = []   # kunlik vazifalar: hook(db, key, kind, n)
+
+
+def emit(db, key: str, kind: str, n: int = 1) -> None:
+    for hook in EVENT_HOOKS:
+        hook(db, key, kind, n)
 
 
 def clan_badge(db, row) -> dict | None:
@@ -637,10 +717,17 @@ def api_sync():
     car = data.get("car") if data.get("car") in owned else None
     flying = bool(car and CARS_BY_ID[car].get("flies"))
     height = min(max(height, 0), FLY_HEIGHT + 20 if flying else 120)
-    x = min(max(x, 10), WORLD_W - 10)
-    y = min(max(y, 10), WORLD_H - 10)
+    world_rect = {"x": 0, "y": 0, "w": WORLD_W, "h": WORLD_H}
+    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"]]
+    inside_rect = lambda a: a["x"] + 10 <= x <= a["x"] + a["w"] - 10 and a["y"] + 10 <= y <= a["y"] + a["h"] - 10
+    in_area = any(inside_rect(a) for a in areas)
+    if not in_area:  # chegaradan tashqarida — eng yaqin ruxsat etilgan joyga
+        area = areas[0]
+        x = min(max(x, area["x"] + 10), area["x"] + area["w"] - 10)
+        y = min(max(y, area["y"] + 10), area["y"] + area["h"] - 10)
 
     looks, clan = player_looks(row), clan_badge(db, row)
+    tuning = player_tuning(row)
     now = time.time()
     corrected = False
     seat = None
@@ -648,7 +735,16 @@ def api_sync():
         _tick_passengers(now)
         prev = _live.get(key)
         driver_key = _seats.get(key)
-        if driver_key:
+        teleport = _teleports.pop(key, None)
+        if teleport:
+            # Server o'zi ko'chirdi (poyga trassasiga yoki undan qaytish)
+            x, y, direction = teleport
+            corrected = True
+            _seats.pop(key, None)
+        elif key in RACE_AREA_KEYS and not in_area and prev:
+            # Poygachi trassadan tashqarida (masalan, sahifani qayta ochdi) — trassadagi joyiga qaytaramiz
+            x, y, corrected = prev["x"], prev["y"], True
+        elif driver_key:
             # Do'stning mashinasida: joylashuv — haydovchiniki (o'zi yurmaydi)
             d = _live_pos(driver_key, now)
             if d and d["car"] and not _seats.get(driver_key):
@@ -663,14 +759,16 @@ def api_sync():
         elif prev and now - prev["t"] < 5:
             # Juda tez "sakrash" bo'lsa — eski joyiga qaytaramiz
             dt = min(now - prev["t"], 1.0)
-            speeds = [CARS_BY_ID[c]["speed"] for c in (car, prev["car"]) if c in CARS_BY_ID]
+            speeds = [CARS_BY_ID[c]["speed"] * tune_speed(tuning, c) for c in (car, prev["car"]) if c in CARS_BY_ID]
             limit = WALK_SPEED * max(speeds + [1]) * dt * 1.6 + 40
             if math.hypot(x - prev["x"], y - prev["y"]) > limit:
                 x, y, corrected = prev["x"], prev["y"], True
         pose = "sit" if data.get("pose") == "sit" and not car and not seat else None
         _live[key] = {"x": x, "y": y, "h": height if (flying or not car or seat) else 0, "dir": direction,
                       "car": car, "t": now, "name": user["name"], "avatar": user["avatar"],
-                      "looks": looks, "clan": clan, "pose": pose}
+                      "looks": looks, "clan": clan, "pose": pose,
+                      "drift": bool(data.get("drift")) and bool(car),
+                      "tune": {k: v for k, v in tuning.get(car, {}).items() if k in ("color", "neon")} if car else None}
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
         gifts = _gifts.pop(key, [])
         chat_since, voice_since = _int(data.get("chat_since")), _int(data.get("voice_since"))
@@ -684,7 +782,7 @@ def api_sync():
     for hook in SYNC_HOOKS:  # bank, poyga, futbol to'pi (game_social.py)
         hook(db, key, row, now, response)
     if corrected:
-        response["correct"] = {"x": x, "y": y}
+        response["correct"] = {"x": x, "y": y, "dir": direction}
     return jsonify(response)
 
 
@@ -903,11 +1001,15 @@ def api_taxi_dropoff():
         if math.hypot(ride["tx"] - me["x"], ride["ty"] - me["y"]) > TAXI_DROP_DIST + 30:
             return jsonify(error="Manzilga hali yetib kelmadingiz"), 400
         _rides.pop(key, None)
-        earned = int(ride["fare"] * CARS_BY_ID[me["car"]]["fare"])
+        base = ride["fare"] * CARS_BY_ID[me["car"]]["fare"]
+        elapsed = now - ride.get("t", now)
+        mult = taxi_multiplier(elapsed, taxi_expected(ride, me["car"]))
+        earned = int(base * mult)
     db = get_db()
     ensure_player(db, key)
     row = apply_change(db, key, lambda _row, _money: (earned, None))
-    return jsonify(earned=earned, economy=economy_json(db, row))
+    emit(db, key, "taxi")
+    return jsonify(earned=earned, base=int(base), mult=mult, seconds=round(elapsed, 1), economy=economy_json(db, row))
 
 
 @bp.post("/api/game/taxi/cancel")
@@ -1213,6 +1315,7 @@ def _owner_upgrade(plot_id: int, data: dict):
         row = apply_change(db, key, change)
     except GameError as err:
         return jsonify(error=str(err)), 400
+    emit(db, key, "floor", added["floors"])
     return jsonify(correct=True, added=added["floors"], economy=economy_json(db, row), plots=plots_list(db))
 
 
@@ -1266,6 +1369,7 @@ def api_upgrade(plot_id: int):
         row = apply_change(db, key, change)
     except GameError as err:
         return jsonify(error=str(err)), 400
+    emit(db, key, "floor", added["floors"])
     return jsonify(correct=True, explain=results[0]["explain"], results=results, added=added["floors"],
                    economy=economy_json(db, row), plots=plots_list(db))
 

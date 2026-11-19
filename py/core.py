@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS game_players (
     loan_at     REAL NOT NULL DEFAULT 0,
     loan_due    REAL NOT NULL DEFAULT 0,       -- shu vaqtdan keyin qarz puldan o'zi yechiladi
     looks       TEXT NOT NULL DEFAULT '{}',    -- JSON: soch, kiyim, shapka ranglari
+    tuning      TEXT NOT NULL DEFAULT '{}',    -- JSON: mashina -> {rang, tezlik darajasi, neon}
+    daily       TEXT NOT NULL DEFAULT '{}',    -- JSON: kunlik vazifalar holati
+    spin_day    TEXT,                          -- omad g'ildiragi oxirgi aylantirilgan kun
     clan        INTEGER                        -- game_clans.id
 );
 
@@ -232,7 +235,8 @@ def init_db() -> None:
         for name, ddl in (("bank", "REAL NOT NULL DEFAULT 0"), ("bank_at", "REAL NOT NULL DEFAULT 0"),
                           ("loan", "REAL NOT NULL DEFAULT 0"), ("loan_at", "REAL NOT NULL DEFAULT 0"),
                           ("loan_due", "REAL NOT NULL DEFAULT 0"), ("looks", "TEXT NOT NULL DEFAULT '{}'"),
-                          ("clan", "INTEGER")):
+                          ("clan", "INTEGER"), ("tuning", "TEXT NOT NULL DEFAULT '{}'"),
+                          ("daily", "TEXT NOT NULL DEFAULT '{}'"), ("spin_day", "TEXT")):
             if name not in player_columns:  # bank, kredit, ko'rinish, klan
                 db.execute(f"ALTER TABLE game_players ADD COLUMN {name} {ddl}")
         # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)
@@ -247,7 +251,7 @@ def init_db() -> None:
             db.execute("UPDATE game_plots SET level = ? WHERE kind = ? AND level > ?", (top, kind, top))
         # Eski mashinalar (Jajji, Shamol, Chaqmoq, Bo'ron) -> yangilari (BMW, Mercedes, Lamborghini)
         old_cars = {"jajji": "bmw", "shamol": "mercedes", "chaqmoq": "lambo", "boron": "lambo"}
-        known = {"bmw", "mercedes", "lambo", "tesla"}
+        known = {"bmw", "mercedes", "lambo", "tesla", "jiguli", "damas", "range", "porsche", "bugatti", "plane", "bus"}
         for key, cars_json in db.execute("SELECT player_key, cars FROM game_players").fetchall():
             cars = json.loads(cars_json or "[]")
             new = []

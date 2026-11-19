@@ -31,6 +31,12 @@
       <span class="hud-yandex__logo">Y</span>
       <span class="hud-yandex__text"><strong>Yandex</strong><small id="yandex-state">Taksi o'chiq — bosing</small></span>
     </button>
+    <button type="button" class="hud-drift" id="btn-drift" hidden aria-pressed="false" title="Drift (Shift)">
+      <strong>DRIFT</strong><small>Shift</small>
+    </button>
+    <button type="button" class="hud-drift hud-bus" id="btn-bus" hidden aria-pressed="false" title="Avtobus ishi">
+      <strong>AVTOBUS</strong><small>ish</small>
+    </button>
     <button type="button" class="hud-btn hud-poll" id="btn-poll" title="Haftalik mashina ovozi" aria-label="Haftalik mashina ovozi">{{ icon('vote', 22) }}</button>
     <button type="button" class="hud-online" id="btn-online" title="Odamlar — pul berish">
       {{ icon('users', 18) }} <span id="online-count">1</span>
@@ -73,6 +79,27 @@
     <div class="race-card__actions" id="race-actions" hidden>
       <button type="button" class="btn btn--primary" id="race-yes">Qabul</button>
       <button type="button" class="btn btn--ghost" id="race-no">Yo'q</button>
+    </div>
+    <button type="button" class="btn btn--ghost race-card__quit" id="race-quit" hidden>Chiqish</button>
+  </section>
+
+  <!-- Mahalla bayrami -->
+  <section class="race-card fest-card" id="fest-card" hidden aria-live="polite">
+    <span class="race-card__icon">{{ icon('megaphone', 20) }}</span>
+    <div class="race-card__text">
+      <strong id="fest-title"></strong>
+      <small id="fest-sub"></small>
+    </div>
+    <button type="button" class="btn btn--primary race-card__quit" id="fest-go">Yo'l</button>
+  </section>
+
+  <!-- Reys: boshqa shaharga uchish -->
+  <section class="flight-overlay" id="flight" hidden aria-live="polite">
+    <div class="flight-overlay__card">
+      <span class="flight-overlay__plane">{{ icon('plane', 34) }}</span>
+      <strong id="flight-title"></strong>
+      <div class="flight-overlay__bar"><span id="flight-fill"></span></div>
+      <small id="flight-sub"></small>
     </div>
   </section>
 
@@ -117,7 +144,7 @@
     <button type="button" class="dpad__btn dpad__btn--down" data-dir="down" tabindex="-1">{{ icon('chevron-down', 28) }}</button>
   </div>
 
-  <p class="hud-hint" id="hint">WASD — yurish · Probel — sakrash (Teslada — uchish) · E — mashina · F — yer/yo'lovchi · H — signal · M — katta xarita · Enter — chat · V — mikrofon (yoqish/o'chirish) · sichqoncha — kamera · Menyu — bank, klan, reyting, kiyim</p>
+  <p class="hud-hint" id="hint">WASD — yurish · Probel — sakrash (Teslada — uchish) · E — mashina · F — yer/yo'lovchi · H — signal · M — katta xarita · Enter — chat · V — mikrofon (yoqish/o'chirish) · sichqoncha — kamera · Shift / DRIFT — drift · Menyu — bank, klan, reyting, kiyim</p>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <div class="conn" id="conn" role="alert" hidden>{{ icon('alert', 18) }} Server bilan aloqa uzildi… qayta ulanmoqda</div>
   <div class="loading" id="loading">{{ icon('gamepad', 34) }}<span>Mahalla yuklanmoqda…</span></div>

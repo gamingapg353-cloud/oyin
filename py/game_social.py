@@ -6,9 +6,11 @@ Bank (omonat foiz bilan o'sadi) va kredit (qaytarish kerak), boylar reytingi, kl
 """
 import json
 import math
+import random
 import re
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
 
@@ -165,6 +167,8 @@ def api_bank_action():
     row, err = _change(db, key, change)
     if err:
         return err
+    if action == "deposit":
+        game.emit(db, key, "bank")
     return jsonify(bank=bank_json(db, row), economy=game.economy_json(db, row), **done)
 
 
@@ -255,12 +259,77 @@ def _clan_json(db, clan, people: dict, me: str) -> dict:
     }
 
 
+CLAN_INVITE_TTL = 24 * 3600
+_clan_invites: dict[str, dict] = {}   # kimga -> {clan_id: {"from": ism, "t": vaqt}}
+
+
+def _my_invites(key: str, now: float) -> dict:
+    inv = _clan_invites.get(key, {})
+    for cid in [c for c, v in inv.items() if now - v["t"] > CLAN_INVITE_TTL]:
+        inv.pop(cid)
+    return inv
+
+
 def _clans_response(db, me: str):
     people = _people(db)
     row = _row(db, me)
+    now = time.time()
     clans = [_clan_json(db, c, people, me) for c in db.execute("SELECT * FROM game_clans ORDER BY money DESC, id")]
-    return jsonify(clans=clans, my=row["clan"] if row else None, price=CLAN_PRICE, max=CLAN_MAX,
-                   colors=CLAN_COLORS, economy=game.economy_json(db, row))
+    by_id = {c["id"]: c for c in clans}
+    with game._lock:
+        mine = _my_invites(me, now)
+        invites = [{"clan": cid, "name": by_id[cid]["name"], "tag": by_id[cid]["tag"], "color": by_id[cid]["color"],
+                    "from": v["from"]} for cid, v in mine.items() if cid in by_id]
+        online = {k for k, p in game._live.items() if now - p["t"] < game.ONLINE_SECONDS}
+        my_clan = row["clan"] if row else None
+        candidates = []
+        leader = my_clan and by_id.get(my_clan, {}).get("leader") == me
+        if leader:
+            in_clan = {r["player_key"] for r in db.execute("SELECT player_key FROM game_players WHERE clan IS NOT NULL")}
+            candidates = [{"key": k, "name": p["name"], "avatar": p["avatar"], "online": k in online,
+                           "invited": my_clan in _my_invites(k, now)}
+                          for k, p in people.items() if k != me and k not in in_clan]
+            candidates.sort(key=lambda c: (not c["online"], c["name"].lower()))
+    return jsonify(clans=clans, my=my_clan, price=CLAN_PRICE, max=CLAN_MAX, invites=invites,
+                   candidates=candidates, colors=CLAN_COLORS, economy=game.economy_json(db, row))
+
+
+@bp.post("/api/game/clans/invite")
+@login_required
+def api_clan_invite():
+    """Klan boshlig'i odamni klanga taklif qiladi — u «Qabul» bossa a'zo bo'ladi."""
+    user = current_user()
+    me = game.player_key(user)
+    target = (request.get_json(silent=True) or {}).get("key")
+    db = get_db()
+    row = game.ensure_player(db, me)
+    clan = row["clan"] and db.execute("SELECT * FROM game_clans WHERE id = ?", (row["clan"],)).fetchone()
+    if not clan or clan["leader"] != me:
+        return jsonify(error="Faqat klan boshlig'i taklif qila oladi"), 403
+    person = _people(db).get(target) if isinstance(target, str) else None
+    if person is None or target == me:
+        return jsonify(error="Bunday odam yo'q"), 404
+    other = _row(db, target)
+    if other and other["clan"]:
+        return jsonify(error=f"{person['name']} boshqa klanda"), 400
+    count = db.execute("SELECT COUNT(*) FROM game_players WHERE clan = ?", (clan["id"],)).fetchone()[0]
+    if count >= CLAN_MAX:
+        return jsonify(error=f"Klan to'la ({CLAN_MAX} kishi)"), 400
+    with game._lock:
+        _clan_invites.setdefault(target, {})[clan["id"]] = {"from": user["name"], "t": time.time()}
+    _notify(target, f"{user['name']} sizni «{clan['name']}» klaniga taklif qildi! Menyu → Klanlar → Qabul")
+    return _clans_response(db, me)
+
+
+@bp.post("/api/game/clans/<int:clan_id>/decline")
+@login_required
+def api_clan_decline(clan_id: int):
+    me = game.player_key(current_user())
+    db = get_db()
+    game.ensure_player(db, me)
+    with game._lock:
+        _clan_invites.get(me, {}).pop(clan_id, None)
+    return _clans_response(db, me)
 
 
 @bp.get("/api/game/clans")
@@ -322,6 +391,8 @@ def api_clan_join(clan_id: int):
         return jsonify(error=f"Klan to'la ({CLAN_MAX} kishi)"), 400
     db.execute("UPDATE game_players SET clan = ? WHERE player_key = ?", (clan_id, me))
     db.commit()
+    with game._lock:
+        _clan_invites.pop(me, None)  # klanga kirdi — boshqa takliflar kerak emas
     return _clans_response(db, me)
 
 
@@ -598,6 +669,7 @@ def api_furniture_change(plot_id: int):
     rec, err = _my_built_plot(db, me, plot_id)
     if err:
         return err
+    done = {}
 
     def change(row, money):
         items = _load_items(db.execute("SELECT * FROM game_plots WHERE plot = ?", (plot_id,)).fetchone())
@@ -616,6 +688,7 @@ def api_furniture_change(plot_id: int):
             if money < f["price"]:
                 raise game.GameError("Pul yetarli emas")
             items.append(new)
+            done["furniture"] = True
             return -f["price"], save
         index = data.get("index")
         if not isinstance(index, int) or isinstance(index, bool) or not 0 <= index < len(items):
@@ -636,6 +709,8 @@ def api_furniture_change(plot_id: int):
     _, err = _change(db, me, change)
     if err:
         return err
+    if done.get("furniture"):
+        game.emit(db, me, "furniture")
     rec = db.execute("SELECT * FROM game_plots WHERE plot = ?", (plot_id,)).fetchone()
     return _room_json(db, rec, me)
 
@@ -645,7 +720,7 @@ def api_furniture_change(plot_id: int):
 # --------------------------------------------------------------------------- #
 RACE_INVITE_TTL = 30
 RACE_COUNTDOWN = 4
-RACE_TIMEOUT = 240
+RACE_TIMEOUT = 360
 RACE_FINISH_DIST = 120
 RACE_SHOW_RESULT = 8
 _invites: dict[str, dict] = {}   # kimga -> {from, name, bet, t}
@@ -687,6 +762,47 @@ def api_race_invite():
     return jsonify(ok=True, to=name)
 
 
+T = game.TRACK
+SECTORS = 8
+
+
+FINISH_X = T["cx"] - T["half"] + 200   # start/marra chizig'i (yuqori to'g'ri yo'lda)
+
+
+def _track_angle(x: float, y: float) -> float:
+    # Avval trassaning o'rta chizig'iga proyeksiya qilamiz: chegaralar yo'lga tik bo'lsin (ichki va tashqi qator teng)
+    dx, dy = x - T["cx"], y - T["cy"]
+    if abs(dx) <= T["half"]:
+        y = T["cy"] + (T["r"] if dy >= 0 else -T["r"])
+    else:
+        side = T["half"] if dx > 0 else -T["half"]
+        th = math.atan2(dy, dx - side)
+        x, y = T["cx"] + side + T["r"] * math.cos(th), T["cy"] + T["r"] * math.sin(th)
+    return math.atan2(y - T["cy"], (x - T["cx"]) * T["r"] / (T["half"] + T["r"]))
+
+
+def track_sector(x: float, y: float) -> int:
+    """Trassa atrofidagi bo'lak (0..7) — soat strelkasi bo'yicha (ekranda). 0-bo'lak marra chizig'idan boshlanadi."""
+    a = (_track_angle(x, y) - _track_angle(FINISH_X, T["cy"] - T["r"])) % (2 * math.pi)
+    return int(a / (2 * math.pi) * SECTORS) % SECTORS
+
+
+def on_track(x: float, y: float) -> bool:
+    dx, dy = abs(x - T["cx"]), y - T["cy"]
+    dist = abs(abs(dy) - T["r"]) if dx <= T["half"] else abs(math.hypot(dx - T["half"], dy) - T["r"])
+    return dist <= T["w"] / 2 + 40
+
+
+def start_spots() -> list:
+    """Start chizig'i: yuqori to'g'ri yo'lning chap qismi, mashinalar o'ngga qarab turadi."""
+    x = T["cx"] - T["half"] + 260
+    y = T["cy"] - T["r"]
+    return [(x, y - 40, 0.0), (x, y + 40, 0.0)]
+
+
+START_SECTOR = track_sector(*start_spots()[0][:2])
+
+
 def _race_json(key: str, now: float) -> dict | None:
     rid = _race_of.get(key)
     r = _races.get(rid) if rid else None
@@ -701,8 +817,20 @@ def _race_json(key: str, now: float) -> dict | None:
     result = None
     if r["winner"] is not None:
         result = "me" if r["winner"] == key else ("draw" if r["winner"] == "" else "opp")
-    return {"id": rid, "opp": r["names"][opp], "opp_key": opp, "bet": r["bet"], "fx": r["fx"], "fy": r["fy"],
+    return {"id": rid, "opp": r["names"][opp], "opp_key": opp, "bet": r["bet"], "track": True,
+            "laps": min(r["laps"][key], T["laps"]), "opp_laps": min(r["laps"][opp], T["laps"]), "total": T["laps"],
             "start_in": round(r["start"] - now, 2), "result": result}
+
+
+def _end_race(r: dict, winner: str, now: float) -> None:
+    """Poyga tugadi: ikkalasi ham trassadan oldingi joyiga qaytadi (lock ichida chaqiriladi)."""
+    r["winner"], r["ended"] = winner, now
+    for k in (r["a"], r["b"]):
+        game.RACE_AREA_KEYS.discard(k)
+        bx, by = r["back"][k]
+        game._teleports[k] = (bx, by, 0.0)
+        if k in game._live:
+            game._live[k].update(x=bx, y=by)
 
 
 @bp.post("/api/game/race/accept")
@@ -721,8 +849,8 @@ def api_race_accept():
             return jsonify(error="Raqib o'yindan chiqib ketdi"), 400
         if _in_race(me) or _in_race(inv["from"]):
             return jsonify(error="Kimdir allaqachon poygada"), 400
-        mid = ((a["x"] + b["x"]) / 2, (a["y"] + b["y"]) / 2)
         names = {inv["from"]: a["name"], me: b["name"]}
+        back = {inv["from"]: (a["x"], a["y"]), me: (b["x"], b["y"])}
     bet = inv["bet"]
     if bet:
         with game._econ_lock:
@@ -735,23 +863,22 @@ def api_race_accept():
             for k in rows:
                 db.execute("UPDATE game_players SET money = ?, income_at = ? WHERE player_key = ?", (cash[k] - bet, now, k))
             db.commit()
-    # Marra — ikkalasining o'rtasidan 1400–2600 birlik uzoqda, yo'l chetida
+    # Ikkalasi ham o'rmondagi poyga trassasining start chizig'iga ko'chiriladi
     with game._lock:
-        best = None
-        for _ in range(300):
-            x, y = game._sidewalk_spot()
-            d = math.hypot(x - mid[0], y - mid[1])
-            if 1400 <= d <= 2600:
-                best = (x, y)
-                break
-            if best is None or abs(d - 2000) < abs(math.hypot(best[0] - mid[0], best[1] - mid[1]) - 2000):
-                best = (x, y)
         rid = next(_race_ids)
-        _races[rid] = {"a": inv["from"], "b": me, "names": names, "bet": bet, "fx": best[0], "fy": best[1],
+        spots = start_spots()
+        racers = (inv["from"], me)
+        _races[rid] = {"a": inv["from"], "b": me, "names": names, "bet": bet, "back": back,
+                       "laps": {k: 0 for k in racers}, "sector": {k: START_SECTOR for k in racers},
                        "start": now + RACE_COUNTDOWN, "winner": None, "ended": 0}
-        _race_of[inv["from"]] = rid
-        _race_of[me] = rid
+        for k, spot in zip(racers, spots):
+            _race_of[k] = rid
+            game.RACE_AREA_KEYS.add(k)
+            game._teleports[k] = spot
+            if k in game._live:
+                game._live[k].update(x=spot[0], y=spot[1], dir=spot[2], t=now)
         race = _race_json(me, now)
+        race["spot"] = spots[1]
     row = _row(db, me)
     return jsonify(race=race, economy=game.economy_json(db, row))
 
@@ -768,8 +895,30 @@ def api_race_decline():
     return jsonify(ok=True)
 
 
+@bp.post("/api/game/race/quit")
+@login_required
+def api_race_quit():
+    """Poygadan chiqish — raqib yutadi."""
+    me = game.player_key(current_user())
+    db = get_db()
+    pay = None
+    with game._lock:
+        rid = _race_of.get(me)
+        r = _races.get(rid) if rid else None
+        if not r or r["winner"] is not None:
+            return jsonify(error="Siz poygada emassiz"), 400
+        opp = r["b"] if me == r["a"] else r["a"]
+        _end_race(r, opp, time.time())
+        pay = (opp, r["bet"] * 2)
+    if pay[1]:
+        add_money(db, *pay)
+    _notify(opp, "Raqibingiz poygadan chiqdi — siz yutdingiz!")
+    return jsonify(ok=True)
+
+
 def _race_hook(db, key: str, row, now: float, response: dict) -> None:
     pay = []
+    wins = []
     with game._lock:
         inv = _invites.get(key)
         if inv and now - inv["t"] > RACE_INVITE_TTL:
@@ -781,16 +930,30 @@ def _race_hook(db, key: str, row, now: float, response: dict) -> None:
         r = _races.get(rid) if rid else None
         if r and r["winner"] is None:
             me = game._live.get(key)
-            if now >= r["start"] and me and math.hypot(me["x"] - r["fx"], me["y"] - r["fy"]) <= RACE_FINISH_DIST:
-                r["winner"], r["ended"] = key, now
-                pay.append((key, r["bet"] * 2))
+            if now >= r["start"] and me and key not in game._teleports and on_track(me["x"], me["y"]):
+                # Aylanani hisoblash: bo'laklar tartib bilan o'tilishi kerak
+                ns, cur = track_sector(me["x"], me["y"]), r["sector"][key]
+                if ns == (cur + 1) % SECTORS:
+                    r["sector"][key] = ns
+                    if ns == START_SECTOR:
+                        r["laps"][key] += 1
+                elif ns == (cur - 1) % SECTORS:
+                    r["sector"][key] = ns
+                    if cur == START_SECTOR:
+                        r["laps"][key] -= 1  # orqaga yurib start chizig'idan o'tdi
+                if r["laps"][key] >= T["laps"]:
+                    _end_race(r, key, now)
+                    pay.append((key, r["bet"] * 2))
+                    wins.append(key)
             elif now - r["start"] > RACE_TIMEOUT:
-                r["winner"], r["ended"] = "", now  # hech kim yetib kelmadi — pul qaytadi
+                _end_race(r, "", now)  # hech kim tugatmadi — pul qaytadi
                 pay += [(r["a"], r["bet"]), (r["b"], r["bet"])]
         response["race"] = _race_json(key, now)
     for k, amount in pay:
         if amount:
             add_money(db, k, amount)
+    for k in wins:
+        game.emit(db, k, "race_win")
     if pay:
         response["economy"] = game.economy_json(db, _row(db, key))
 
@@ -803,6 +966,16 @@ BALL_KICK = 560
 BALL_KICK_CAR = 820
 BALL_REACH = 100        # tarmoq kechikishi: serverdagi joy bir oz orqada qolishi mumkin
 _ball_lock = threading.Lock()
+_goal_queue: list = []   # gol urganlar (kunlik vazifa uchun)
+
+
+def db_or_none():
+    return get_db()
+
+
+def _flush_goals(db) -> None:
+    while _goal_queue:
+        game.emit(db, _goal_queue.pop(0), "goal")
 F = game.FIELD
 _ball = {"x": F["x"] + F["w"] / 2, "y": F["y"] + F["h"] / 2, "vx": 0.0, "vy": 0.0, "t": time.time(),
          "score": [0, 0], "goal": 0, "goal_by": "", "goal_side": "", "last": ""}
@@ -832,6 +1005,8 @@ def _advance_ball(now: float) -> None:
                     side = "right" if _ball[axis] < lo else "left"  # chap darvozaga kirsa — o'ngdagilar gol urdi
                     _ball["score"][0 if side == "left" else 1] += 1
                     _ball.update(goal=_ball["goal"] + 1, goal_by=_ball["last"], goal_side=side)
+                    if _ball.get("last_key"):
+                        _goal_queue.append(_ball["last_key"])
                     _ball_center()
                     return
                 _ball[axis] = min(max(_ball[axis], lo), hi)
@@ -867,8 +1042,10 @@ def api_ball_kick():
         if p is None or math.hypot(p["x"] - _ball["x"], p["y"] - _ball["y"]) > BALL_REACH:
             return jsonify(error="To'pga yaqinroq boring", ball=_ball_json()), 400
         speed = BALL_KICK_CAR if p["car"] else BALL_KICK
-        _ball.update(vx=dx / length * speed, vy=dy / length * speed, last=user["name"])
-        return jsonify(ball=_ball_json())
+        _ball.update(vx=dx / length * speed, vy=dy / length * speed, last=user["name"], last_key=me)
+        out = _ball_json()
+    _flush_goals(db_or_none())
+    return jsonify(ball=out)
 
 
 def _ball_hook(db, key: str, row, now: float, response: dict) -> None:
@@ -878,6 +1055,7 @@ def _ball_hook(db, key: str, row, now: float, response: dict) -> None:
     with _ball_lock:
         _advance_ball(now)
         response["ball"] = _ball_json()
+    _flush_goals(db)
 
 
 def _bank_hook(db, key: str, row, now: float, response: dict) -> None:
@@ -887,7 +1065,12 @@ def _bank_hook(db, key: str, row, now: float, response: dict) -> None:
 def _forget(db, key: str) -> None:
     _leave_clan(db, key)
     with game._lock:
+        _bus.pop(key, None)
+        _flights.pop(key, None)
+        game.RACE_AREA_KEYS.discard(key)
+        game._teleports.pop(key, None)
         _invites.pop(key, None)
+        _clan_invites.pop(key, None)
 
 
 
@@ -1038,9 +1221,472 @@ def api_challenge_submit():
     db.commit()
     if cur.rowcount:
         add_money(db, key, c["reward"])
+        game.emit(db, key, "code")
     _pick_challenge(key, _solved(db, key))
     return _challenge_json(db, key, result={"passed": True, "feedback": result.feedback, "mistakes": [],
                                             "reward": c["reward"], "title": c["title"]})
 
-game.SYNC_HOOKS.extend([_bank_hook, _race_hook, _ball_hook])
+
+# --------------------------------------------------------------------------- #
+#  Garaj: mashinani bo'yash, tezlikni oshirish, neon chiroq
+# --------------------------------------------------------------------------- #
+PAINT_PRICE = 5000
+NEON_PRICE = 15000
+PAINT_COLORS = ["#dc2626", "#f97316", "#facc15", "#16a34a", "#14b8a6", "#2563eb", "#7c3aed", "#ec4899",
+                "#f8fafc", "#9ca3af", "#111827", "#78350f"]
+NEON_COLORS = ["#22d3ee", "#a855f7", "#22c55e", "#f43f5e", "#facc15", "#3b82f6"]
+
+
+def speed_price(car_id: str, level: int) -> int:
+    """level — keyingi daraja (1..3): mashina narxining 20% × daraja."""
+    return max(5000, int(game.CARS_BY_ID[car_id]["price"] * 0.2 * level))
+
+
+def _garage_json(db, key: str):
+    row = _row(db, key)
+    tuning = game.player_tuning(row)
+    cars = []
+    for cid in json.loads(row["cars"]):
+        if cid not in game.CARS_BY_ID:
+            continue
+        t = tuning.get(cid, {})
+        lvl = int(t.get("speed", 0) or 0)
+        cars.append({"id": cid, "name": game.CARS_BY_ID[cid]["name"], "color": t.get("color"), "neon": t.get("neon"),
+                     "speed": lvl, "next_price": speed_price(cid, lvl + 1) if lvl < game.TUNE_MAX_SPEED else None})
+    return jsonify(cars=cars, tuning=tuning, colors=PAINT_COLORS, neons=NEON_COLORS, paint_price=PAINT_PRICE,
+                   neon_price=NEON_PRICE, step=game.TUNE_SPEED_STEP, max=game.TUNE_MAX_SPEED,
+                   economy=game.economy_json(db, row))
+
+
+@bp.get("/api/game/garage")
+@login_required
+def api_garage():
+    key = game.player_key(current_user())
+    db = get_db()
+    game.ensure_player(db, key)
+    return _garage_json(db, key)
+
+
+@bp.post("/api/game/garage")
+@login_required
+def api_garage_change():
+    key = game.player_key(current_user())
+    data = request.get_json(silent=True) or {}
+    car, action, value = data.get("car"), data.get("action"), data.get("value")
+    db = get_db()
+    game.ensure_player(db, key)
+
+    def change(row, money):
+        if car not in json.loads(row["cars"]):
+            raise game.GameError("Bu mashina sizda yo'q")
+        tuning = game.player_tuning(row)
+        t = dict(tuning.get(car, {}))
+        if action == "paint":
+            if value not in PAINT_COLORS:
+                raise game.GameError("Rangni tanlang")
+            price = PAINT_PRICE
+            t["color"] = value
+        elif action == "neon":
+            if value == "":
+                price = 0
+                t.pop("neon", None)
+            elif value in NEON_COLORS:
+                price = NEON_PRICE
+                t["neon"] = value
+            else:
+                raise game.GameError("Neon rangini tanlang")
+        elif action == "speed":
+            lvl = int(t.get("speed", 0) or 0)
+            if lvl >= game.TUNE_MAX_SPEED:
+                raise game.GameError("Tezlik eng yuqori darajada")
+            price = speed_price(car, lvl + 1)
+            t["speed"] = lvl + 1
+        else:
+            raise game.GameError("Noma'lum amal")
+        if money < price:
+            raise game.GameError("Pul yetarli emas")
+        tuning[car] = t
+        return -price, lambda: db.execute("UPDATE game_players SET tuning = ? WHERE player_key = ?",
+                                          (json.dumps(tuning), key))
+
+    _, err = _change(db, key, change)
+    return err or _garage_json(db, key)
+
+
+# --------------------------------------------------------------------------- #
+#  Avtobus ishi: bekatdan bekatga, har bekatda yo'lovchilar pul to'laydi
+# --------------------------------------------------------------------------- #
+BUS_STOP_DIST = 150
+BUS_TICKET = 500             # bitta yo'lovchi
+BUS_LOOP_BONUS = 10000       # butun aylanani yurib chiqsangiz
+_bus: dict[str, dict] = {}   # o'yinchi -> {next, t, stops}
+
+
+def _bus_car(key: str, now: float):
+    p = game._live_pos(key, now)
+    car = game.CARS_BY_ID.get(p["car"]) if p and p["car"] else None
+    return p, (car if car and car.get("style") == "bus" else None)
+
+
+@bp.post("/api/game/bus/start")
+@login_required
+def api_bus_start():
+    key = game.player_key(current_user())
+    now = time.time()
+    with game._lock:
+        p, bus = _bus_car(key, now)
+        if not bus:
+            return jsonify(error="Avtobus ishi uchun Avtobusga o'tiring (Avtosalonda sotiladi)"), 400
+        stops = game.BUS_STOPS
+        nearest = min(range(len(stops)), key=lambda i: math.hypot(stops[i]["x"] - p["x"], stops[i]["y"] - p["y"]))
+        _bus[key] = {"next": nearest, "t": now, "done": 0, "waiting": random.randint(2, 8)}
+        return jsonify(bus=_bus_json(key))
+
+
+@bp.post("/api/game/bus/stop")
+@login_required
+def api_bus_stop():
+    """Avtobus navbatdagi bekatga yetib keldi — yo'lovchilar tushadi va pul to'laydi."""
+    key = game.player_key(current_user())
+    now = time.time()
+    with game._lock:
+        job = _bus.get(key)
+        p, bus = _bus_car(key, now)
+        if not job:
+            return jsonify(error="Avval avtobus ishini boshlang"), 400
+        if not bus:
+            return jsonify(error="Avtobusda bo'lish kerak"), 400
+        stop = game.BUS_STOPS[job["next"]]
+        if math.hypot(stop["x"] - p["x"], stop["y"] - p["y"]) > BUS_STOP_DIST + 40:
+            return jsonify(error="Bekatga hali yetmadingiz"), 400
+        people = job["waiting"]
+        earned = people * int(BUS_TICKET * bus["fare"])
+        job["done"] += 1
+        bonus = 0
+        if job["done"] % len(game.BUS_STOPS) == 0:
+            bonus = BUS_LOOP_BONUS
+        job.update(next=(job["next"] + 1) % len(game.BUS_STOPS), t=now, waiting=random.randint(2, 8))
+        out = _bus_json(key)
+    db = get_db()
+    add_money(db, key, earned + bonus)
+    game.emit(db, key, "bus")
+    return jsonify(bus=out, earned=earned, bonus=bonus, people=people, economy=game.economy_json(db, _row(db, key)))
+
+
+@bp.post("/api/game/bus/end")
+@login_required
+def api_bus_end():
+    key = game.player_key(current_user())
+    with game._lock:
+        _bus.pop(key, None)
+    return jsonify(ok=True)
+
+
+def _bus_json(key: str) -> dict | None:
+    job = _bus.get(key)
+    if not job:
+        return None
+    return {"next": job["next"], "stop": game.BUS_STOPS[job["next"]], "waiting": job["waiting"],
+            "done": job["done"], "total": len(game.BUS_STOPS), "ticket": BUS_TICKET, "bonus": BUS_LOOP_BONUS}
+
+
+# --------------------------------------------------------------------------- #
+#  Aeroport: samolyotda boshqa shaharga reys
+# --------------------------------------------------------------------------- #
+FLIGHTS = [
+    {"id": "samarqand", "name": "Samarqand", "seconds": 30, "reward": 30000},
+    {"id": "buxoro", "name": "Buxoro", "seconds": 45, "reward": 50000},
+    {"id": "xiva", "name": "Xiva", "seconds": 60, "reward": 75000},
+    {"id": "dubay", "name": "Dubay", "seconds": 90, "reward": 150000},
+    {"id": "istanbul", "name": "Istanbul", "seconds": 120, "reward": 220000},
+]
+FLIGHTS_BY_ID = {f["id"]: f for f in FLIGHTS}
+GATE_DIST = 320
+_flights: dict[str, dict] = {}
+
+
+def _flight_json(key: str, now: float) -> dict | None:
+    f = _flights.get(key)
+    if not f:
+        return None
+    return {"dest": f["dest"], "name": FLIGHTS_BY_ID[f["dest"]]["name"], "left": max(0, round(f["ends"] - now, 1)),
+            "seconds": FLIGHTS_BY_ID[f["dest"]]["seconds"], "reward": FLIGHTS_BY_ID[f["dest"]]["reward"]}
+
+
+@bp.get("/api/game/flights")
+@login_required
+def api_flights():
+    key = game.player_key(current_user())
+    with game._lock:
+        return jsonify(flights=FLIGHTS, current=_flight_json(key, time.time()))
+
+
+@bp.post("/api/game/flight/start")
+@login_required
+def api_flight_start():
+    key = game.player_key(current_user())
+    dest = FLIGHTS_BY_ID.get((request.get_json(silent=True) or {}).get("dest"))
+    if dest is None:
+        return jsonify(error="Qayerga uchishni tanlang"), 400
+    now = time.time()
+    with game._lock:
+        if key in _flights:
+            return jsonify(error="Siz allaqachon reysdasiz"), 400
+        p = game._live_pos(key, now)
+        car = game.CARS_BY_ID.get(p["car"]) if p and p["car"] else None
+        if not car or car.get("style") != "plane":
+            return jsonify(error="Reys uchun samolyotda bo'lish kerak"), 400
+        gate = game.AIRPORT["gate"]
+        if math.hypot(gate["x"] - p["x"], gate["y"] - p["y"]) > GATE_DIST:
+            return jsonify(error="Aeroportga boring — reyslar terminal oldidan uchadi"), 400
+        _flights[key] = {"dest": dest["id"], "ends": now + dest["seconds"]}
+        return jsonify(flight=_flight_json(key, now))
+
+
+@bp.post("/api/game/flight/land")
+@login_required
+def api_flight_land():
+    key = game.player_key(current_user())
+    now = time.time()
+    with game._lock:
+        f = _flights.get(key)
+        if not f:
+            return jsonify(error="Siz reysda emassiz"), 400
+        if now < f["ends"] - 0.5:
+            return jsonify(error="Hali uchyapsiz", flight=_flight_json(key, now)), 400
+        _flights.pop(key)
+        dest = FLIGHTS_BY_ID[f["dest"]]
+    db = get_db()
+    add_money(db, key, dest["reward"])
+    game.emit(db, key, "flight")
+    return jsonify(reward=dest["reward"], name=dest["name"], economy=game.economy_json(db, _row(db, key)))
+
+
+# --------------------------------------------------------------------------- #
+#  Kunlik vazifalar
+# --------------------------------------------------------------------------- #
+DAILY = [
+    {"id": "taxi", "text": "3 ta yo'lovchini taksida manziliga yetkazing", "need": 3, "reward": 20000},
+    {"id": "race_win", "text": "Poygada 1 marta yuting", "need": 1, "reward": 40000},
+    {"id": "goal", "text": "Futbolda 1 ta gol uring", "need": 1, "reward": 25000},
+    {"id": "bus", "text": "Avtobusda 5 ta bekatga yeting", "need": 5, "reward": 30000},
+    {"id": "flight", "text": "Samolyotda 1 ta reys uching", "need": 1, "reward": 40000},
+    {"id": "floor", "text": "2 ta yangi qavat quring", "need": 2, "reward": 30000},
+    {"id": "code", "text": "1 ta kod chellenjini bajaring", "need": 1, "reward": 40000},
+    {"id": "furniture", "text": "Uyingizga 2 ta mebel qo'ying", "need": 2, "reward": 15000},
+    {"id": "bank", "text": "Bankka pul qo'ying", "need": 1, "reward": 10000},
+    {"id": "spin", "text": "Omad g'ildiragini aylantiring", "need": 1, "reward": 5000},
+]
+DAILY_BY_ID = {d["id"]: d for d in DAILY}
+DAILY_COUNT = 3
+DAILY_BONUS = 50000
+TASHKENT = timezone(timedelta(hours=5))
+
+
+def today() -> str:
+    return datetime.now(TASHKENT).date().isoformat()
+
+
+def _daily_state(row) -> dict:
+    day = today()
+    try:
+        st = json.loads(row["daily"] or "{}")
+    except (ValueError, TypeError):
+        st = {}
+    if not isinstance(st, dict) or st.get("day") != day:
+        rnd = random.Random(f"{row['player_key']}|{day}")
+        st = {"day": day, "tasks": rnd.sample([d["id"] for d in DAILY], DAILY_COUNT), "p": {}, "claimed": [],
+              "bonus": False}
+    return st
+
+
+def _save_daily(db, key: str, st: dict) -> None:
+    db.execute("UPDATE game_players SET daily = ? WHERE player_key = ?", (json.dumps(st), key))
+    db.commit()
+
+
+def daily_progress(db, key: str, kind: str, n: int = 1) -> None:
+    row = _row(db, key)
+    if row is None or n <= 0:
+        return
+    st = _daily_state(row)
+    if kind not in st["tasks"]:
+        return
+    need = DAILY_BY_ID[kind]["need"]
+    before = st["p"].get(kind, 0)
+    st["p"][kind] = min(need, before + n)
+    _save_daily(db, key, st)
+    if before < need <= st["p"][kind]:
+        _notify(key, f"Kunlik vazifa bajarildi: {DAILY_BY_ID[kind]['text']}! Menyu → Kunlik vazifalar → mukofotni oling")
+
+
+def _daily_json(db, key: str):
+    row = _row(db, key)
+    st = _daily_state(row)
+    tasks = [{**DAILY_BY_ID[t], "done": st["p"].get(t, 0), "claimed": t in st["claimed"]} for t in st["tasks"]]
+    return jsonify(day=st["day"], tasks=tasks, bonus=DAILY_BONUS, bonus_claimed=st["bonus"],
+                   economy=game.economy_json(db, row))
+
+
+@bp.get("/api/game/daily")
+@login_required
+def api_daily():
+    key = game.player_key(current_user())
+    db = get_db()
+    game.ensure_player(db, key)
+    return _daily_json(db, key)
+
+
+@bp.post("/api/game/daily/claim")
+@login_required
+def api_daily_claim():
+    key = game.player_key(current_user())
+    tid = (request.get_json(silent=True) or {}).get("id")
+    db = get_db()
+    game.ensure_player(db, key)
+    with game._econ_lock:
+        st = _daily_state(_row(db, key))
+        if tid == "bonus":
+            if st["bonus"] or len(st["claimed"]) < len(st["tasks"]):
+                return jsonify(error="Avval hamma vazifalarni bajarib, mukofotini oling"), 400
+            st["bonus"] = True
+            reward = DAILY_BONUS
+        else:
+            if tid not in st["tasks"]:
+                return jsonify(error="Bunday vazifa yo'q"), 400
+            if tid in st["claimed"]:
+                return jsonify(error="Mukofot olingan"), 400
+            if st["p"].get(tid, 0) < DAILY_BY_ID[tid]["need"]:
+                return jsonify(error="Vazifa hali bajarilmagan"), 400
+            st["claimed"].append(tid)
+            reward = DAILY_BY_ID[tid]["reward"]
+        db.execute("UPDATE game_players SET daily = ? WHERE player_key = ?", (json.dumps(st), key))
+        db.commit()
+    add_money(db, key, reward)
+    return _daily_json(db, key)
+
+
+# --------------------------------------------------------------------------- #
+#  Omad g'ildiragi: kuniga bir marta bepul
+# --------------------------------------------------------------------------- #
+WHEEL = [5000, 10000, 25000, 5000, 50000, 10000, 100000, 25000, 250000, 1000000]
+WHEEL_WEIGHTS = [22, 18, 12, 22, 8, 18, 5, 12, 2, 0.5]
+
+
+@bp.get("/api/game/spin")
+@login_required
+def api_spin_state():
+    key = game.player_key(current_user())
+    db = get_db()
+    row = game.ensure_player(db, key)
+    return jsonify(prizes=WHEEL, ready=row["spin_day"] != today())
+
+
+@bp.post("/api/game/spin")
+@login_required
+def api_spin():
+    key = game.player_key(current_user())
+    db = get_db()
+    game.ensure_player(db, key)
+    day = today()
+    with game._econ_lock:
+        row = _row(db, key)
+        if row["spin_day"] == day:
+            return jsonify(error="Bugun aylantirdingiz — ertaga yana keling!"), 400
+        db.execute("UPDATE game_players SET spin_day = ? WHERE player_key = ?", (day, key))
+        db.commit()
+    index = random.choices(range(len(WHEEL)), weights=WHEEL_WEIGHTS)[0]
+    add_money(db, key, WHEEL[index])
+    game.emit(db, key, "spin")
+    return jsonify(index=index, prize=WHEEL[index], prizes=WHEEL, economy=game.economy_json(db, _row(db, key)))
+
+
+# --------------------------------------------------------------------------- #
+#  Mahalla bayrami: owner boshlaydi — belgilangan joyga kelganlar sovg'a oladi
+# --------------------------------------------------------------------------- #
+def _fest_places() -> dict:
+    f, fl, sh = game.FOUNTAIN, game.FIELD, game.SHOP
+    return {
+        "fountain": {"name": "Favvora (bog')", "x": f["x"] + f["w"] / 2, "y": f["y"] + f["h"] + 60},
+        "field": {"name": "Futbol maydoni", "x": fl["x"] + fl["w"] / 2, "y": fl["y"] + fl["h"] / 2},
+        "shop": {"name": "Avtosalon oldi", "x": sh["door"]["x"], "y": sh["door"]["y"] + 40},
+        "airport": {"name": "Aeroport", "x": game.AIRPORT["gate"]["x"], "y": game.AIRPORT["gate"]["y"]},
+    }
+
+
+FEST_RADIUS = 260
+_fest: dict = {}
+
+
+@bp.post("/api/game/fest/start")
+@login_required
+def api_fest_start():
+    user = current_user()
+    if user["role"] != "owner":
+        return jsonify(error="Bayramni faqat owner boshlaydi"), 403
+    data = request.get_json(silent=True) or {}
+    place = _fest_places().get(data.get("place"))
+    prize = _amount(data.get("prize"))
+    minutes = data.get("minutes")
+    if place is None:
+        return jsonify(error="Joyni tanlang"), 400
+    if prize is None or prize > 10 ** 9:
+        return jsonify(error="Sovg'a summasini yozing"), 400
+    if isinstance(minutes, bool) or not isinstance(minutes, int) or not 1 <= minutes <= 30:
+        return jsonify(error="Davomiyligi 1–30 daqiqa"), 400
+    now = time.time()
+    with game._lock:
+        _fest.clear()
+        _fest.update(id=int(now), place=data["place"], name=place["name"], x=place["x"], y=place["y"], prize=prize,
+                     ends=now + minutes * 60, claimed=set())
+        msg = {"id": next(game._msg_ids), "key": "owner", "name": "📢 Bayram", "avatar": None, "t": now,
+               "text": f"Mahalla bayrami boshlandi! {place['name']}ga {minutes} daqiqa ichida keling — har kimga {prize:,} so'm!".replace(",", " ")}
+        game._chat.append(msg)
+    return jsonify(fest=_fest_json("owner", now))
+
+
+@bp.post("/api/game/fest/stop")
+@login_required
+def api_fest_stop():
+    if current_user()["role"] != "owner":
+        return jsonify(error="Faqat owner"), 403
+    with game._lock:
+        _fest.clear()
+    return jsonify(ok=True)
+
+
+@bp.get("/api/game/fest")
+@login_required
+def api_fest():
+    return jsonify(places=[{"id": k, **v} for k, v in _fest_places().items()],
+                   fest=_fest_json(game.player_key(current_user()), time.time()))
+
+
+def _fest_json(key: str, now: float) -> dict | None:
+    if not _fest or now > _fest["ends"]:
+        return None
+    return {"id": _fest["id"], "name": _fest["name"], "x": _fest["x"], "y": _fest["y"], "prize": _fest["prize"],
+            "left": round(_fest["ends"] - now), "claimed": key in _fest["claimed"], "count": len(_fest["claimed"])}
+
+
+def _fest_hook(db, key: str, row, now: float, response: dict) -> None:
+    paid = 0
+    with game._lock:
+        fest = _fest_json(key, now)
+        if fest and not fest["claimed"] and key != "owner":
+            me = game._live.get(key)
+            if me and math.hypot(me["x"] - _fest["x"], me["y"] - _fest["y"]) <= FEST_RADIUS:
+                _fest["claimed"].add(key)
+                paid = _fest["prize"]
+                fest = _fest_json(key, now)
+        response["fest"] = fest
+        response["bus"] = _bus_json(key)
+        response["flight"] = _flight_json(key, now)
+    if paid:
+        add_money(db, key, paid)
+        response["fest_paid"] = paid
+        response["economy"] = game.economy_json(db, _row(db, key))
+
+game.SYNC_HOOKS.extend([_bank_hook, _race_hook, _ball_hook, _fest_hook])
+game.EVENT_HOOKS.append(daily_progress)
 game.FORGET_HOOKS.append(_forget)
