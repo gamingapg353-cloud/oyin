@@ -2,6 +2,7 @@
 kafe oshxonasi (restoran biznesi) va haftalik avtopoyga chempionati.
 """
 import json
+import math
 import random
 import time
 from datetime import datetime, timedelta
@@ -473,6 +474,130 @@ def _life_hook(db, key: str, row, now: float, response: dict) -> None:
 
 
 game.SYNC_HOOKS.append(_life_hook)
+
+
+# --------------------------------------------------------------------------- #
+#  O'rgimchak odam: shaharda kichkina o'rgimchak yashiringan. Topgan odamni chaqadi —
+#  u o'rgimchak odamga aylanadi (tomlarga chiqadi, to'r otib uchadi). Keyin o'rgimchak
+#  boshqa joyga yashirinadi.
+# --------------------------------------------------------------------------- #
+SPIDER_SPOTS = [  # ko'zga tashlanmaydigan burchaklar
+    {"x": 45, "y": 45}, {"x": 3330, "y": 40}, {"x": 6680, "y": 45}, {"x": 45, "y": 3755},
+    {"x": 3300, "y": 3760}, {"x": 6675, "y": 3750}, {"x": 6680, "y": 1880}, {"x": 40, "y": 2240},
+    {"x": 1760, "y": -1250}, {"x": 3350, "y": -1240}, {"x": 2620, "y": -1270}, {"x": 6680, "y": 4150},
+]
+SPIDER_SEE = 420     # shundan yaqin kelganda o'rgimchak ko'rinadi
+SPIDER_REACH = 80    # shundan yaqin bo'lsa ushlab olsa bo'ladi
+_spider = {"spot": random.randrange(len(SPIDER_SPOTS))}
+
+
+def _spider_pos() -> dict:
+    return SPIDER_SPOTS[_spider["spot"]]
+
+
+@bp.post("/api/game/spider/catch")
+@login_required
+def api_spider_catch():
+    user = current_user()
+    key = game.player_key(user)
+    db = get_db()
+    row = game.ensure_player(db, key)
+    if row["spider"]:
+        return jsonify(error="Siz allaqachon o'rgimchak odamsiz 🕷️"), 400
+    pos = _spider_pos()
+    if not gf._near(key, pos["x"], pos["y"], SPIDER_REACH):
+        return jsonify(error="O'rgimchak yaqinida emassiz"), 400
+    db.execute("UPDATE game_players SET spider = 1 WHERE player_key = ?", (key,))
+    db.commit()
+    with game._lock:
+        # o'rgimchak boshqa joyga qochib yashirinadi
+        _spider["spot"] = random.choice([i for i in range(len(SPIDER_SPOTS)) if i != _spider["spot"]])
+        game._chat.append({"id": next(game._msg_ids), "key": "owner", "name": "🕷️ O'rgimchak", "avatar": None, "t": time.time(),
+                           "text": f"{user['name']}ni o'rgimchak chaqdi — endi u o'rgimchak odam! O'rgimchak yana yashirindi…"})
+    return jsonify(ok=True, spider=True)
+
+
+@bp.post("/api/game/spider/off")
+@login_required
+def api_spider_off():
+    """Kuchdan voz kechish (oddiy odamga qaytish)."""
+    key = _me()
+    db = get_db()
+    db.execute("UPDATE game_players SET spider = 0 WHERE player_key = ?", (key,))
+    db.commit()
+    return jsonify(ok=True, spider=False)
+
+
+def _spider_hook(db, key: str, row, now: float, response: dict) -> None:
+    response["spider_me"] = bool(row["spider"])
+    pos = _spider_pos()
+    p = game._live.get(key)
+    # Faqat yaqin kelganda yuboriladi — tarmoqdan qidirib topib bo'lmaydi
+    response["spider_bug"] = dict(pos) if p and math.hypot(p["x"] - pos["x"], p["y"] - pos["y"]) <= SPIDER_SEE else None
+
+
+game.SYNC_HOOKS.append(_spider_hook)
+
+
+# --------------------------------------------------------------------------- #
+#  Dron: tepadan shaharni ko'rish va surat olish
+# --------------------------------------------------------------------------- #
+DRONE_PRICE = 50000
+
+
+@bp.post("/api/game/drone")
+@login_required
+def api_drone_buy():
+    key = _me()
+    db = get_db()
+    game.ensure_player(db, key)
+
+    def change(row, money):
+        if row["drone"]:
+            raise game.GameError("Dron sizda bor")
+        if money < DRONE_PRICE:
+            raise game.GameError("Pul yetarli emas")
+        return -DRONE_PRICE, lambda: db.execute("UPDATE game_players SET drone = 1 WHERE player_key = ?", (key,))
+
+    _, err = gs._change(db, key, change)
+    return err or jsonify(drone=True, economy=gf._econ(db, key))
+
+
+# --------------------------------------------------------------------------- #
+#  Kosmik raketa: kosmodromdan Oyga sayohat (eng boylar uchun)
+# --------------------------------------------------------------------------- #
+@bp.post("/api/game/rocket")
+@login_required
+def api_rocket():
+    user = current_user()
+    key = game.player_key(user)
+    db = get_db()
+    game.ensure_player(db, key)
+    pad = game.ROCKET
+    if not gf._near(key, pad["x"], pad["y"], 220):
+        return jsonify(error="Kosmodromga boring (aeroportning janubida)"), 400
+
+    def change(row, money):
+        if money < pad["price"]:
+            raise game.GameError(f"Oyga sayohat {_money(pad['price'])} so'm turadi")
+        return -pad["price"], lambda: db.execute("UPDATE game_players SET moon = moon + 1 WHERE player_key = ?", (key,))
+
+    row, err = gs._change(db, key, change)
+    if err:
+        return err
+    times = gs._row(db, key)["moon"]
+    with game._lock:
+        game._chat.append({"id": next(game._msg_ids), "key": "owner", "name": "🚀 Kosmodrom", "avatar": None, "t": time.time(),
+                           "text": f"{user['name']} Oyga uchdi! 🌕 ({times}-marta)"})
+    return jsonify(ok=True, times=times, economy=gf._econ(db, key))
+
+
+def _extras_hook(db, key: str, row, now: float, response: dict) -> None:
+    response["drone"] = bool(row["drone"])
+    response["moon"] = row["moon"]
+
+
+game.SYNC_HOOKS.append(_extras_hook)
 
 
 SCHEMA = """

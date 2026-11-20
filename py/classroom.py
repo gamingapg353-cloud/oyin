@@ -73,6 +73,52 @@ def primary_device(db, user_key: str) -> str | None:
     return row["device"] if row else None
 
 
+BLOCK_MSG = ("Bu akkaunt boshqa qurilmaga tegishli. Ustoz «O'zining akkaunti» deb ruxsat bermaguncha "
+             "bu qurilmadan kira olmaysiz.")
+ALERT_EVERY = 10 * 60   # bitta begona qurilma haqida ownerga shuncha vaqtda bir marta xabar
+
+
+def device_allowed(db, user_key: str, dev: str) -> bool:
+    """Asosiy (birinchi) qurilma yoki owner tasdiqlagan qurilma."""
+    if primary_device(db, user_key) in (None, dev):
+        return True
+    return db.execute("SELECT 1 FROM devices WHERE user_key = ? AND device = ? AND trusted = 1",
+                      (user_key, dev)).fetchone() is not None
+
+
+def log_login(db, user_key: str, dev: str, ok: bool) -> None:
+    ua = (request.headers.get("User-Agent") or "")[:300]
+    db.execute("INSERT INTO login_log (user_key, device, ua, t, ok) VALUES (?, ?, ?, ?, ?)",
+               (user_key, dev, ua, time.time(), int(ok)))
+    db.commit()
+
+
+def block_stranger(db, user_key: str, name: str, dev: str) -> None:
+    """Begona qurilma: qurilmalar ro'yxatiga yoziladi (owner ruxsat bera olsin), ownerga xabar."""
+    now = time.time()
+    last = db.execute("SELECT MAX(t) FROM login_log WHERE user_key = ? AND device = ? AND ok = 0",
+                      (user_key, dev)).fetchone()[0]
+    ua = (request.headers.get("User-Agent") or "")[:300]
+    db.execute("INSERT INTO devices (user_key, device, ua, first_at, last_at) VALUES (?, ?, ?, ?, ?) "
+               "ON CONFLICT(user_key, device) DO UPDATE SET last_at = excluded.last_at, ua = excluded.ua",
+               (user_key, dev, ua, now, now))
+    log_login(db, user_key, dev, False)
+    if not last or now - last > ALERT_EVERY:
+        notify("owner", f"🚨 Xavf: {name} akkauntiga boshqa qurilmadan ({_ua_label(ua)}) kirishga urinishdi — bloklandi. "
+                        "Bu o'zi bo'lsa: odamcha belgisi → «O'zining akkaunti»", "/panel#rating")
+
+
+def login_check(user_id: int, name: str) -> str | None:
+    """Parol to'g'ri bo'lganda: shu qurilmadan kirish mumkinmi? Mumkin bo'lmasa — xato matni."""
+    db = get_db()
+    key, dev = f"u{user_id}", device_id()
+    if not device_allowed(db, key, dev):
+        block_stranger(db, key, name, dev)
+        return BLOCK_MSG
+    log_login(db, key, dev, True)
+    return None
+
+
 def guard(user: dict, action: str):
     """Asosiy bo'lmagan qurilmadan xavfli amal — akkauntdan chiqarib yuboradi. Ruxsat bo'lsa None."""
     if not user or user["role"] == "owner":
@@ -137,6 +183,20 @@ def api_devices_trust():
     return jsonify(ok=True, trusted=trusted)
 
 
+@bp.get("/api/users/<int:user_id>/logins")
+@owner_required
+def api_user_logins(user_id: int):
+    """Kirishlar tarixi: qachon, qaysi qurilma, ruxsat berildimi."""
+    db = get_db()
+    key = f"u{user_id}"
+    primary = primary_device(db, key)
+    trusted = {r["device"] for r in db.execute("SELECT device FROM devices WHERE user_key = ? AND trusted = 1", (key,))}
+    rows = db.execute("SELECT * FROM login_log WHERE user_key = ? ORDER BY id DESC LIMIT 40", (key,)).fetchall()
+    return jsonify(items=[{"t": datetime.fromtimestamp(r["t"]).strftime("%d.%m.%Y %H:%M"), "device": _ua_label(r["ua"]),
+                           "ok": bool(r["ok"]), "primary": r["device"] == primary, "trusted": r["device"] in trusted}
+                          for r in rows])
+
+
 @bp.post("/api/devices/reset")
 @owner_required
 def api_devices_reset():
@@ -159,6 +219,16 @@ def before_request():
     if request.path.startswith("/api/") or request.path in ("/panel", "/game"):
         user = current_user()
         if user and user["role"] != "owner":
+            db = get_db()
+            dev = device_id()
+            if not device_allowed(db, user["key"], dev):
+                # Boshqa qurilmadan kirib turgan — darhol chiqarib yuboramiz
+                block_stranger(db, user["key"], user["name"], dev)
+                session.clear()
+                if request.path.startswith("/api/"):
+                    return jsonify(error=BLOCK_MSG), 401
+                from flask import redirect
+                return redirect("/")
             touch_device(user["key"])
 
 

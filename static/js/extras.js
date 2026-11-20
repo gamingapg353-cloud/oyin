@@ -167,6 +167,21 @@
       }
       root.append(b, p);
       if (isOwner && param) {
+        // Kirishlar tarixi: qachon, qaysi qurilmadan, bloklanganmi
+        const hist = card('Kirish tarixi', 'shield');
+        try {
+          const { items } = await api(`/api/users/${uid}/logins`);
+          if (!items.length) hist.append(el('p', 'muted', "Hali kirish yozilmagan (yangi qoidadan keyin yoziladi)."));
+          const list = el('div', 'login-log');
+          items.forEach((it) => {
+            const row = el('div', `login-log__row${it.ok ? '' : ' is-bad'}`);
+            row.append(el('span', '', it.ok ? '✅' : '🚫'), el('strong', '', it.device),
+              el('small', 'muted', `${it.t}${it.primary ? ' · asosiy' : it.trusted ? " · o'zining akkaunti" : ''}${it.ok ? '' : ' · bloklandi'}`));
+            list.append(row);
+          });
+          hist.append(list);
+        } catch (err) { handleAuthError(err); }
+        root.append(hist);
         const s = card('Parolni unutgan bo\'lsa', 'lock');
         s.append(el('p', 'muted', "Bir bosishda yangi 6 xonali parol yaratiladi. Eski qurilmalardan chiqib ketadi."));
         const gen = btn('Yangi parol yaratish', 'btn btn--primary', 'refresh');
@@ -238,5 +253,39 @@
         body.append(row, el('small', 'muted', "Telefon yo'qolsa: serverdagi .env fayliga OWNER_2FA_OFF=1 yozib qayta yoqing."));
       } catch (err) { fail(err); }
     });
+  });
+
+  // ================= Har bo'limda «Qanday ishlaydi?» =================
+  const HOWTO = {
+    games: ["O'yinlar — bosh sahifa: Mahalla o'yiniga kirish, tug'ilgan kunlar, dars jadvali va yutuqlar devori.",
+      "«O'yinga kirish» ni bosing — shahar ochiladi. Uy vazifa uchun ham o'yinda pul beriladi."],
+    homework: ["Owner vazifa beradi (fayl, havola va muddat bilan). O'quvchi faylini yuklaydi — AI tekshirib ball qo'yadi.",
+      "Muddatidan oldin topshirsa +1, kechiksa −1 ball. AI yasagan yoki boshqaning ishini ko'chirgan bo'lsa — jarima."],
+    exam: ["Test: owner savollar tuzib boshlaydi, o'quvchilar bir vaqtda yechadi. To'g'ri javoblar — ball."],
+    'add-user': ["Yangi o'quvchi qo'shish: ism yozing — login va parol shu ism bo'ladi (xohlasangiz o'zgartiring).",
+      "Pastda — ikki bosqichli kirish (2FA): owner akkauntini telefon kodi bilan himoyalash."],
+    attendance: ["1) Sanani tanlang → «ball berishni boshlash». 2) Har bir o'quvchiga ✅ Keldi, ⏰ Kechikdi yoki ❌ Kelmadi.",
+      "3) 0–5 ball bering yoki «Boshlash» — o'quvchiga 5 ta savol boradi, to'g'ri javoblar soni ball bo'ladi.",
+      "«Kelganlarning hammasiga boshlash» — bitta bosishda hammaga yuboradi. Javoblar o'zi yangilanib turadi."],
+    lesson: ["Ustoz savol yuborsa shu yerda chiqadi: «Boshlash» ni bosing va 5 ta savolga javob bering.",
+      "To'g'ri javoblar soni — bugungi darsdagi balingiz."],
+    rating: ["Hamma o'quvchilar ballari bo'yicha. Ismni bossangiz — profili ochiladi.",
+      "O'z ballingizdan do'stingizga sovg'a qilishingiz mumkin."],
+    polls: ["Owner tepada savol yozib yuboradi — hamma o'quvchiga boradi.",
+      "O'quvchilar savol ostida javob yozadi. Javoblarni faqat owner ko'radi."],
+    shop: ["Ballingizni sovg'aga almashtiring: sovg'ani tanlang va buyurtma bering — owner tasdiqlaydi."],
+    code: ["Chapda HTML va CSS yozing — o'ngda natija darhol ko'rinadi. Kod o'zi saqlanadi.",
+      "Owner hammaning kodini ko'rib, yordam bera oladi."],
+    profile: ["Profil: ball, nishonlar, portfolio (eng yaxshi ishlar) va faollik.",
+      "Owner bu yerda o'quvchiga yangi parol yaratadi va kirish tarixini ko'radi."],
+  };
+  document.querySelectorAll('.view[data-view]').forEach((view) => {
+    const lines = HOWTO[view.dataset.view];
+    if (!lines || view.querySelector('.howto')) return;
+    const box = el('details', 'howto');
+    const sum = el('summary', '', '❓ Qanday ishlaydi?');
+    box.append(sum);
+    lines.forEach((t) => box.append(el('p', '', t)));
+    view.prepend(box);
   });
 })();

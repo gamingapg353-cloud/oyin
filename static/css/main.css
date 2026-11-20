@@ -2579,6 +2579,78 @@ a {
   margin: 2px 0 4px;
 }
 
+.poll-answers {
+  display: grid;
+  gap: 8px;
+}
+
+.poll-answer {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.poll-answer__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.poll-answer p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.poll-mine {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.howto {
+  margin-bottom: 12px;
+  padding: 8px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.howto summary {
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.howto p {
+  margin: 6px 0 0;
+}
+
+.login-log {
+  display: grid;
+  gap: 6px;
+}
+
+.login-log__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--success-soft);
+}
+
+.login-log__row.is-bad {
+  background: var(--danger-soft);
+}
+
 .avatar {
   overflow: hidden;
 }
@@ -6034,6 +6106,85 @@ button.hud-online:hover {
 .kitchen__bad {
   color: #dc2626;
   font-weight: 700;
+}
+
+.moon-trip {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 120%, #1e3a8a, #020617 60%);
+  color: #f8fafc;
+  animation: moon-fade 0.6s ease;
+}
+
+.moon-trip__stars {
+  position: absolute;
+  inset: -50%;
+  background-image: radial-gradient(2px 2px at 20% 30%, #fff, transparent), radial-gradient(1.5px 1.5px at 70% 60%, #fff, transparent), radial-gradient(1px 1px at 40% 80%, #fff, transparent), radial-gradient(2px 2px at 85% 15%, #fde68a, transparent), radial-gradient(1px 1px at 10% 70%, #fff, transparent), radial-gradient(1.5px 1.5px at 55% 25%, #fff, transparent);
+  background-size: 220px 220px;
+  animation: moon-stars 3s linear infinite;
+}
+
+.moon-trip__moon {
+  position: absolute;
+  top: 8%;
+  font-size: 120px;
+  transform: scale(0.4);
+  transition: transform 4s ease;
+}
+
+.moon-trip__rocket {
+  position: absolute;
+  bottom: 10%;
+  font-size: 72px;
+  transform: rotate(-45deg);
+  animation: moon-rocket 5s ease-in forwards;
+}
+
+.moon-trip__text {
+  position: absolute;
+  bottom: 6%;
+  margin: 0;
+  padding: 0 16px;
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.moon-trip.is-landed .moon-trip__moon {
+  transform: scale(3);
+}
+
+.moon-trip.is-landed .moon-trip__stars {
+  animation-play-state: paused;
+}
+
+@keyframes moon-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes moon-stars {
+  to {
+    transform: translateY(220px);
+  }
+}
+
+@keyframes moon-rocket {
+  60% {
+    transform: translateY(-40vh) rotate(-45deg);
+  }
+  100% {
+    transform: translateY(-62vh) rotate(-45deg) scale(0.5);
+  }
+}
+
+#btn-drone.is-on {
+  outline: 2px solid #38bdf8;
 }
 
 .exam {

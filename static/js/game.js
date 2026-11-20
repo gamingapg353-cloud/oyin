@@ -870,6 +870,15 @@ import * as THREE from 'three';
         armL.rotation.z = bike ? 0 : -0.6;
         armR.rotation.z = bike ? 0 : 0.6;
         rig.human.position.y = bike ? 9 : 5;
+        if (car.style === 'carpet') { // gilamda chordana qurib o'tiradi
+          legL.rotation.x = -1.45;
+          legR.rotation.x = -1.45;
+          armL.rotation.x = -0.4;
+          armR.rotation.x = -0.4;
+          armL.rotation.z = 0;
+          armR.rotation.z = 0;
+          rig.human.position.y = -6;
+        }
         rig.label.position.y = 96;
       } else applyDirt(rig, rig.isMe ? dirtOf(me.car) : (p.dirt || 0));
     } else {
@@ -1379,7 +1388,8 @@ import * as THREE from 'three';
     const QR = world.aqua ? world.aqua.rect : null;
     const onAqua = ([x, y]) => QR && x > QR.x - 60 && x < QR.x + QR.w + 60 && y > QR.y - 60 && y < QR.y + QR.h + 60;
     const inR = (r, [x, y]) => r && x > r.x - 60 && x < r.x + r.w + 60 && y > r.y - 60 && y < r.y + r.h + 60;
-    const onZooPort = (sp) => inR(world.zoo && world.zoo.rect, sp) || inR(world.port && world.port.rect, sp);
+    const onZooPort = (sp) => inR(world.zoo && world.zoo.rect, sp) || inR(world.port && world.port.rect, sp)
+      || inR(world.river && world.river.rect, sp) || (world.rocket && Math.hypot(sp[0] - world.rocket.x, sp[1] - world.rocket.y) < 160);
     const groups = [spots.filter((sp) => !onTrack(sp) && !onAirport(sp) && !onAqua(sp) && !onZooPort(sp)), spots.filter((sp) => onTrack(sp) && !onAirport(sp))];
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -1642,7 +1652,7 @@ import * as THREE from 'three';
       if (r.level > 0) solids.push({ ...world.buildings[r.plot], top: buildingTop(r.kind, r.level) });
     });
     const t = world.airport.terminal;
-    solids.push({ ...t, top: 70 }, { x: t.x + 110, y: t.y + 560, w: 60, h: 60, top: 150 }, ...placeSolids());
+    solids.push({ ...t, top: 70 }, { x: t.x + 110, y: t.y + 560, w: 60, h: 60, top: 150 }, ...placeSolids(), ...riverSolids());
   }
 
   const inside = (x, y, s, r = 0) => x + r > s.x && x - r < s.x + s.w && y + r > s.y && y - r < s.y + s.h;
@@ -1651,7 +1661,8 @@ import * as THREE from 'three';
   function areas() {
     if (trackOn()) return [world.track.rect];
     if (me && me.boat) return [world.port.sea]; // qayiqda — faqat dengizda
-    return [{ x: 0, y: 0, w: world.w, h: world.h }, world.airport.rect, world.aqua.rect, world.zoo.rect, world.port.rect];
+    return [{ x: 0, y: 0, w: world.w, h: world.h }, world.airport.rect, world.aqua.rect, world.zoo.rect, world.port.rect,
+      ...(world.river ? [world.river.rect] : [])];
   }
   function area() {
     return areas()[0];
@@ -1667,6 +1678,7 @@ import * as THREE from 'three';
   function blocked(x, y, r, h = 0) {
     if (!inAreas(x, y, r)) return true;
     if (trackOn() && h < 40 && insideInfield(x, y, r)) return true;
+    if (me && me.spider && !me.car) return false; // o'rgimchak odam devordan tomga chiqadi
     return solids.some((s) => h < s.top && inside(x, y, s, r));
   }
   function topUnder(x, y, r) {
@@ -1951,7 +1963,7 @@ import * as THREE from 'three';
         seat: p.seat || null, pose: p.pose || null, clan: p.clan || null, drift: Boolean(p.drift), tune: p.tune || null,
         emote: p.emote || null, para: Boolean(p.para), ring: Boolean(p.ring), dirt: p.dirt || 0, pet: p.pet || null, boat: Boolean(p.boat),
       });
-      setRigLooks(o.rig, p.looks);
+      setRigLooks(o.rig, suitLooks(p.looks, p.spider));
     });
     // Mashinadagi yo'lovchilar soni haydovchi ismi yonida: "Jasur (+2)"
     const riders = new Map();
@@ -1960,7 +1972,7 @@ import * as THREE from 'three';
     list.forEach((p) => {
       const n = riders.get(p.key) || 0;
       const tag = p.clan ? `[${p.clan.tag}] ` : '';
-      setRigLabel(others.get(p.key).rig, `${mayorKey === p.key ? '👑 ' : ''}${tag}${p.ring ? '💍 ' : ''}${p.name}${n ? ` (+${n})` : ''}`, p.avatar);
+      setRigLabel(others.get(p.key).rig, `${mayorKey === p.key ? '👑 ' : ''}${p.spider ? '🕷️ ' : ''}${tag}${p.ring ? '💍 ' : ''}${p.name}${n ? ` (+${n})` : ''}`, p.avatar);
     });
     const mine = riders.get(me.key) || 0;
     setRigLabel(me.rig, `${mayorKey === me.key ? '👑 ' : ''}${mine ? `Siz (+${mine})` : 'Siz'}`, me.avatar);
@@ -2267,6 +2279,17 @@ import * as THREE from 'three';
     } else if (car) {
       me.h = 0;
       me.vh = 0;
+    } else if (me.spider && !zip && !me.seat) {
+      // O'rgimchak odam: tagidagi tomga tez chiqadi, chetdan yiqilib tushadi
+      const floor = topUnder(me.x, me.y, 10);
+      if (me.h < floor - 0.5 && me.vh <= 0) {
+        me.h = Math.min(floor, me.h + 420 * dt);
+        me.vh = 0;
+      } else {
+        me.vh -= GRAVITY * dt;
+        me.h = Math.max(floor, me.h + me.vh * dt);
+        if (me.h === floor) me.vh = 0;
+      }
     } else if (me.h > 0 || me.vh > 0) {
       // Sakrash: tepaga tezlik, keyin tortishish pastga tushiradi
       me.vh -= GRAVITY * dt;
@@ -2319,12 +2342,15 @@ import * as THREE from 'three';
   function updateCamera(dt) {
     const car = carInfo();
     // uchganda kamera ham ko'tariladi (sakrashda emas); do'stning uchayotgan mashinasida ham
-    const lift = (car && car.flies) || me.seat ? me.h : 0;
+    // parashyutda va o'rgimchak odam tomda yurganda ham kamera odamni kuzatadi
+    const lift = (car && car.flies) || me.seat || me.para || me.spider ? me.h : 0;
     const target = new THREE.Vector3(me.x, 24 + lift, me.y);
-    const horiz = Math.cos(cam.pitch) * cam.dist;
+    const pitch = droneOn ? 1.25 : cam.pitch; // dron: shahar tepadan
+    const dist = droneOn ? Math.max(1300, cam.dist) : cam.dist;
+    const horiz = Math.cos(pitch) * dist;
     const want = new THREE.Vector3(
       me.x + Math.sin(cam.yaw) * horiz,
-      lift + Math.sin(cam.pitch) * cam.dist,
+      lift + Math.sin(pitch) * dist,
       me.y + Math.cos(cam.yaw) * horiz,
     );
     const k = camReady ? 1 - Math.exp(-dt * 8) : 1;
@@ -2482,7 +2508,7 @@ import * as THREE from 'three';
   }
 
   function closeSheet() {
-    if (sheetState && sheetState.kind === 'looks' && me) setRigLooks(me.rig, me.looks || {});
+    if (sheetState && sheetState.kind === 'looks' && me) setRigLooks(me.rig, suitLooks(me.looks, me.spider));
     sheetState = null;
     clearTimeout(quizTimer);
     sheet.hidden = true;
@@ -2496,7 +2522,7 @@ import * as THREE from 'three';
     // Odamlar va pul berish oynalari sinxronda qayta chizilmaydi (yozilgan summa o'chib ketmasin)
     if (sheetState.kind === 'people') return `people|${sheetState.list ? sheetState.list.length : '-'}`;
     if (sheetState.kind === 'give') return `give|${sheetState.person.key}`;
-    if (['bank', 'top', 'clans', 'looks', 'race', 'hub', 'code', 'daily', 'spin', 'garage', 'flights', 'festadmin', 'metro', 'phone', 'chat', 'stocks', 'tour', 'pets', 'farm', 'kitchen', 'election', 'license', 'cup'].includes(sheetState.kind)) return `${sheetState.kind}|${sheetState.v || 0}`;
+    if (['bank', 'top', 'clans', 'looks', 'race', 'hub', 'code', 'daily', 'spin', 'garage', 'flights', 'festadmin', 'metro', 'phone', 'chat', 'stocks', 'tour', 'pets', 'farm', 'kitchen', 'election', 'license', 'cup', 'spider', 'drone'].includes(sheetState.kind)) return `${sheetState.kind}|${sheetState.v || 0}`;
     if (sheetState.kind === 'gift') return `gift|${sheetState.person.key}|${economy.cars.join()}|${economy.plots.map((x) => x.plot).join()}`;
     if (sheetState.kind === 'market') {
       const m = money();
@@ -3513,6 +3539,8 @@ import * as THREE from 'three';
     else if (sheetState.kind === 'election') renderElectionSheet(body, sheetState);
     else if (sheetState.kind === 'license') renderLicenseSheet(body, sheetState);
     else if (sheetState.kind === 'cup') renderCupSheet(body, sheetState);
+    else if (sheetState.kind === 'spider') renderSpiderSheet(body, sheetState);
+    else if (sheetState.kind === 'drone') renderDroneSheet(body, sheetState);
     else renderMineSheet(body);
   }
 
@@ -3572,7 +3600,7 @@ import * as THREE from 'three';
       toggleFly(); // Teslada — uchish/qo'nish
       return;
     }
-    if (me.h > 0.5) return;
+    if (me.h - (me.spider ? topUnder(me.x, me.y, 10) : 0) > 0.5) return;
     me.vh = JUMP_SPEED;
   }
 
@@ -3639,6 +3667,8 @@ import * as THREE from 'three';
       toggleDance();
     } else if (e.code === 'KeyP' || ch === 'p' || ch === 'з') {
       jumpParachute();
+    } else if (e.code === 'KeyT' || ch === 't' || ch === 'е') {
+      shootWeb();
     }
   });
   window.addEventListener('keyup', (e) => {
@@ -4094,6 +4124,10 @@ import * as THREE from 'three';
       : "Drift o'chdi");
   }
   $('btn-drift').addEventListener('click', toggleDrift);
+  $('btn-para').addEventListener('click', jumpParachute);
+  $('btn-web').addEventListener('click', shootWeb);
+  $('btn-drone').addEventListener('click', toggleDrone);
+  $('btn-photo').addEventListener('click', takePhoto);
 
   // ---------------- Poyga trassasi (o'rmonda, faqat poyga paytida) ----------------
   let trackGroup = null;
@@ -4944,7 +4978,7 @@ import * as THREE from 'three';
   // =====================================================================
   //  Ishlar, joylar, o'yinlar va do'stlar (game_fun.py bilan ishlaydi)
   // =====================================================================
-  const isRider = (car) => Boolean(car && (car.style === 'bike' || car.style === 'skate'));
+  const isRider = (car) => Boolean(car && (car.style === 'bike' || car.style === 'skate' || car.style === 'carpet'));
   const inPool = (x, y) => Boolean(world.aqua && inside(x, y, world.aqua.pool));
 
   // ---------------- Velosiped va skeytbord ----------------
@@ -5164,7 +5198,7 @@ import * as THREE from 'three';
     const cx = pd.x + pd.w / 2;
     const cy = pd.y + pd.h / 2;
     const k = Math.hypot((me.x - cx) / (pd.w / 2), (me.y - cy) / (pd.h / 2));
-    return k >= 0.85 && k <= 1.5;
+    return (k >= 0.85 && k <= 1.5) || onBridge();
   }
   function dropBobber() {
     if (fish.view) {
@@ -5181,8 +5215,12 @@ import * as THREE from 'three';
       const pd = world.pond;
       const cx = pd.x + pd.w / 2;
       const cy = pd.y + pd.h / 2;
-      const bx = me.x + (cx - me.x) * 0.35;
-      const by = me.y + (cy - me.y) * 0.35;
+      let bx = me.x + (cx - me.x) * 0.35;
+      let by = me.y + (cy - me.y) * 0.35;
+      if (onBridge()) { // ko'prikdan — yon tomondagi daryoga
+        bx = me.x + 95;
+        by = me.y;
+      }
       dropBobber();
       fish.view = new THREE.Group();
       fish.view.add(mesh(new THREE.SphereGeometry(3, 10, 8), mat('#ef4444'), 0, 2, 0), mesh(new THREE.SphereGeometry(2.6, 10, 8), mat('#f8fafc'), 0, 0, 0));
@@ -5978,6 +6016,10 @@ import * as THREE from 'three';
       return { kind: 'fun', d: 0, text: biting ? 'TORT! 🎣' : "Kuting… po'kakni kuzating (F — tortish)", act: pullLine };
     }
     if (!car && me.h < 5 && nearPondEdge()) return { kind: 'fun', d: 1, text: 'Baliq ovlash 🎣', act: castLine };
+    if (!car && !me.spider && spiderBug && d(spiderBug.x, spiderBug.y) < 75) {
+      return { kind: 'fun', d: 0, text: "O'rgimchakni ushlash 🕷️", act: catchSpider };
+    }
+    if (!car && nearRocket()) return { kind: 'fun', d: 1, text: `Oyga uchish 🚀 — ${formatNumber(world.rocket.price)} so'm`, act: flyToMoon };
     const life = lifeSpot(car);
     if (life) return life;
     const pier = world.port.pier;
@@ -6677,6 +6719,362 @@ import * as THREE from 'three';
     });
   }
 
+  // ---------------- O'rgimchak odam ----------------
+  // Shaharda kichkina o'rgimchak yashiringan. Topsangiz — chaqadi va siz tomlarga chiqib,
+  // to'r otib uchadigan bo'lasiz. Kostyum — o'zimizniki: to'q kulrang, yashil to'r chiziqlari.
+  const SPIDER_SUIT = { shirt: '#1f2937', pants: '#111827', skin: '#4b5563', hat: null };
+  const WEB_RANGE = 460;
+  const WEB_TIME = 0.7;
+  let spiderBug = null;
+  let bugView = null;
+  let zip = null;
+  const webLines = new Map();
+
+  function suitLooks(looks, on) {
+    return on ? { ...(looks || {}), ...SPIDER_SUIT } : (looks || {});
+  }
+
+  function setSpiderMe(on) {
+    if (Boolean(me.spider) === Boolean(on)) return;
+    me.spider = Boolean(on);
+    setRigLooks(me.rig, suitLooks(me.looks, me.spider));
+    $('btn-web').hidden = !me.spider;
+    if (!me.spider) { zip = null; me.web = null; }
+  }
+
+  function spiderModel() {
+    const g = new THREE.Group();
+    const black = mat('#0b0b0b');
+    const body = new THREE.Mesh(new THREE.SphereGeometry(4.5, 10, 8), black);
+    body.position.y = 4;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(2.6, 8, 6), black);
+    head.position.set(5, 3.5, 0);
+    const mark = new THREE.Mesh(new THREE.SphereGeometry(1.4, 6, 4), mat('#dc2626'));
+    mark.position.set(-1, 8, 0);
+    g.add(body, head, mark);
+    for (let i = 0; i < 8; i += 1) {
+      const side = i < 4 ? 1 : -1;
+      const leg = box(9, 0.8, 0.8, black, 0, 3, 0);
+      leg.position.set((i % 4) * 2.4 - 3, 2.5, side * 5);
+      leg.rotation.y = side * (0.6 - (i % 4) * 0.35);
+      leg.rotation.z = -0.35;
+      g.add(leg);
+    }
+    g.scale.setScalar(1.2);
+    return g;
+  }
+
+  function setSpiderBug(pos) {
+    spiderBug = pos || null;
+    if (!spiderBug) {
+      if (bugView) bugView.visible = false;
+      return;
+    }
+    if (!bugView) {
+      bugView = spiderModel();
+      scene.add(bugView);
+    }
+    bugView.visible = true;
+  }
+
+  function stepSpider(dt) {
+    if (bugView && bugView.visible && spiderBug) {
+      // biroz u yoq-bu yoqqa yuguradi
+      const t = performance.now() / 1000;
+      bugView.position.set(spiderBug.x + Math.sin(t * 1.7) * 6, 0.5, spiderBug.y + Math.cos(t * 1.3) * 6);
+      bugView.rotation.y = t * 0.8;
+    }
+    // to'r bilan uchish
+    if (zip) {
+      zip.t += dt / WEB_TIME;
+      const k = Math.min(1, zip.t);
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      me.x = zip.x0 + (zip.x1 - zip.x0) * e;
+      me.y = zip.y0 + (zip.y1 - zip.y0) * e;
+      me.h = zip.h0 + (zip.h1 - zip.h0) * e + Math.sin(Math.PI * k) * 140;
+      me.vh = 0;
+      me.moving = true;
+      if (k >= 1) {
+        zip = null;
+        me.web = null;
+      }
+    }
+    drawWeb('me', me.rig, zip ? me.web : null, me.h);
+  }
+
+  function shootWeb() {
+    if (!me.spider || carInfo() || me.seat || me.para || zip || sheetState) return;
+    // Oldingi tomonga: yaqinroq bino bo'lsa — uning tomiga, bo'lmasa — yerga
+    let best = null;
+    for (let d = WEB_RANGE; d >= 120; d -= 30) {
+      const x = me.x + Math.cos(me.dir) * d;
+      const y = me.y + Math.sin(me.dir) * d;
+      if (!inAreas(x, y, 14)) continue;
+      const top = topUnder(x, y, 14);
+      if (!best || top > best.h) best = { x, y, h: top };
+    }
+    if (!best) {
+      toast("To'r yetmaydi — boshqa tomonga qarang", 'warn');
+      return;
+    }
+    zip = { t: 0, x0: me.x, y0: me.y, h0: me.h, x1: best.x, y1: best.y, h1: best.h };
+    me.web = { x: Math.round(best.x), y: Math.round(best.y), h: Math.round(best.h + 60) };
+    sound.door();
+  }
+
+  // To'r chizig'i: qo'ldan to'r yopishgan joygacha
+  function drawWeb(id, rig, web, h) {
+    let line = webLines.get(id);
+    if (!web) {
+      if (line) line.visible = false;
+      return;
+    }
+    if (!line) {
+      line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+        new THREE.LineBasicMaterial({ color: '#f8fafc' }));
+      line.frustumCulled = false;
+      scene.add(line);
+      webLines.set(id, line);
+    }
+    const p = rig.root.position;
+    line.geometry.setFromPoints([new THREE.Vector3(p.x, p.y + 52, p.z), new THREE.Vector3(web.x, web.h, web.y)]);
+    line.visible = true;
+  }
+
+  function webOthers(list) {
+    const seen = new Set();
+    list.forEach((p) => {
+      const o = others.get(p.key);
+      if (!o) return;
+      seen.add(p.key);
+      drawWeb(p.key, o.rig, p.spider ? p.web : null, p.h || 0);
+    });
+    [...webLines.keys()].forEach((k) => {
+      if (k !== 'me' && !seen.has(k)) {
+        scene.remove(webLines.get(k));
+        webLines.get(k).geometry.dispose();
+        webLines.delete(k);
+      }
+    });
+  }
+
+  async function catchSpider() {
+    try {
+      await api('/api/game/spider/catch', { method: 'POST' });
+      localVersion += 1;
+      setSpiderMe(true);
+      setSpiderBug(null);
+      sound.ding();
+      toast("Voy! O'rgimchak chaqdi 🕷️ Endi siz o'rgimchak odamsiz: binoga yursangiz — tomga chiqasiz, T — to'r otib uchish", 'success');
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+
+  function openSpider() {
+    const st = { kind: 'spider', v: 0 };
+    openSheet(st);
+  }
+  function renderSpiderSheet(body) {
+    setHead('target', "O'rgimchak odam", me.spider ? 'Siz o\'rgimchak odamsiz 🕷️' : "O'rgimchakni toping");
+    if (me.spider) {
+      body.append(el('p', 'sheet-note', "• Binoga qarab yuring — devoridan chiqib tomida yurasiz."),
+        el('p', 'sheet-note', "• T tugmasi (yoki 🕸️ To'r) — oldingizdagi eng baland tomga to'r otib uchib borasiz."),
+        el('p', 'sheet-note', "• Tomdan chetga yursangiz — pastga sakraysiz."),
+        actionBtn('x', "Oddiy odamga qaytish", async () => {
+          await api('/api/game/spider/off', { method: 'POST' }).catch(() => null);
+          localVersion += 1;
+          setSpiderMe(false);
+          me.h = 0;
+          closeSheet();
+        }, 'btn btn--ghost btn--block'));
+      return;
+    }
+    body.append(el('p', 'sheet-note', "Shaharda kichkina qora o'rgimchak yashiringan. U odamlar kam boradigan burchaklarda o'tiradi — juda yaqin kelsangizgina ko'rinadi."),
+      el('p', 'sheet-note', "Topsangiz F bosing — o'rgimchak sizni chaqadi va siz o'rgimchak odamga aylanasiz! Keyin u boshqa joyga qochib yashirinadi."),
+      el('p', 'sheet-note', "Maslahat: xaritaning chekkalari, o'rmon va port tomonlarni qidiring 🔍"));
+  }
+
+  // ---------------- Uchar gilam, dron, kosmik raketa, daryo va ko'prik ----------------
+  function carCarpet(color) {
+    const g = new THREE.Group();
+    const rug = mat(color, { roughness: 0.9 });
+    g.add(box(34, 1.6, 58, rug, 0, 3, 0));
+    // naqsh: o'rtada oltin romb, chetida hoshiya
+    const gold = mat('#facc15', { roughness: 0.7 });
+    g.add(box(30, 1.8, 3, gold, 0, 3.1, 25), box(30, 1.8, 3, gold, 0, 3.1, -25), box(3, 1.8, 50, gold, 15, 3.1, 0), box(3, 1.8, 50, gold, -15, 3.1, 0));
+    const dia = box(12, 2, 12, mat('#1e3a8a'), 0, 3.2, 0);
+    dia.rotation.y = Math.PI / 4;
+    g.add(dia);
+    for (let i = -14; i <= 14; i += 4) g.add(box(1, 0.8, 4, gold, i, 2.6, 31), box(1, 0.8, 4, gold, i, 2.6, -31));
+    const under = new THREE.Mesh(new THREE.CircleGeometry(30, 24), new THREE.MeshBasicMaterial({ color: '#fde68a', transparent: true, opacity: 0, depthWrite: false }));
+    under.rotation.x = -Math.PI / 2;
+    under.position.y = 0.6;
+    g.add(under);
+    g.userData = { wheels: [], pods: [], r: 2, roof: 10, flies: true, wings: [], under, ringMat: new THREE.MeshBasicMaterial(), fly: 0 };
+    return g;
+  }
+  CAR_BUILDERS.carpet = carCarpet;
+
+  // ---- Dron ----
+  let droneOn = false;
+  let droneView = null;
+  function setDroneOwned(has) {
+    me.drone = Boolean(has);
+    $('btn-drone').hidden = !me.drone;
+    if (!me.drone && droneOn) toggleDrone();
+  }
+  function toggleDrone() {
+    droneOn = !droneOn;
+    $('btn-photo').hidden = !droneOn;
+    $('btn-drone').classList.toggle('is-on', droneOn);
+    if (droneOn && !droneView) {
+      droneView = new THREE.Group();
+      const dark = mat('#1f2937');
+      droneView.add(box(16, 4, 16, dark, 0, 0, 0));
+      [[-12, -12], [12, -12], [-12, 12], [12, 12]].forEach(([x, z]) => {
+        droneView.add(box(14, 1, 2, dark, x / 2, 0, z / 2));
+        const rotor = cyl(7, 7, 0.6, mat('#94a3b8', { transparent: true, opacity: 0.7 }), x, 2.5, z, 12);
+        rotor.userData.rotor = true;
+        droneView.add(rotor);
+      });
+      droneView.add(mesh(new THREE.SphereGeometry(2.4, 8, 6), mat('#ef4444'), 0, -2.5, 8));
+      scene.add(droneView);
+    }
+    if (droneView) droneView.visible = droneOn;
+    toast(droneOn ? "Dron uchdi 🚁 — shahar tepadan. 📸 tugmasi bilan surat oling" : 'Dron qaytib keldi');
+  }
+  function stepDrone(dt) {
+    if (!droneOn || !droneView) return;
+    const t = performance.now() / 1000;
+    droneView.position.set(me.x + Math.sin(t * 0.6) * 30, (me.h || 0) + 170 + Math.sin(t * 2) * 6, me.y + Math.cos(t * 0.6) * 30);
+    droneView.children.forEach((c) => { if (c.userData.rotor) c.rotation.y += dt * 40; });
+  }
+  function takePhoto() {
+    try {
+      renderer.render(scene, camera);
+      const url = renderer.domElement.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mahalla-${Date.now()}.png`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      sound.ding();
+      toast('Surat saqlandi 📸', 'success');
+    } catch {
+      toast("Suratni saqlab bo'lmadi", 'warn');
+    }
+  }
+  function openDrone() {
+    const st = { kind: 'drone', v: 0 };
+    openSheet(st);
+  }
+  function renderDroneSheet(body, st) {
+    setHead('navigation', 'Dron', 'Shaharni tepadan ko\'ring va surat oling');
+    if (me.drone) {
+      body.append(el('p', 'sheet-note', '🚁 Dron sizda bor. Pastdagi «Dron» tugmasi — tepadan ko\'rish, «📸» — surat (rasm sifatida saqlanadi).'),
+        actionBtn('navigation', droneOn ? 'Dronni qaytarish' : 'Dronni uchirish', () => { toggleDrone(); closeSheet(); }, 'btn btn--primary btn--block'));
+      return;
+    }
+    body.append(el('p', 'sheet-note', "Dron bilan shahar tepadan ko'rinadi va chiroyli surat olasiz."),
+      priceButton('Dron sotib olish', 50000, async () => {
+        const d = await api('/api/game/drone', { method: 'POST' });
+        localVersion += 1;
+        setEconomy(d.economy);
+        setDroneOwned(true);
+        sound.cash();
+        st.v += 1;
+        renderSheet();
+      }));
+  }
+
+  // ---- Kosmik raketa ----
+  let rocketView = null;
+  function buildRocket() {
+    const R = world.rocket;
+    if (!R) return;
+    const g = new THREE.Group();
+    g.add(cyl(70, 80, 8, mat('#6b7280'), 0, 4, 0, 24));
+    const white = mat('#f8fafc', { metalness: 0.2, roughness: 0.4 });
+    g.add(cyl(16, 16, 150, white, 0, 84, 0, 20), cyl(0.5, 16, 40, mat('#dc2626'), 0, 179, 0, 20));
+    [0, 1, 2, 3].forEach((i) => {
+      const fin = box(2, 34, 26, mat('#dc2626'), 0, 26, 0);
+      fin.position.set(Math.cos(i * Math.PI / 2) * 18, 26, Math.sin(i * Math.PI / 2) * 18);
+      fin.rotation.y = -i * Math.PI / 2;
+      g.add(fin);
+    });
+    g.add(mesh(new THREE.SphereGeometry(6, 12, 8), mat('#38bdf8', { metalness: 0.4 }), 0, 120, 15.5));
+    g.add(placeSign("🚀 OYGA SAYOHAT", 150, 30, '#1e3a8a', 0, 230, 0));
+    g.position.set(R.x, 0, R.y);
+    scene.add(g);
+    rocketView = g;
+  }
+  function nearRocket() {
+    const R = world.rocket;
+    return R && Math.hypot(R.x - me.x, R.y - me.y) < 150;
+  }
+  async function flyToMoon() {
+    if (!window.confirm(`Oyga uchasizmi? Narxi ${formatNumber(world.rocket.price)} so'm 🚀`)) return;
+    try {
+      const d = await api('/api/game/rocket', { method: 'POST' });
+      localVersion += 1;
+      setEconomy(d.economy);
+      moonTrip(d.times);
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+  function moonTrip(times) {
+    const ov = document.createElement('div');
+    ov.className = 'moon-trip';
+    ov.innerHTML = '<div class="moon-trip__stars"></div><div class="moon-trip__moon">🌕</div><div class="moon-trip__rocket">🚀</div><p class="moon-trip__text">Uchyapmiz… 3, 2, 1!</p>';
+    document.body.append(ov);
+    sound.whoosh(true);
+    const text = ov.querySelector('.moon-trip__text');
+    setTimeout(() => { text.textContent = 'Kosmosdamiz! Yer juda kichkina ko\'rinadi 🌍'; }, 2500);
+    setTimeout(() => { text.textContent = `Oyga qo'ndingiz! 🌕 (${times}-marta) Yerga qaytamiz…`; ov.classList.add('is-landed'); }, 5000);
+    setTimeout(() => {
+      ov.remove();
+      toast(`Oydan qaytdingiz! Siz haqiqiy kosmonavtsiz 👨‍🚀 (${times}-marta)`, 'success');
+    }, 8500);
+  }
+
+  // ---- Daryo va ko'prik ----
+  function buildRiver() {
+    const R = world.river;
+    if (!R) return;
+    const r = R.rect;
+    const w = R.water;
+    const b = R.bridge;
+    scene.add(flat(r.w, r.h, mat('#4d7c0f', { roughness: 1 }), r.x + r.w / 2, r.y + r.h / 2, 0.15));
+    const water = mat('#2563eb', { roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.88 });
+    scene.add(flat(w.w, w.h, water, w.x + w.w / 2, w.y + w.h / 2, 0.5));
+    scene.add(flat(w.w, 10, mat('#a16207', { roughness: 1 }), w.x + w.w / 2, w.y - 5, 0.6), flat(w.w, 10, mat('#a16207', { roughness: 1 }), w.x + w.w / 2, w.y + w.h + 5, 0.6));
+    // Ko'prik: yog'och yo'lak va panjaralar
+    const wood = mat('#92400e', { roughness: 0.9 });
+    scene.add(box(b.w, 4, b.h, wood, b.x + b.w / 2, 8, b.y + b.h / 2));
+    [b.x + 4, b.x + b.w - 4].forEach((x) => {
+      scene.add(box(3, 14, b.h, wood, x, 17, b.y + b.h / 2));
+      for (let z = b.y; z <= b.y + b.h; z += 30) scene.add(box(4, 22, 4, wood, x, 11, z));
+    });
+    // Narigi qirg'oqda daraxtlar va o'rindiq
+    for (let i = 0; i < 9; i += 1) {
+      const x = 80 + i * 140;
+      if (Math.abs(x - (b.x + b.w / 2)) < 120) continue;
+      scene.add(cyl(5, 6, 34, mat('#713f12'), x, 17, r.y + r.h - 90), mesh(new THREE.SphereGeometry(26, 10, 8), mat('#15803d'), x, 50, r.y + r.h - 90));
+    }
+    scene.add(placeSign("🌉 DARYO · ko'prikdan baliq tuting", 210, 30, '#0f766e', b.x + b.w / 2, 60, b.y - 40));
+  }
+  function riverSolids() {
+    const R = world.river;
+    if (!R) return [];
+    const w = R.water;
+    const b = R.bridge;
+    return [{ x: w.x, y: w.y, w: b.x - w.x, h: w.h, top: 40 }, { x: b.x + b.w, y: w.y, w: w.x + w.w - (b.x + b.w), h: w.h, top: 40 }];
+  }
+  const onBridge = () => Boolean(world.river && inside(me.x, me.y, world.river.bridge));
+
   // ---------------- Kun va tun ----------------
   // Bir sutka — 20 daqiqa. Vaqt soatga bog'liq, shuning uchun hamma bir xil kun/tunni ko'radi.
   const DAY_MS = 20 * 60 * 1000;
@@ -7184,6 +7582,10 @@ import * as THREE from 'three';
     tile('home', 'Ferma', "Ekin eking, hosil yig'ib soting 🌾", () => openFarm(null));
     tile('coffee', 'Oshxona', "Kafengizda taom tayyorlang 🍳", openKitchen);
     tile('trophy', 'Avtopoyga kubogi', "Haftalik chempionat 🏆", openCup);
+    tile('target', "O'rgimchak odam", "Yashirin o'rgimchakni toping 🕷️", openSpider);
+    tile('navigation', 'Dron', "Shahar tepadan va surat 📸", openDrone);
+    tile('plane', 'Kosmodrom', "Oyga sayohat 🚀", () => { setGuide(world.rocket.x, world.rocket.y, 'Kosmodrom'); closeSheet(); toast("Kosmodrom — aeroportning janubida. Raketa yonida F bosing"); });
+    tile('map-pin', "Daryo va ko'prik", "Ko'prikdan baliq tuting 🎣", () => { const b = world.river.bridge; setGuide(b.x + b.w / 2, b.y, "Ko'prik"); closeSheet(); toast("Daryo — shaharning janubi-g'arbida, pastki ko'cha ortida"); });
     tile('trophy', 'Haftalik turnir', "Hafta g'oliblari mukofot oladi", openTournament);
     tile('map-pin', 'Pochtachi', '3 ta posilka yetkazish', () => startJob('post'));
     tile('coffee', 'Pitsa yetkazish', 'Issiqligida yetkazsangiz — choychaqa', () => startJob('pizza'));
@@ -8128,7 +8530,11 @@ import * as THREE from 'three';
       }
     }
     mayorKey = data.mayor || null;
+    if (fresh && data.spider_me !== undefined) setSpiderMe(data.spider_me);
+    if (fresh && data.drone !== undefined && Boolean(me.drone) !== data.drone) setDroneOwned(data.drone);
+    setSpiderBug(data.spider_bug || null);
     setPlayers(data.players);
+    webOthers(data.players || []);
     setFarm(data.farm);
     // Kimdir pul bergan bo'lsa — xabar
     addChat(data.chat);
@@ -8178,7 +8584,7 @@ import * as THREE from 'three';
           body: {
             x: Math.round(me.x), y: Math.round(me.y), h: Math.round(me.h), dir: me.dir, car: me.car,
             chat_since: chatSince, voice_since: voiceSince, pose: me.sit ? 'sit' : (me.dance && !me.car ? 'dance' : null),
-            para: Boolean(me.para), dirt: dirtOf(me.car), pm_since: pmSince, boat: Boolean(me.boat),
+            para: Boolean(me.para), dirt: dirtOf(me.car), pm_since: pmSince, boat: Boolean(me.boat), web: zip ? me.web : null,
             drift: Boolean(me.car) && drifting(),
           },
         });
@@ -8221,6 +8627,8 @@ import * as THREE from 'three';
     stepMgVisual();
     updateMgCard();
     stepZoo(dt);
+    stepSpider(dt);
+    stepDrone(dt);
     updateStageUi();
     updateFlight(now);
     updateFestCard();
@@ -8277,7 +8685,7 @@ import * as THREE from 'three';
       };
       me.rig = makeRig(me.name, me.avatar, true);
       me.looks = {};
-      api('/api/game/looks').then((d) => { me.looks = d.looks; setRigLooks(me.rig, d.looks); }).catch(() => {});
+      api('/api/game/looks').then((d) => { me.looks = d.looks; setRigLooks(me.rig, suitLooks(d.looks, me.spider)); }).catch(() => {});
 
       // Kichik xarita dunyo nisbatida (kesilib qolmasin)
       mini.height = Math.round((mini.width * world.h) / world.w);
@@ -8297,6 +8705,8 @@ import * as THREE from 'three';
       buildPort();
       buildStage();
       buildDepot();
+      buildRocket();
+      buildRiver();
       loadPet();
       initPhone();
       loadTuning();

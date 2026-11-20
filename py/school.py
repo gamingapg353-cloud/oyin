@@ -335,8 +335,18 @@ def _polls_json(db, user):
                 counts[v["choice"]] += 1
             if v["user_id"] == uid:
                 mine = v["choice"]
-        out.append({"id": p["id"], "question": p["question"], "options": options, "counts": counts,
-                    "mine": mine, "active": bool(p["active"]), "total": sum(counts)})
+        item = {"id": p["id"], "question": p["question"], "options": options, "counts": counts,
+                "mine": mine, "active": bool(p["active"]), "total": sum(counts)}
+        # Yozma javoblar: o'quvchi faqat o'zinikini, owner hammasini ko'radi
+        answers = db.execute("SELECT a.*, u.name, u.avatar FROM poll_answers a JOIN users u ON u.id = a.user_id "
+                             "WHERE a.poll_id = ? ORDER BY a.at", (p["id"],)).fetchall()
+        item["answer_count"] = len(answers)
+        mine_text = next((a["text"] for a in answers if a["user_id"] == uid), None)
+        item["my_answer"] = mine_text
+        if user["role"] == "owner":
+            item["answers"] = [{"name": a["name"], "avatar": avatar_url(a["avatar"]), "text": a["text"],
+                                "at": datetime.fromtimestamp(a["at"]).strftime("%d.%m %H:%M")} for a in answers]
+        out.append(item)
     return jsonify(polls=out)
 
 
@@ -350,15 +360,18 @@ def api_polls():
 @owner_required
 def api_poll_create():
     data = request.get_json(silent=True) or {}
-    q = _clean(data.get("question"), 200)
+    q = _clean(data.get("question"), 300)
     options = [_clean(o, 80) for o in (data.get("options") or []) if _clean(o, 80)]
-    if not q or not 2 <= len(options) <= 6 or len(set(options)) != len(options):
-        return jsonify(error="Savol va 2–6 ta har xil variant yozing"), 400
+    if not q:
+        return jsonify(error="Savolni yozing"), 400
+    # Variantlarsiz — o'quvchilar javobni o'zi yozadi; variantli eski usul ham ishlaydi
+    if options and (not 2 <= len(options) <= 6 or len(set(options)) != len(options)):
+        return jsonify(error="Variantlar 2–6 ta va har xil bo'lsin"), 400
     db = get_db()
     db.execute("INSERT INTO polls2 (question, options, active, created_at) VALUES (?, ?, 1, ?)",
                (q, json.dumps(options, ensure_ascii=False), time.time()))
     db.commit()
-    classroom.notify_all_users(f"🗳 Yangi so'rovnoma: {q}", "/panel#polls")
+    classroom.notify_all_users(f"💬 Ustoz savol berdi: {q[:80]} — javob yozing", "/panel#polls")
     return _polls_json(db, current_user())
 
 
@@ -379,6 +392,39 @@ def api_poll_vote(pid: int):
                "ON CONFLICT(poll_id, user_id) DO UPDATE SET choice = excluded.choice", (pid, user["id"], choice))
     db.commit()
     return _polls_json(db, user)
+
+
+@bp.post("/api/polls/<int:pid>/answer")
+@login_required
+def api_poll_answer(pid: int):
+    """O'quvchi savolga yozma javob beradi (qayta yozsa — yangilanadi)."""
+    user = current_user()
+    if user["role"] != "user":
+        return jsonify(error="Javobni o'quvchilar yozadi"), 400
+    text = str((request.get_json(silent=True) or {}).get("text") or "").strip()[:1000]
+    if not text:
+        return jsonify(error="Javobni yozing"), 400
+    db = get_db()
+    p = db.execute("SELECT * FROM polls2 WHERE id = ?", (pid,)).fetchone()
+    if p is None or not p["active"]:
+        return jsonify(error="Savol yopilgan"), 400
+    first = not db.execute("SELECT 1 FROM poll_answers WHERE poll_id = ? AND user_id = ?", (pid, user["id"])).fetchone()
+    db.execute("INSERT INTO poll_answers (poll_id, user_id, text, at) VALUES (?, ?, ?, ?) "
+               "ON CONFLICT(poll_id, user_id) DO UPDATE SET text = excluded.text, at = excluded.at",
+               (pid, user["id"], text, time.time()))
+    db.commit()
+    if first:
+        classroom.notify("owner", f"💬 {user['name']} javob yozdi: {text[:80]}", "/panel#polls")
+    return _polls_json(db, user)
+
+
+@bp.delete("/api/polls/<int:pid>")
+@owner_required
+def api_poll_delete(pid: int):
+    db = get_db()
+    db.execute("DELETE FROM polls2 WHERE id = ?", (pid,))
+    db.commit()
+    return _polls_json(db, current_user())
 
 
 @bp.post("/api/polls/<int:pid>/close")

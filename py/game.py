@@ -117,6 +117,8 @@ CARS = [  # narxi bo'yicha (Avtosalonda shu tartibda)
      "color": "#facc15", "style": "super"},
     {"id": "bugatti", "name": "Bugatti Chiron", "price": 600000, "speed": 2.8, "fare": 1.9,
      "color": "#1e40af", "style": "super"},
+    {"id": "carpet", "name": "Uchar gilam", "price": 800000, "speed": 2.6, "fare": 0,
+     "color": "#b91c1c", "style": "carpet", "flies": True},
     {"id": "tesla", "name": "Tesla (uchadigan)", "price": 1000000, "speed": 3.0, "fare": 2.2,
      "color": "#e5e7eb", "style": "fly", "flies": True},
     {"id": "plane", "name": "Samolyot", "price": 3000000, "speed": 4.0, "fare": 2.6,
@@ -252,6 +254,12 @@ POND = {"x": 40, "y": 1290, "w": 300, "h": 200}                                 
 TRACK = {"cx": 3360, "cy": 3800 + 620, "half": 1500, "r": 380, "w": 170, "laps": 3}
 TRACK["rect"] = {"x": TRACK["cx"] - TRACK["half"] - TRACK["r"] - 140, "y": TRACK["cy"] - TRACK["r"] - 140,
                  "w": 2 * (TRACK["half"] + TRACK["r"] + 140), "h": 2 * (TRACK["r"] + 140)}
+# Daryo: shaharning janubi-g'arbida (pastki ko'cha ortida), ustida ko'prik — ko'prikdan baliq tutiladi
+RIVER = {"rect": {"x": 0, "y": 3740, "w": 1300, "h": 700},
+         "water": {"x": 0, "y": 4000, "w": 1300, "h": 150},
+         "bridge": {"x": 560, "y": 3985, "w": 120, "h": 180}}
+# Kosmodrom: aeroportning janubida — Oyga sayohat
+ROCKET = {"x": 7150, "y": 2450, "price": 1000000}
 # Aeroport: xaritaning sharqidagi o'rmonda (1900-ko'cha davomida). Doim kirish mumkin.
 AIRPORT = {"rect": {"x": 6600, "y": 1250, "w": 1380, "h": 1500},  # shahar cheti bilan biroz ustma-ust (o'tish uchun)
            "runway": {"x": 7560, "y": 1330, "w": 150, "h": 1340},
@@ -352,7 +360,7 @@ WORLD_DATA = {
     "plots": PLOTS, "buildings": [building_rect(p) for p in PLOTS],
     "shop": SHOP, "fountain": FOUNTAIN, "pond": POND, "trees": _make_trees(),
     "field": FIELD, "goal_w": GOAL_W, "benches": BENCHES, "track": TRACK, "airport": AIRPORT, "bus_stops": BUS_STOPS,
-    "aqua": AQUA, "places": PLACES, "metro": METRO, "zoo": ZOO, "port": PORT,
+    "aqua": AQUA, "places": PLACES, "metro": METRO, "zoo": ZOO, "port": PORT, "river": RIVER, "rocket": ROCKET,
     "default_spawn": {"x": 1200, "y": 800}, "fly_height": FLY_HEIGHT, "fly_cruise": FLY_CRUISE,
 }
 
@@ -458,6 +466,7 @@ def _others(me: str, now: float) -> list[dict]:
          "looks": p.get("looks") or {}, "clan": p.get("clan"), "pose": p.get("pose"),
          "drift": p.get("drift", False), "tune": p.get("tune"), "para": p.get("para", False),
          "ring": p.get("ring", False), "dirt": round(p.get("dirt", 0), 2), "pet": p.get("pet"), "boat": p.get("boat", False),
+         "spider": p.get("spider", False), "web": p.get("web"),
          "emote": p["emote"]["e"] if p.get("emote") and now - p["emote"]["t"] < 4 else None}
         for key, p in _live.items()
         if key != me and now - p["t"] < ONLINE_SECONDS
@@ -677,6 +686,19 @@ def clan_badge(db, row) -> dict | None:
     return {"id": c["id"], "tag": c["tag"], "color": c["color"]} if c else None
 
 
+def _web(value):
+    """O'rgimchak to'ri qayerga yopishgani (boshqalar ham to'rni ko'radi)."""
+    if not isinstance(value, dict):
+        return None
+    try:
+        x, y, h = float(value.get("x")), float(value.get("y")), float(value.get("h") or 0)
+    except (TypeError, ValueError):
+        return None
+    if not all(math.isfinite(v) for v in (x, y, h)):
+        return None
+    return {"x": round(x), "y": round(y), "h": round(min(max(h, 0), FLY_HEIGHT))}
+
+
 def _unit(value) -> float:
     """0..1 oralig'idagi son (mashina iflosligi); noto'g'ri qiymat — 0."""
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
@@ -763,9 +785,10 @@ def api_sync():
             and (prev0.get("para") or (prev0.get("car") in CARS_BY_ID and CARS_BY_ID[prev0["car"]].get("flies") and prev0.get("h", 0) > 150)))
     if para and prev0:
         height = min(height, prev0.get("h", 0))  # parashyutda faqat pastga tushiladi
-    height = min(max(height, 0), FLY_HEIGHT + 20 if (flying or para) else 120)
+    spider = bool(row["spider"]) and not car
+    height = min(max(height, 0), FLY_HEIGHT + 20 if (flying or para or spider) else 120)
     world_rect = {"x": 0, "y": 0, "w": WORLD_W, "h": WORLD_H}
-    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"], ZOO["rect"], PORT["rect"]]
+    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"], ZOO["rect"], PORT["rect"], RIVER["rect"]]
     inside_rect = lambda a: a["x"] + 10 <= x <= a["x"] + a["w"] - 10 and a["y"] + 10 <= y <= a["y"] + a["h"] - 10
     in_area = any(inside_rect(a) for a in areas)
     if not in_area:  # chegaradan tashqarida — eng yaqin ruxsat etilgan joyga
@@ -807,6 +830,8 @@ def api_sync():
             # Juda tez "sakrash" bo'lsa — eski joyiga qaytaramiz
             dt = min(now - prev["t"], 1.0)
             speeds = [CARS_BY_ID[c]["speed"] * tune_speed(tuning, c) for c in (car, prev["car"]) if c in CARS_BY_ID]
+            if spider:
+                speeds.append(4.0)  # to'r bilan uchish
             limit = WALK_SPEED * max(speeds + [1]) * dt * 1.6 + 40
             if math.hypot(x - prev["x"], y - prev["y"]) > limit:
                 x, y, corrected = prev["x"], prev["y"], True
@@ -816,6 +841,7 @@ def api_sync():
                       "para": para and height > 0, "emote": emote, "ring": bool(row["spouse"]), "pet": row["pet"],
                       "boat": bool(data.get("boat")) and not car and _overlaps(x, y, PORT["sea"], 20),
                       "dirt": _unit(data.get("dirt")),
+                      "spider": spider, "web": _web(data.get("web")) if spider else None,
                       "car": car, "t": now, "name": user["name"], "avatar": user["avatar"],
                       "looks": looks, "clan": clan, "pose": pose,
                       "drift": bool(data.get("drift")) and bool(car),

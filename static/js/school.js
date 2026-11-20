@@ -237,25 +237,23 @@
       const d = await api('/api/polls');
       root.replaceChildren();
       if (isOwner) {
-        const c = card("Yangi so'rovnoma", 'plus');
+        const c = card("O'quvchilarga savol", 'message');
         const f = el('form', 'poll-form');
-        const qq = el('input', 'input-plain');
-        qq.placeholder = 'Savol: masalan, keyingi yangilik nima bo\'lsin?';
-        qq.maxLength = 200;
-        const opts = el('textarea', 'input-plain');
-        opts.rows = 4;
-        opts.placeholder = 'Variantlar — har birini yangi qatordan (2–6 ta)';
-        const b = el('button', 'btn btn--primary', 'Boshlash');
+        const qq = el('textarea', 'input-plain');
+        qq.rows = 3;
+        qq.placeholder = "Savol yoki xabar yozing: masalan, keyingi darsda nimani o'rganmoqchisiz?";
+        qq.maxLength = 300;
+        const b = el('button', 'btn btn--primary', 'Yuborish');
         b.type = 'submit';
-        f.append(qq, opts, b);
+        f.append(qq, b, el('small', 'muted', "Hamma o'quvchiga boradi. Ular pastda javob yozadi — javoblarni faqat siz ko'rasiz."));
         f.addEventListener('submit', (e) => {
           e.preventDefault();
-          api('/api/polls', { method: 'POST', body: { question: qq.value, options: opts.value.split('\n') } }).then(loadPolls).catch(fail);
+          api('/api/polls', { method: 'POST', body: { question: qq.value } }).then(loadPolls).catch(fail);
         });
         c.append(f);
         root.append(c);
       }
-      if (!d.polls.length) root.append(el('p', 'muted', "Hali so'rovnoma yo'q"));
+      if (!d.polls.length) root.append(el('p', 'muted', "Hali savol yo'q"));
       d.polls.forEach((p) => {
         const c = card(p.question, 'vote', p.active ? '' : 'is-closed');
         p.options.forEach((o, i) => {
@@ -268,12 +266,54 @@
           b.addEventListener('click', () => api(`/api/polls/${p.id}/vote`, { method: 'POST', body: { choice: i } }).then(loadPolls).catch(fail));
           c.append(b);
         });
-        c.append(el('small', 'muted', `${p.total} ta ovoz${p.active ? '' : ' · yopilgan'}`));
-        if (isOwner && p.active) {
-          const close = el('button', 'btn btn--ghost', 'Yopish');
-          close.type = 'button';
-          close.addEventListener('click', () => api(`/api/polls/${p.id}/close`, { method: 'POST' }).then(loadPolls).catch(fail));
-          c.append(close);
+        if (p.options.length) c.append(el('small', 'muted', `${p.total} ta ovoz${p.active ? '' : ' · yopilgan'}`));
+        else if (!isOwner) {
+          // O'quvchi: pastda ustozga javob yozadi
+          if (p.my_answer) c.append(el('p', 'poll-mine', `Sizning javobingiz: ${p.my_answer}`));
+          if (p.active) {
+            const f = el('form', 'poll-form');
+            const t = el('textarea', 'input-plain');
+            t.rows = 2;
+            t.maxLength = 1000;
+            t.placeholder = p.my_answer ? "Javobni o'zgartirish…" : 'Ustozga javob yozing…';
+            const send = el('button', 'btn btn--primary', p.my_answer ? 'Yangilash' : 'Yuborish');
+            send.type = 'submit';
+            f.append(t, send);
+            f.addEventListener('submit', (e) => {
+              e.preventDefault();
+              api(`/api/polls/${p.id}/answer`, { method: 'POST', body: { text: t.value } }).then(loadPolls).catch(fail);
+            });
+            c.append(f);
+          } else c.append(el('small', 'muted', 'Savol yopilgan'));
+        } else {
+          // Owner: o'quvchilarning javoblari
+          c.append(el('small', 'muted', `${p.answer_count} ta javob${p.active ? '' : ' · yopilgan'}`));
+          const list = el('div', 'poll-answers');
+          (p.answers || []).forEach((a) => {
+            const r = el('div', 'poll-answer');
+            const head = el('div', 'poll-answer__head');
+            head.append(avatarEl(a.name, a.avatar), el('strong', '', a.name), el('small', 'muted', a.at));
+            r.append(head, el('p', '', a.text));
+            list.append(r);
+          });
+          if (!(p.answers || []).length) list.append(el('p', 'muted', "Hali hech kim javob yozmagan"));
+          c.append(list);
+        }
+        if (isOwner) {
+          const row = el('div', 'lesson-form');
+          if (p.active) {
+            const close = el('button', 'btn btn--ghost', 'Yopish');
+            close.type = 'button';
+            close.addEventListener('click', () => api(`/api/polls/${p.id}/close`, { method: 'POST' }).then(loadPolls).catch(fail));
+            row.append(close);
+          }
+          const del = el('button', 'btn btn--ghost', "O'chirish");
+          del.type = 'button';
+          del.addEventListener('click', () => {
+            if (window.confirm("Savol va javoblar o'chirilsinmi?")) api(`/api/polls/${p.id}`, { method: 'DELETE' }).then(loadPolls).catch(fail);
+          });
+          row.append(del);
+          c.append(row);
         }
         root.append(c);
       });

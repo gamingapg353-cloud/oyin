@@ -167,7 +167,7 @@ def _near_pond(p) -> bool:
     pd = game.POND
     cx, cy = pd["x"] + pd["w"] / 2, pd["y"] + pd["h"] / 2
     k = math.hypot((p["x"] - cx) / (pd["w"] / 2), (p["y"] - cy) / (pd["h"] / 2))
-    return 0.8 <= k <= 1.6
+    return 0.8 <= k <= 1.6 or game._overlaps(p["x"], p["y"], game.RIVER["bridge"], 10)  # yoki daryo ko'prigida
 
 
 @bp.post("/api/game/fish/cast")

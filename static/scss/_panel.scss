@@ -2014,3 +2014,75 @@
   justify-self: start;
   margin: 2px 0 4px;
 }
+
+.poll-answers {
+  display: grid;
+  gap: 8px;
+}
+
+.poll-answer {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: $radius-sm;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  p {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+.poll-mine {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: $radius-sm;
+  background: var(--primary-soft);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.howto {
+  margin-bottom: 12px;
+  padding: 8px 14px;
+  border: 1px dashed var(--border);
+  border-radius: $radius-sm;
+  color: var(--muted);
+  font-size: 14px;
+
+  summary {
+    color: var(--primary);
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  p {
+    margin: 6px 0 0;
+  }
+}
+
+.login-log {
+  display: grid;
+  gap: 6px;
+
+  &__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: var(--success-soft);
+
+    &.is-bad {
+      background: var(--danger-soft);
+    }
+  }
+}

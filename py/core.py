@@ -56,6 +56,9 @@ CREATE TABLE IF NOT EXISTS game_players (
     pet         TEXT,                          -- uy hayvoni: dog | cat | parrot
     license     INTEGER NOT NULL DEFAULT 0,    -- haydovchilik guvohnomasi (tez mashinalar uchun)
     license_try REAL NOT NULL DEFAULT 0,       -- oxirgi yiqilgan imtihon vaqti
+    spider      INTEGER NOT NULL DEFAULT 0,    -- o'rgimchak chaqqan: tomlarga chiqadi, to'r otadi
+    drone       INTEGER NOT NULL DEFAULT 0,    -- dron sotib olgan (tepadan ko'rish va surat)
+    moon        INTEGER NOT NULL DEFAULT 0,    -- necha marta Oyga uchgan
     clan        INTEGER                        -- game_clans.id
 );
 
@@ -105,6 +108,14 @@ CREATE TABLE IF NOT EXISTS polls2 (
     active      INTEGER NOT NULL DEFAULT 1,
     created_at  REAL NOT NULL
 );
+-- Savolga o'quvchilarning yozma javoblari (owner ko'radi)
+CREATE TABLE IF NOT EXISTS poll_answers (
+    poll_id     INTEGER NOT NULL REFERENCES polls2(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    text        TEXT NOT NULL,
+    at          REAL NOT NULL,
+    PRIMARY KEY (poll_id, user_id)
+);
 CREATE TABLE IF NOT EXISTS poll_votes2 (
     poll_id     INTEGER NOT NULL REFERENCES polls2(id) ON DELETE CASCADE,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -138,6 +149,16 @@ CREATE TABLE IF NOT EXISTS devices (
     last_at     REAL NOT NULL,
     trusted     INTEGER NOT NULL DEFAULT 0,       -- owner «O'zining akkaunti» deb tasdiqlagan
     PRIMARY KEY (user_key, device)
+);
+
+-- Kirishlar tarixi: qachon, qaysi qurilmadan, ruxsat berildimi
+CREATE TABLE IF NOT EXISTS login_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_key    TEXT NOT NULL,
+    device      TEXT NOT NULL,
+    ua          TEXT,
+    t           REAL NOT NULL,
+    ok          INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS security_log (
@@ -406,7 +427,9 @@ def init_db() -> None:
                           ("daily", "TEXT NOT NULL DEFAULT '{}'"), ("spin_day", "TEXT"),
                           ("stocks", "TEXT NOT NULL DEFAULT '{}'"), ("spouse", "TEXT"),
                           ("week_id", "TEXT"), ("week_start", "REAL"), ("pet", "TEXT"),
-                          ("license", "INTEGER NOT NULL DEFAULT 0"), ("license_try", "REAL NOT NULL DEFAULT 0")):
+                          ("license", "INTEGER NOT NULL DEFAULT 0"), ("license_try", "REAL NOT NULL DEFAULT 0"),
+                          ("spider", "INTEGER NOT NULL DEFAULT 0"), ("drone", "INTEGER NOT NULL DEFAULT 0"),
+                          ("moon", "INTEGER NOT NULL DEFAULT 0")):
             if name not in player_columns:  # bank, kredit, ko'rinish, klan
                 db.execute(f"ALTER TABLE game_players ADD COLUMN {name} {ddl}")
         # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)
@@ -421,7 +444,8 @@ def init_db() -> None:
             db.execute("UPDATE game_plots SET level = ? WHERE kind = ? AND level > ?", (top, kind, top))
         # Eski mashinalar (Jajji, Shamol, Chaqmoq, Bo'ron) -> yangilari (BMW, Mercedes, Lamborghini)
         old_cars = {"jajji": "bmw", "shamol": "mercedes", "chaqmoq": "lambo", "boron": "lambo"}
-        known = {"bmw", "mercedes", "lambo", "tesla", "jiguli", "damas", "range", "porsche", "bugatti", "plane", "bus", "bike", "skate"}
+        known = {"bmw", "mercedes", "lambo", "tesla", "jiguli", "damas", "range", "porsche", "bugatti", "plane", "bus", "bike", "skate",
+                 "carpet"}
         for key, cars_json in db.execute("SELECT player_key, cars FROM game_players").fetchall():
             cars = json.loads(cars_json or "[]")
             new = []

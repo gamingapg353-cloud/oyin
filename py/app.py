@@ -168,11 +168,17 @@ def api_login():
         session.update(role="owner", login=config.OWNER_LOGIN)
         return True
 
+    blocked = []
+
     def as_user() -> bool:
         row = get_db().execute(
-            "SELECT id, password_hash, session_version FROM users WHERE login = ?", (login,)
+            "SELECT id, name, password_hash, session_version FROM users WHERE login = ?", (login,)
         ).fetchone()
         if not (row and check_password_hash(row["password_hash"], password)):
+            return False
+        problem = classroom.login_check(row["id"], row["name"])  # begona qurilma — owner ruxsatisiz kirmaydi
+        if problem:
+            blocked.append(problem)
             return False
         session.clear()
         session.permanent = True
@@ -187,6 +193,8 @@ def api_login():
         if attempt():
             return jsonify(ok=True, role=session["role"], redirect=url_for("panel"))
 
+    if blocked:
+        return jsonify(error=blocked[0], blocked=True), 403
     if need_code:
         return jsonify(error="Kod noto'g'ri" if need_code[0] else "Authenticator ilovasidagi 6 xonali kodni yozing",
                        need_code=True), 401
