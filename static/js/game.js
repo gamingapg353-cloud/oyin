@@ -6721,8 +6721,8 @@ import * as THREE from 'three';
 
   // ---------------- O'rgimchak odam ----------------
   // Shaharda kichkina o'rgimchak yashiringan. Topsangiz — chaqadi va siz tomlarga chiqib,
-  // to'r otib uchadigan bo'lasiz. Kostyum — o'zimizniki: to'q kulrang, yashil to'r chiziqlari.
-  const SPIDER_SUIT = { shirt: '#1f2937', pants: '#111827', skin: '#4b5563', hat: null };
+  // to'r otib uchadigan bo'lasiz. Kostyum — qizil va qora.
+  const SPIDER_SUIT = { shirt: '#dc2626', pants: '#111111', skin: '#b91c1c', hat: null };
   const WEB_RANGE = 460;
   const WEB_TIME = 0.7;
   let spiderBug = null;
@@ -6892,7 +6892,9 @@ import * as THREE from 'three';
     }
     body.append(el('p', 'sheet-note', "Shaharda kichkina qora o'rgimchak yashiringan. U odamlar kam boradigan burchaklarda o'tiradi — juda yaqin kelsangizgina ko'rinadi."),
       el('p', 'sheet-note', "Topsangiz F bosing — o'rgimchak sizni chaqadi va siz o'rgimchak odamga aylanasiz! Keyin u boshqa joyga qochib yashirinadi."),
-      el('p', 'sheet-note', "Maslahat: xaritaning chekkalari, o'rmon va port tomonlarni qidiring 🔍"));
+      el('p', 'sheet-note', "Maslahat: xaritaning chekkalari, o'rmon va port tomonlarni qidiring 🔍"),
+      el('p', 'sheet-note', "Tomlar ustida to'r otib uchib yurgan 🕷️ O'rgimchak odamni ko'ryapsizmi? Siz ham shunday bo'lasiz!"));
+
   }
 
   // ---------------- Uchar gilam, dron, kosmik raketa, daryo va ko'prik ----------------
@@ -7074,6 +7076,86 @@ import * as THREE from 'three';
     return [{ x: w.x, y: w.y, w: b.x - w.x, h: w.h, top: 40 }, { x: b.x + b.w, y: w.y, w: w.x + w.w - (b.x + b.w), h: w.h, top: 40 }];
   }
   const onBridge = () => Boolean(world.river && inside(me.x, me.y, world.river.bridge));
+
+  // ---- Shaharning o'rgimchak odami (hamma ko'radi): tomdan tomga to'r otib uchib yuradi ----
+  const NPC_HOP = 2.6;   // bir sakrash soniyasi
+  const npc = { route: [], key: '', root: null, human: null, line: null, label: null };
+  function npcRoute() {
+    // Baland binolar tomlari — eng yaqinidan keyingisiga (yo'l uzilmasin)
+    const roofs = [];
+    plotsById.forEach((r) => {
+      if (r.level > 0 && world.buildings[r.plot]) {
+        const b = world.buildings[r.plot];
+        roofs.push({ id: r.plot, x: b.x + b.w / 2, y: b.y + b.h / 2, top: buildingTop(r.kind, r.level) });
+      }
+    });
+    roofs.sort((a, b) => a.id - b.id);
+    const pool = roofs.filter((r) => r.top >= 60);
+    const pts = pool.length >= 3 ? pool : [{ x: 1200, y: 700, top: 0 }, { x: 1700, y: 900, top: 0 }, { x: 2300, y: 800, top: 0 }, { x: 1700, y: 1150, top: 0 }];
+    const route = [pts[0]];
+    const left = pts.slice(1);
+    while (left.length && route.length < 40) {
+      const last = route[route.length - 1];
+      let bi = 0;
+      left.forEach((p, i) => { if (Math.hypot(p.x - last.x, p.y - last.y) < Math.hypot(left[bi].x - last.x, left[bi].y - last.y)) bi = i; });
+      route.push(left.splice(bi, 1)[0]);
+    }
+    return route;
+  }
+  function stepNpcSpider() {
+    if (!world || !plotsById) return;
+    const key = [...plotsById.values()].filter((r) => r.level > 0).map((r) => `${r.plot}:${r.level}`).join(',');
+    if (key !== npc.key) {
+      npc.key = key;
+      npc.route = npcRoute();
+    }
+    const R = npc.route;
+    if (R.length < 2) return;
+    if (!npc.root) {
+      npc.root = new THREE.Group();
+      npc.human = makeHuman("O'rgimchak odam", null, SPIDER_SUIT);
+      npc.root.add(npc.human);
+      npc.label = makeLabel("🕷️ O'rgimchak odam", 'rgba(127,29,29,.9)');
+      npc.label.position.y = 82;
+      npc.root.add(npc.label);
+      scene.add(npc.root);
+      npc.line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+        new THREE.LineBasicMaterial({ color: '#f8fafc' }));
+      npc.line.frustumCulled = false;
+      scene.add(npc.line);
+    }
+    // Hamma o'yinchida bir xil: soatga qarab (yo'l oldinga, keyin orqaga qaytadi)
+    const n = R.length;
+    const cyc = (n - 1) * 2;
+    const tt = Date.now() / 1000 / NPC_HOP;
+    let step = Math.floor(tt) % cyc;
+    const k = tt - Math.floor(tt);
+    let ai = step < n - 1 ? step : cyc - step;
+    let bi = step < n - 1 ? step + 1 : cyc - step - 1;
+    const A = R[ai];
+    const B = R[bi];
+    const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+    const x = A.x + (B.x - A.x) * e;
+    const y = A.y + (B.y - A.y) * e;
+    const h = A.top + (B.top - A.top) * e + Math.sin(Math.PI * k) * 170;
+    npc.root.position.set(x, h, y);
+    const dir = Math.atan2(B.y - A.y, B.x - A.x);
+    npc.human.rotation.y = Math.PI / 2 - dir;
+    // qo'llar tepada (to'rni ushlab turibdi)
+    const { armL, armR, legL, legR } = npc.human.userData;
+    const swing = k < 0.85;
+    armR.rotation.x = swing ? -2.8 : 0;
+    armL.rotation.x = swing ? -0.6 : 0;
+    legL.rotation.x = swing ? -0.5 : 0;
+    legR.rotation.x = swing ? 0.3 : 0;
+    if (swing) {
+      const ax = (A.x + B.x) / 2;
+      const ay = (A.y + B.y) / 2;
+      const top = Math.max(A.top, B.top) + 320;
+      npc.line.geometry.setFromPoints([new THREE.Vector3(x, h + 60, y), new THREE.Vector3(ax, top, ay)]);
+    }
+    npc.line.visible = swing;
+  }
 
   // ---------------- Kun va tun ----------------
   // Bir sutka — 20 daqiqa. Vaqt soatga bog'liq, shuning uchun hamma bir xil kun/tunni ko'radi.
@@ -8628,6 +8710,7 @@ import * as THREE from 'three';
     updateMgCard();
     stepZoo(dt);
     stepSpider(dt);
+    stepNpcSpider();
     stepDrone(dt);
     updateStageUi();
     updateFlight(now);
