@@ -72,6 +72,10 @@
       window.location.href = '/';
       return true;
     }
+    if (err && err.status === 423 && window.location.pathname === '/game') {
+      window.location.reload(); // imtihon kuni — o'yin yopiq
+      return true;
+    }
     return false;
   }
 

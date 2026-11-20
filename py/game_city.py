@@ -107,8 +107,6 @@ def api_items_sell():
     item, qty = data.get("item"), data.get("qty") or 1
     if item not in ITEMS or not isinstance(qty, int) or isinstance(qty, bool) or not 1 <= qty <= 999:
         return jsonify(error="Noto'g'ri narsa"), 400
-    if not _near_place(key, "market", 220):
-        return jsonify(error="Bozor rastasiga boring (hunarmandlar mahallasida)"), 400
     db = get_db()
     if not take_item(db, key, item, qty):
         return jsonify(error="Sizda buncha yo'q"), 400
@@ -138,8 +136,6 @@ def api_stall_post():
     item, price = data.get("item"), data.get("price")
     if item not in ITEMS or not isinstance(price, int) or isinstance(price, bool) or not 100 <= price <= 1_000_000:
         return jsonify(error="Narsa va narxni (100 — 1 000 000) yozing"), 400
-    if not _near_place(key, "market", 220):
-        return jsonify(error="Bozor rastasiga boring"), 400
     db = get_db()
     if db.execute("SELECT COUNT(*) FROM game_stall WHERE seller = ?", (key,)).fetchone()[0] >= 10:
         return jsonify(error="Rastada ko'pi bilan 10 ta narsa"), 400
@@ -231,86 +227,6 @@ def api_mail_send():
 
 
 # --------------------------------------------------------------------------- #
-#  Maktab (savollar) va kutubxona (kitob o'qish)
-# --------------------------------------------------------------------------- #
-SCHOOL_PAY = 3000
-SCHOOL_WAIT = 10 * 60
-_school: dict[str, dict] = {}
-TIPS = [
-    "HTML'da <a href=\"...\"> — havola, <img src=\"...\"> — rasm.",
-    "CSS'da display: flex; — elementlarni bir qatorga teradi.",
-    "justify-content: center; — flex ichida gorizontal markazga.",
-    "margin — tashqi bo'shliq, padding — ichki bo'shliq.",
-    "border-radius: 50%; — kvadratni doiraga aylantiradi.",
-    "CSS'da :hover — sichqoncha ustiga kelganda.",
-    "<ul> — nuqtali ro'yxat, <ol> — raqamli ro'yxat, <li> — element.",
-    "position: absolute; — eng yaqin position: relative ota elementga nisbatan.",
-    "@media (max-width: 600px) { ... } — telefon uchun alohida uslub.",
-    "JavaScript'da document.querySelector('.klass') — elementni topadi.",
-    "addEventListener('click', ...) — tugma bosilganda ishlaydi.",
-    "const — o'zgarmaydigan, let — o'zgaradigan o'zgaruvchi.",
-    "grid-template-columns: repeat(3, 1fr); — 3 ta teng ustun.",
-    "rem — ildiz shriftga nisbatan o'lcham, % — ota elementga nisbatan.",
-    "Rasmga alt=\"...\" yozing — ko'rinmasa ham nima ekani tushuniladi.",
-]
-
-
-@bp.get("/api/game/school")
-@login_required
-def api_school():
-    key = _me()
-    if not _near_place(key, "school"):
-        return jsonify(error="Maktabga boring (hunarmandlar mahallasida)"), 400
-    left = _cool.get((key, "school"), 0) + SCHOOL_WAIT - time.time()
-    if left > 0:
-        return jsonify(wait=math.ceil(left))
-    rng = random.Random()
-    pool = [i for i, q in enumerate(quiz.QUESTIONS) if q["topic"] in ("HTML", "CSS")]
-    qs = [quiz.shuffled(i, rng) for i in rng.sample(pool, 3)]
-    token = random.randint(1, 10 ** 9)
-    _school[key] = {"token": token, "correct": [q["correct"] for q in qs]}
-    return jsonify(token=token, questions=[{"question": q["question"], "options": q["options"]} for q in qs], pay=SCHOOL_PAY)
-
-
-@bp.post("/api/game/school")
-@login_required
-def api_school_answer():
-    key = _me()
-    data = request.get_json(silent=True) or {}
-    st = _school.pop(key, None)
-    if not st or st["token"] != data.get("token"):
-        return jsonify(error="Savollar eskirdi — qaytadan oling"), 400
-    answers = data.get("answers") or []
-    if not isinstance(answers, list) or len(answers) != len(st["correct"]):
-        return jsonify(error="Hamma savolga javob bering"), 400
-    right = sum(1 for a, c in zip(answers, st["correct"]) if a == c)
-    _cool[(key, "school")] = time.time()
-    db = get_db()
-    pay = right * SCHOOL_PAY
-    if pay:
-        gs.add_money(db, key, pay)
-    return jsonify(right=right, total=len(st["correct"]), correct=st["correct"], pay=pay, economy=gf._econ(db, key))
-
-
-@bp.post("/api/game/library")
-@login_required
-def api_library():
-    key = _me()
-    if not _near_place(key, "library"):
-        return jsonify(error="Kutubxonaga boring (hunarmandlar mahallasida)"), 400
-    wait = _cooldown(key, "library", 180)
-    if wait:
-        return jsonify(error=f"Kitobni o'qib bo'ldingiz — {wait} soniyadan keyin yangisi"), 429
-    db = get_db()
-    gs.add_money(db, key, 1500)
-    db.execute("INSERT INTO game_stats (player_key, stat, n) VALUES (?, 'knowledge', 1) "
-               "ON CONFLICT(player_key, stat) DO UPDATE SET n = n + 1", (key,))
-    db.commit()
-    n = db.execute("SELECT n FROM game_stats WHERE player_key = ? AND stat = 'knowledge'", (key,)).fetchone()["n"]
-    return jsonify(tip=random.choice(TIPS), pay=1500, knowledge=n, economy=gf._econ(db, key))
-
-
-# --------------------------------------------------------------------------- #
 #  Ustaxonalar: tikuvchi, avtomexanik, muzqaymoq, gul do'koni (buyurtma — tez bajaring)
 # --------------------------------------------------------------------------- #
 COLORS = ["qizil", "ko'k", "yashil", "sariq", "qora", "oq", "binafsha", "pushti"]
@@ -318,10 +234,7 @@ PARTS = ["g'ildirak", "fara", "akkumulyator", "dvigatel", "tormoz", "oyna"]
 FLAVORS = ["vanil", "shokolad", "qulupnay", "pista", "limon"]
 FLOWERS = ["atirgul", "lola", "romashka", "nilufar", "chinnigul", "boychechak"]
 WORK = {
-    "tailor": {"place": "tailor", "pay": 1400, "title": "Tikuvchi"},
-    "mechanic": {"place": "mechanic", "pay": 2000, "title": "Avtomexanik"},
     "icecream": {"place": "icecream", "pay": 1000, "title": "Muzqaymoq"},
-    "florist": {"place": "florist", "pay": 500, "title": "Gul do'koni", "item": "guldasta"},
 }
 _orders: dict[str, dict] = {}
 
@@ -383,70 +296,6 @@ def api_work_done(job: str):
     game.emit(db, key, "craft")
     return jsonify(ok=True, pay=pay, time=round(t, 1), item=item,
                    msg=f"Barakalla! +{_money(pay)} so'm{' va ' + ITEMS[item]['icon'] if item else ''}", economy=gf._econ(db, key))
-
-
-# ---- Novvoyxona: non vaqtida olinsa — issiq non ----
-BREAD_READY, BREAD_BURN = 4.0, 7.5
-_bread: dict[str, float] = {}
-
-
-@bp.post("/api/game/bakery/start")
-@login_required
-def api_bakery_start():
-    key = _me()
-    if not _near_place(key, "bakery"):
-        return jsonify(error="Novvoyxonaga boring"), 400
-    _bread[key] = time.time()
-    return jsonify(ready=BREAD_READY, burn=BREAD_BURN)
-
-
-@bp.post("/api/game/bakery/take")
-@login_required
-def api_bakery_take():
-    key = _me()
-    t0 = _bread.pop(key, None)
-    if t0 is None:
-        return jsonify(error="Tandirda non yo'q"), 400
-    t = time.time() - t0
-    db = get_db()
-    if t < BREAD_READY:
-        return jsonify(ok=False, msg="Non hali xom edi 😅")
-    if t > BREAD_BURN:
-        return jsonify(ok=False, msg="Non kuyib qoldi 🔥")
-    add_item(db, key, "non")
-    game.emit(db, key, "craft")
-    return jsonify(ok=True, msg="Issiq non tayyor! 🍞 (bozorda soting yoki do'stga sovg'a qiling)", items=_items_json(db, key))
-
-
-# ---- Sartarosh ----
-BARBER_PRICE = 2000
-
-
-@bp.post("/api/game/barber")
-@login_required
-def api_barber():
-    key = _me()
-    data = request.get_json(silent=True) or {}
-    hair, hat = data.get("hair"), data.get("hat", None)
-    if hair not in game.LOOKS["hair"] or (hat is not None and hat not in game.LOOKS["hat"]):
-        return jsonify(error="Qaysi soch?"), 400
-    if not _near_place(key, "barber"):
-        return jsonify(error="Sartaroshxonaga boring"), 400
-    db = get_db()
-
-    def change(row, money):
-        if money < BARBER_PRICE:
-            raise game.GameError("Pul yetarli emas")
-        looks = game.player_looks(row)
-        looks["hair"] = hair
-        if hat is not None:
-            looks["hat"] = hat
-        return -BARBER_PRICE, lambda: db.execute("UPDATE game_players SET looks = ? WHERE player_key = ?", (json.dumps(looks), key))
-
-    _, err = gs._change(db, key, change)
-    if err:
-        return err
-    return jsonify(looks=game.player_looks(gs._row(db, key)), economy=gf._econ(db, key))
 
 
 # --------------------------------------------------------------------------- #
@@ -540,46 +389,6 @@ def api_invest_claim():
         return jsonify(error="Hali dividend yo'q — har 24 soatda 2% yig'iladi"), 400
     gs.add_money(db, key, total)
     return jsonify(pay=total, economy=gf._econ(db, key))
-
-
-# --------------------------------------------------------------------------- #
-#  Reklama taxtasi
-# --------------------------------------------------------------------------- #
-BILLBOARD_PRICE = 20000
-BILLBOARD_TIME = 24 * 3600
-_board_cache: dict = {"t": 0, "data": None}
-
-
-def billboard(db) -> dict | None:
-    now = time.time()
-    if now - _board_cache["t"] > 20:
-        r = db.execute("SELECT * FROM game_billboard ORDER BY id DESC LIMIT 1").fetchone()
-        _board_cache.update(t=now, data={"text": r["text"], "name": r["name"]} if r and r["until"] > now else None)
-    return _board_cache["data"]
-
-
-@bp.post("/api/game/billboard")
-@login_required
-def api_billboard():
-    user = current_user()
-    key = game.player_key(user)
-    text = " ".join(str((request.get_json(silent=True) or {}).get("text") or "").split())[:60]
-    if len(text) < 2:
-        return jsonify(error="Reklama matnini yozing"), 400
-    db = get_db()
-
-    def change(row, money):
-        if money < BILLBOARD_PRICE:
-            raise game.GameError("Pul yetarli emas")
-        return -BILLBOARD_PRICE, lambda: db.execute(
-            "INSERT INTO game_billboard (player_key, name, text, until) VALUES (?, ?, ?, ?)",
-            (key, user["name"], text, time.time() + BILLBOARD_TIME))
-
-    _, err = gs._change(db, key, change)
-    if err:
-        return err
-    _board_cache["t"] = 0
-    return jsonify(billboard=billboard(db), economy=gf._econ(db, key))
 
 
 # --------------------------------------------------------------------------- #
@@ -974,7 +783,6 @@ def _city_hook(db, key: str, row, now: float, response: dict) -> None:
     with game._lock:
         response["flag"] = _flag_json(now)
     response["comet"] = comet_now(now)
-    response["billboard"] = billboard(db)
     if now - _fcup_check["t"] > 60:
         _fcup_check["t"] = now
         _fcup_payout(db)

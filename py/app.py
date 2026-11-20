@@ -24,6 +24,7 @@ import exam
 import extras
 import game_life
 import game_city
+import game_town
 import game
 import game_social
 import game_fun
@@ -82,6 +83,7 @@ app.register_blueprint(exam.bp)
 app.register_blueprint(extras.bp)
 app.register_blueprint(game_life.bp)
 app.register_blueprint(game_city.bp)
+app.register_blueprint(game_town.bp)
 
 
 def asset(filename: str) -> str:

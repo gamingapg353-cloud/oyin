@@ -261,7 +261,8 @@ RIVER = {"rect": {"x": 0, "y": 3740, "w": 1300, "h": 700},
          "bridge": {"x": 560, "y": 3985, "w": 120, "h": 180}}
 # Labirint: shimoli-g'arbdagi o'rmonda (game_city.MAZE bilan bir xil)
 MAZE_RECT = {"x": 100, "y": -1250, "w": 1200, "h": 1190}
-CRAFT_RECT = {"x": 3580, "y": -920, "w": 1420, "h": 980}   # hunarmandlar mahallasi (shahar bilan ustma-ust — o'tish uchun)
+EXTRA_AREAS: list[dict] = []     # game_town: bog', tog', plyaj, orol
+RENTALS: dict[str, tuple] = {}     # game_town: ijaraga olingan transport (mashina, tugash vaqti)
 # Kosmodrom: aeroportning janubida — Oyga sayohat
 ROCKET = {"x": 7150, "y": 2450, "price": 1000000}
 # Aeroport: xaritaning sharqidagi o'rmonda (1900-ko'cha davomida). Doim kirish mumkin.
@@ -285,16 +286,6 @@ PLACES = {
     "bank": {"x": 2290, "y": 960, "w": 160, "h": 110, "door": {"x": 2370, "y": 940}},
     "clock": {"x": 2340, "y": 520, "w": 60, "h": 60, "spot": {"x": 2370, "y": 610}},
     "icecream": {"x": 2210, "y": 640, "w": 50, "h": 40, "spot": {"x": 2235, "y": 700}},
-    # Hunarmandlar mahallasi — shimoli-sharqdagi o'rmonda (CRAFT_RECT), stadionga tegmaydi
-    "school": {"x": 3650, "y": -880, "w": 200, "h": 130, "door": {"x": 3750, "y": -735}},
-    "library": {"x": 3900, "y": -880, "w": 170, "h": 120, "door": {"x": 3985, "y": -745}},
-    "tailor": {"x": 4120, "y": -880, "w": 120, "h": 90, "door": {"x": 4180, "y": -775}},
-    "barber": {"x": 4290, "y": -880, "w": 120, "h": 90, "door": {"x": 4350, "y": -775}},
-    "mechanic": {"x": 4460, "y": -880, "w": 140, "h": 90, "door": {"x": 4530, "y": -775}},
-    "bakery": {"x": 4650, "y": -880, "w": 130, "h": 90, "door": {"x": 4715, "y": -775}},
-    "florist": {"x": 4830, "y": -880, "w": 120, "h": 90, "door": {"x": 4890, "y": -775}},
-    "market": {"x": 3700, "y": -500, "w": 260, "h": 70, "spot": {"x": 3830, "y": -410}},
-    "billboard": {"x": 4150, "y": -470, "w": 140, "h": 20, "spot": {"x": 4220, "y": -410}},
 }
 # Hayvonot bog'i — shimoldagi o'rmonda (1940-ko'cha davomi), port — janubi-sharqda (3420-ko'cha davomi)
 ZOO = {"rect": {"x": 1700, "y": -1300, "w": 1700, "h": 1360},
@@ -377,7 +368,7 @@ WORLD_DATA = {
     "plots": PLOTS, "buildings": [building_rect(p) for p in PLOTS],
     "shop": SHOP, "fountain": FOUNTAIN, "pond": POND, "trees": _make_trees(),
     "field": FIELD, "goal_w": GOAL_W, "benches": BENCHES, "track": TRACK, "airport": AIRPORT, "bus_stops": BUS_STOPS,
-    "aqua": AQUA, "places": PLACES, "metro": METRO, "zoo": ZOO, "port": PORT, "river": RIVER, "rocket": ROCKET, "craft": CRAFT_RECT,
+    "aqua": AQUA, "places": PLACES, "metro": METRO, "zoo": ZOO, "port": PORT, "river": RIVER, "rocket": ROCKET,
     "default_spawn": {"x": 1200, "y": 800}, "fly_height": FLY_HEIGHT, "fly_cruise": FLY_CRUISE,
 }
 
@@ -795,6 +786,9 @@ def api_sync():
     db = get_db()
     row = ensure_player(db, key)
     owned = json.loads(row["cars"])
+    rent = RENTALS.get(key)
+    if rent and rent[1] > time.time():
+        owned = owned + [rent[0]]   # ijaraga olingan velosiped
     car = data.get("car") if data.get("car") in owned else None
     flying = bool(car and CARS_BY_ID[car].get("flies"))
     prev0 = _live.get(key)
@@ -805,7 +799,7 @@ def api_sync():
     spider = bool(row["spider"]) and not car
     height = min(max(height, 0), FLY_HEIGHT + 20 if (flying or para or spider) else 120)
     world_rect = {"x": 0, "y": 0, "w": WORLD_W, "h": WORLD_H}
-    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"], ZOO["rect"], PORT["rect"], RIVER["rect"], MAZE_RECT, CRAFT_RECT]
+    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"], ZOO["rect"], PORT["rect"], RIVER["rect"], MAZE_RECT, *EXTRA_AREAS]
     inside_rect = lambda a: a["x"] + 10 <= x <= a["x"] + a["w"] - 10 and a["y"] + 10 <= y <= a["y"] + a["h"] - 10
     in_area = any(inside_rect(a) for a in areas)
     if not in_area:  # chegaradan tashqarida — eng yaqin ruxsat etilgan joyga
