@@ -108,7 +108,7 @@ def api_items_sell():
     if item not in ITEMS or not isinstance(qty, int) or isinstance(qty, bool) or not 1 <= qty <= 999:
         return jsonify(error="Noto'g'ri narsa"), 400
     if not _near_place(key, "market", 220):
-        return jsonify(error="Bozor rastasiga boring (ikkinchi bog'da)"), 400
+        return jsonify(error="Bozor rastasiga boring (hunarmandlar mahallasida)"), 400
     db = get_db()
     if not take_item(db, key, item, qty):
         return jsonify(error="Sizda buncha yo'q"), 400
@@ -260,7 +260,7 @@ TIPS = [
 def api_school():
     key = _me()
     if not _near_place(key, "school"):
-        return jsonify(error="Maktabga boring (ikkinchi bog'da)"), 400
+        return jsonify(error="Maktabga boring (hunarmandlar mahallasida)"), 400
     left = _cool.get((key, "school"), 0) + SCHOOL_WAIT - time.time()
     if left > 0:
         return jsonify(wait=math.ceil(left))
@@ -297,7 +297,7 @@ def api_school_answer():
 def api_library():
     key = _me()
     if not _near_place(key, "library"):
-        return jsonify(error="Kutubxonaga boring (ikkinchi bog'da)"), 400
+        return jsonify(error="Kutubxonaga boring (hunarmandlar mahallasida)"), 400
     wait = _cooldown(key, "library", 180)
     if wait:
         return jsonify(error=f"Kitobni o'qib bo'ldingiz — {wait} soniyadan keyin yangisi"), 429

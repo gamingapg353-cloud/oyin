@@ -1401,7 +1401,7 @@ import * as THREE from 'three';
     const onAqua = ([x, y]) => QR && x > QR.x - 60 && x < QR.x + QR.w + 60 && y > QR.y - 60 && y < QR.y + QR.h + 60;
     const inR = (r, [x, y]) => r && x > r.x - 60 && x < r.x + r.w + 60 && y > r.y - 60 && y < r.y + r.h + 60;
     const onZooPort = (sp) => inR(world.zoo && world.zoo.rect, sp) || inR(world.port && world.port.rect, sp)
-      || inR(world.river && world.river.rect, sp) || inR(world.maze && world.maze.rect, sp) || (world.rocket && Math.hypot(sp[0] - world.rocket.x, sp[1] - world.rocket.y) < 160);
+      || inR(world.river && world.river.rect, sp) || inR(world.maze && world.maze.rect, sp) || inR(world.craft, sp) || (world.rocket && Math.hypot(sp[0] - world.rocket.x, sp[1] - world.rocket.y) < 160);
     const groups = [spots.filter((sp) => !onTrack(sp) && !onAirport(sp) && !onAqua(sp) && !onZooPort(sp)), spots.filter((sp) => onTrack(sp) && !onAirport(sp))];
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -1674,7 +1674,7 @@ import * as THREE from 'three';
     if (trackOn()) return [world.track.rect];
     if (me && me.boat) return [world.port.sea]; // qayiqda — faqat dengizda
     return [{ x: 0, y: 0, w: world.w, h: world.h }, world.airport.rect, world.aqua.rect, world.zoo.rect, world.port.rect,
-      ...(world.river ? [world.river.rect] : []), ...(world.maze ? [world.maze.rect] : [])];
+      ...(world.river ? [world.river.rect] : []), ...(world.maze ? [world.maze.rect] : []), ...(world.craft ? [world.craft] : [])];
   }
   function area() {
     return areas()[0];
@@ -7225,6 +7225,13 @@ import * as THREE from 'three';
   function buildCity() {
     const P = P_();
     if (!P.bank) return;
+    const C = world.craft;
+    if (C) { // hunarmandlar mahallasi: maydon, yo'lak va kirish yozuvi
+      scene.add(flat(C.w, C.h, mat('#d6d3d1', { roughness: 1 }), C.x + C.w / 2, C.y + C.h / 2, 0.2));
+      scene.add(flat(C.w - 80, 70, mat('#a8a29e', { roughness: 1 }), C.x + C.w / 2, -660, 0.3));
+      scene.add(flat(80, 640, mat('#a8a29e', { roughness: 1 }), 4300, -340, 0.3));
+      scene.add(placeSign('🛠️ HUNARMANDLAR MAHALLASI', 300, 34, '#92400e', 4300, 80, -40));
+    }
     Object.keys(CITY_SIGNS).forEach((id) => P[id] && cityBuilding(id));
     // Bozor rastasi: uchta rasta, rang-barang soyabonlar
     const m = P.market;
@@ -8550,7 +8557,7 @@ import * as THREE from 'three';
     tile('message', 'Pochta qutisi', "Xat va sovg'a 📮", openMail);
     tile('coins', 'Sarmoya', "Biznesga pul tiking 💼", openInvest);
     tile('home', 'Ijara haqi', "Uylaringizdan kunlik pul 🏠", claimRent);
-    tile('store', 'Bozor va ustaxonalar', "Ikkinchi bog'da 🛒", () => { const q = world.places.market; const pt = q.door || q.spot; setGuide(pt.x, pt.y, 'Bozor'); closeSheet(); });
+    tile('store', 'Hunarmandlar mahallasi', "Ustaxonalar va bozor 🛠️", () => { const q = world.places.market; const pt = q.door || q.spot; setGuide(pt.x, pt.y, 'Bozor'); closeSheet(); });
     tile('book', 'Maktab va kutubxona', "Savol-javob, kitob 📚", () => { const q = world.places.school; const pt = q.door || q.spot; setGuide(pt.x, pt.y, 'Maktab'); closeSheet(); });
     tile('trophy', 'Futbol kubogi', "Klanlar haftalik gollari ⚽", () => openList('⚽ Klanlar futbol kubogi', '/api/game/fcup', (t) => `[${t.tag}] ${t.name} — ${t.goals} gol`));
     tile('target', 'Bayroqni olish', "Bayroqni uyingizga olib boring 🚩", () => { if (city.flag) { setGuide(city.flag.x, city.flag.y, 'Bayroq'); closeSheet(); } else toast('Yangi bayroq tez orada chiqadi'); });
