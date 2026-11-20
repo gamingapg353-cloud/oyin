@@ -2736,3 +2736,48 @@ button.hud-online {
 #btn-drone.is-on {
   outline: 2px solid #38bdf8;
 }
+
+.bread {
+  position: relative;
+  height: 22px;
+  margin: 8px 0 12px;
+  overflow: hidden;
+  border-radius: 11px;
+  background: rgba(148, 163, 184, 0.3);
+
+  &__zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: rgba(34, 197, 94, 0.55);
+  }
+
+  &__bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    border-right: 3px solid #f97316;
+    background: rgba(249, 115, 22, 0.25);
+  }
+}
+
+.dive {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(#0e7490, #082f49);
+  color: #f0f9ff;
+  font-size: 24px;
+  font-weight: 800;
+  text-align: center;
+  animation: moon-fade 0.5s ease;
+
+  p {
+    margin: 0;
+    padding: 0 16px;
+  }
+}

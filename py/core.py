@@ -382,8 +382,8 @@ def init_db() -> None:
     db = sqlite3.connect(DB_PATH)
     try:
         db.executescript(SCHEMA)
-        import extras, game_life  # panel qo'shimchalari va o'yindagi yangi jadvallar
-        db.executescript(extras.SCHEMA + game_life.SCHEMA)
+        import extras, game_life, game_city  # panel qo'shimchalari va o'yindagi yangi jadvallar
+        db.executescript(extras.SCHEMA + game_life.SCHEMA + game_city.SCHEMA)
         # Eski bazada yangi ustunlar bo'lmasa — qo'shamiz
         columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
         if "score" not in columns:
@@ -445,7 +445,7 @@ def init_db() -> None:
         # Eski mashinalar (Jajji, Shamol, Chaqmoq, Bo'ron) -> yangilari (BMW, Mercedes, Lamborghini)
         old_cars = {"jajji": "bmw", "shamol": "mercedes", "chaqmoq": "lambo", "boron": "lambo"}
         known = {"bmw", "mercedes", "lambo", "tesla", "jiguli", "damas", "range", "porsche", "bugatti", "plane", "bus", "bike", "skate",
-                 "carpet"}
+                 "carpet", "horse"}
         for key, cars_json in db.execute("SELECT player_key, cars FROM game_players").fetchall():
             cars = json.loads(cars_json or "[]")
             new = []

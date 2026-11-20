@@ -870,7 +870,19 @@ import * as THREE from 'three';
         armL.rotation.z = bike ? 0 : -0.6;
         armR.rotation.z = bike ? 0 : 0.6;
         rig.human.position.y = bike ? 9 : 5;
-        if (car.style === 'carpet') { // gilamda chordana qurib o'tiradi
+        if (car.style === 'horse') { // otda: oyoqlar ikki yonda
+          legL.rotation.x = -0.4;
+          legR.rotation.x = -0.4;
+          legL.rotation.z = 0.5;
+          legR.rotation.z = -0.5;
+          armL.rotation.x = -0.9;
+          armR.rotation.x = -0.9;
+          armL.rotation.z = 0;
+          armR.rotation.z = 0;
+          rig.human.position.y = 24;
+          const hl = rig.car.userData.legs;
+          if (hl) hl.forEach((l, i) => { l.rotation.x = moving ? Math.sin(rig.walk + (i % 2) * Math.PI) * 0.6 : 0; });
+        } else if (car.style === 'carpet') { // gilamda chordana qurib o'tiradi
           legL.rotation.x = -1.45;
           legR.rotation.x = -1.45;
           armL.rotation.x = -0.4;
@@ -1389,7 +1401,7 @@ import * as THREE from 'three';
     const onAqua = ([x, y]) => QR && x > QR.x - 60 && x < QR.x + QR.w + 60 && y > QR.y - 60 && y < QR.y + QR.h + 60;
     const inR = (r, [x, y]) => r && x > r.x - 60 && x < r.x + r.w + 60 && y > r.y - 60 && y < r.y + r.h + 60;
     const onZooPort = (sp) => inR(world.zoo && world.zoo.rect, sp) || inR(world.port && world.port.rect, sp)
-      || inR(world.river && world.river.rect, sp) || (world.rocket && Math.hypot(sp[0] - world.rocket.x, sp[1] - world.rocket.y) < 160);
+      || inR(world.river && world.river.rect, sp) || inR(world.maze && world.maze.rect, sp) || (world.rocket && Math.hypot(sp[0] - world.rocket.x, sp[1] - world.rocket.y) < 160);
     const groups = [spots.filter((sp) => !onTrack(sp) && !onAirport(sp) && !onAqua(sp) && !onZooPort(sp)), spots.filter((sp) => onTrack(sp) && !onAirport(sp))];
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -1439,7 +1451,7 @@ import * as THREE from 'three';
       trunks.setMatrixAt(i, m);
       m.compose(new THREE.Vector3(t.x, 20 + t.r * 0.9, t.y), q, new THREE.Vector3(t.r, t.r * 1.15, t.r));
       crowns.setMatrixAt(i, m);
-      crowns.setColorAt(i, color.setHSL(0.3 + (i % 5) * 0.012, 0.5, 0.28 + (i % 3) * 0.04));
+      crowns.setColorAt(i, seasonCrown(color, i)); // fasl: kuzda sariq, qishda oq, bahorda gulli
     });
     trunks.castShadow = true;
     crowns.castShadow = true;
@@ -1652,7 +1664,7 @@ import * as THREE from 'three';
       if (r.level > 0) solids.push({ ...world.buildings[r.plot], top: buildingTop(r.kind, r.level) });
     });
     const t = world.airport.terminal;
-    solids.push({ ...t, top: 70 }, { x: t.x + 110, y: t.y + 560, w: 60, h: 60, top: 150 }, ...placeSolids(), ...riverSolids());
+    solids.push({ ...t, top: 70 }, { x: t.x + 110, y: t.y + 560, w: 60, h: 60, top: 150 }, ...placeSolids(), ...riverSolids(), ...citySolids());
   }
 
   const inside = (x, y, s, r = 0) => x + r > s.x && x - r < s.x + s.w && y + r > s.y && y - r < s.y + s.h;
@@ -1662,7 +1674,7 @@ import * as THREE from 'three';
     if (trackOn()) return [world.track.rect];
     if (me && me.boat) return [world.port.sea]; // qayiqda — faqat dengizda
     return [{ x: 0, y: 0, w: world.w, h: world.h }, world.airport.rect, world.aqua.rect, world.zoo.rect, world.port.rect,
-      ...(world.river ? [world.river.rect] : [])];
+      ...(world.river ? [world.river.rect] : []), ...(world.maze ? [world.maze.rect] : [])];
   }
   function area() {
     return areas()[0];
@@ -2420,8 +2432,8 @@ import * as THREE from 'three';
       const n = nearestPassenger();
       if (n && n.d < catalog.taxi_pick_dist) best = { kind: 'passenger', id: n.id, d: n.d };
     }
-    if (!best && !me.sit) {
-      const f = funSpot();
+    if ((!best || best.kind === 'bench') && !me.sit) {
+      const f = funSpot(); // joylar (bank, sahna…) skameykadan ustun
       if (f) best = f;
     }
     if ((!best || best.kind === 'bench') && me.h < 40 && !me.sit) {
@@ -2522,7 +2534,7 @@ import * as THREE from 'three';
     // Odamlar va pul berish oynalari sinxronda qayta chizilmaydi (yozilgan summa o'chib ketmasin)
     if (sheetState.kind === 'people') return `people|${sheetState.list ? sheetState.list.length : '-'}`;
     if (sheetState.kind === 'give') return `give|${sheetState.person.key}`;
-    if (['bank', 'top', 'clans', 'looks', 'race', 'hub', 'code', 'daily', 'spin', 'garage', 'flights', 'festadmin', 'metro', 'phone', 'chat', 'stocks', 'tour', 'pets', 'farm', 'kitchen', 'election', 'license', 'cup', 'spider', 'drone'].includes(sheetState.kind)) return `${sheetState.kind}|${sheetState.v || 0}`;
+    if (['bank', 'top', 'clans', 'looks', 'race', 'hub', 'code', 'daily', 'spin', 'garage', 'flights', 'festadmin', 'metro', 'phone', 'chat', 'stocks', 'tour', 'pets', 'farm', 'kitchen', 'election', 'license', 'cup', 'spider', 'drone', 'school', 'work', 'bakery', 'barber', 'market2', 'mail', 'invest', 'list2'].includes(sheetState.kind)) return `${sheetState.kind}|${sheetState.v || 0}`;
     if (sheetState.kind === 'gift') return `gift|${sheetState.person.key}|${economy.cars.join()}|${economy.plots.map((x) => x.plot).join()}`;
     if (sheetState.kind === 'market') {
       const m = money();
@@ -2762,6 +2774,7 @@ import * as THREE from 'three';
     if (rec.owner === me.key) {
       body.append(actionBtn('home', "Ichkariga kirish — mebel qo'yish", () => enterRoom(id), 'btn btn--ghost btn--block'));
       if (rec.kind === 'kafe') body.append(actionBtn('coffee', 'Oshxona — taom tayyorlab pul ishlash 🍳', openKitchen, 'btn btn--primary btn--block'));
+      if (rec.kind === 'uy') body.append(actionBtn('coins', "Ijara haqini olish (kuniga bir marta) 🏠", claimRent, 'btn btn--ghost btn--block'));
     }
 
     if (own && own.next_price && IS_OWNER) {
@@ -3541,6 +3554,14 @@ import * as THREE from 'three';
     else if (sheetState.kind === 'cup') renderCupSheet(body, sheetState);
     else if (sheetState.kind === 'spider') renderSpiderSheet(body, sheetState);
     else if (sheetState.kind === 'drone') renderDroneSheet(body, sheetState);
+    else if (sheetState.kind === 'school') renderSchoolSheet(body, sheetState);
+    else if (sheetState.kind === 'work') renderWorkSheet(body, sheetState);
+    else if (sheetState.kind === 'bakery') renderBakerySheet(body, sheetState);
+    else if (sheetState.kind === 'barber') renderBarberSheet(body, sheetState);
+    else if (sheetState.kind === 'market2') renderMarket2Sheet(body, sheetState);
+    else if (sheetState.kind === 'mail') renderMailSheet(body, sheetState);
+    else if (sheetState.kind === 'invest') renderInvestSheet(body, sheetState);
+    else if (sheetState.kind === 'list2') renderList2Sheet(body, sheetState);
     else renderMineSheet(body);
   }
 
@@ -3669,6 +3690,8 @@ import * as THREE from 'three';
       jumpParachute();
     } else if (e.code === 'KeyT' || ch === 't' || ch === 'е') {
       shootWeb();
+    } else if (e.code === 'KeyQ' || ch === 'q' || ch === 'й') {
+      throwSnow();
     }
   });
   window.addEventListener('keyup', (e) => {
@@ -3866,6 +3889,7 @@ import * as THREE from 'three';
   async function sendChunk(blob) {
     const form = new FormData();
     form.append('audio', blob, 'ovoz.webm');
+    form.append('channel', $('chat-channel').value === 'clan' ? 'clan' : 'all'); // klan ovozli xonasi
     try {
       await api('/api/game/voice', { method: 'POST', form });
     } catch (err) {
@@ -4846,6 +4870,7 @@ import * as THREE from 'three';
     clear: { name: 'Ochiq havo', cloud: 0, fog: 1, grip: { base: 0, drift: 1.7 } },
     rain: { name: "Yomg'ir", cloud: 0.75, fog: 0.62, grip: { base: 4.5, drift: 1.15 } },
     snow: { name: 'Qor', cloud: 0.6, fog: 0.5, grip: { base: 2.8, drift: 0.85 } },
+    storm: { name: "Bo'ron", cloud: 0.95, fog: 0.45, grip: { base: 5, drift: 1.1 } },
   };
   const STORM_SKY = new THREE.Color('#7b8794');
   const NIGHT_STORM = new THREE.Color('#141a26');
@@ -4862,7 +4887,10 @@ import * as THREE from 'three';
     if (WEATHER[forcedWeather]) return forcedWeather;
     const block = Math.floor(t / WEATHER_MS);
     const h = Math.abs(Math.sin(block * 12.9898 + 78.233) * 43758.5453) % 1;
-    return h < 0.5 ? 'clear' : (h < 0.8 ? 'rain' : 'snow');
+    const m = new Date(t).getMonth() + 1;
+    if (m === 12 || m <= 2) return h < 0.4 ? 'clear' : (h < 0.5 ? 'storm' : 'snow');      // qish: ko'proq qor
+    if (m >= 6 && m <= 8) return h < 0.6 ? 'clear' : (h < 0.85 ? 'rain' : 'storm');      // yoz: qor yo'q
+    return h < 0.45 ? 'clear' : (h < 0.7 ? 'rain' : (h < 0.85 ? 'storm' : 'snow'));
   }
   function weatherLeftText() {
     if (WEATHER[forcedWeather]) return 'doimiy';
@@ -4917,6 +4945,7 @@ import * as THREE from 'three';
     if (weather.kind !== weather.announced && weather.level > 0.15) {
       if (weather.announced !== null) {
         if (weather.kind === 'rain') toast("Yomg'ir yog'yapti — yo'l sirpanchiq, drift oson! 🌧️");
+        else if (weather.kind === 'storm') toast("Bo'ron! Kuchli yomg'ir va chaqmoq ⛈️ — tugagach kamalak chiqadi");
         else if (weather.kind === 'snow') toast("Qor yog'yapti — yo'l muz, ehtiyot bo'ling (yoki drift qiling) ❄️");
         else toast('Havo ochildi ☀️');
       }
@@ -4927,7 +4956,7 @@ import * as THREE from 'three';
     const cz = camera.position.z;
     const base = Math.max(0, camera.position.y - BOX.h * 0.75);
     // Yomg'ir
-    const rainOn = weather.kind === 'rain' && weather.level > 0.02;
+    const rainOn = (weather.kind === 'rain' || weather.kind === 'storm') && weather.level > 0.02;
     rainView.visible = rainOn;
     if (rainOn) {
       rainView.material.opacity = 0.55 * weather.level;
@@ -4945,7 +4974,7 @@ import * as THREE from 'three';
       rainView.geometry.attributes.position.needsUpdate = true;
       // Chaqmoq va momaqaldiroq
       if (weather.level > 0.8 && now > weather.nextBolt) {
-        weather.nextBolt = now + 18000 + Math.random() * 25000;
+        weather.nextBolt = now + (weather.kind === 'storm' ? 3000 + Math.random() * 5000 : 18000 + Math.random() * 25000);
         if (weather.nextBolt - now < 60000 && Math.random() < 0.8) {
           weather.flashUntil = now + 160;
           setTimeout(() => sound.thunder(), 600 + Math.random() * 1200);
@@ -4978,7 +5007,7 @@ import * as THREE from 'three';
   // =====================================================================
   //  Ishlar, joylar, o'yinlar va do'stlar (game_fun.py bilan ishlaydi)
   // =====================================================================
-  const isRider = (car) => Boolean(car && (car.style === 'bike' || car.style === 'skate' || car.style === 'carpet'));
+  const isRider = (car) => Boolean(car && ['bike', 'skate', 'carpet', 'horse'].includes(car.style));
   const inPool = (x, y) => Boolean(world.aqua && inside(x, y, world.aqua.pool));
 
   // ---------------- Velosiped va skeytbord ----------------
@@ -6019,6 +6048,8 @@ import * as THREE from 'three';
     if (!car && !me.spider && spiderBug && d(spiderBug.x, spiderBug.y) < 75) {
       return { kind: 'fun', d: 0, text: "O'rgimchakni ushlash 🕷️", act: catchSpider };
     }
+    const cityF = citySpot(car);
+    if (cityF) return cityF;
     if (!car && nearRocket()) return { kind: 'fun', d: 1, text: `Oyga uchish 🚀 — ${formatNumber(world.rocket.price)} so'm`, act: flyToMoon };
     const life = lifeSpot(car);
     if (life) return life;
@@ -6975,6 +7006,7 @@ import * as THREE from 'three';
   function renderDroneSheet(body, st) {
     setHead('navigation', 'Dron', 'Shaharni tepadan ko\'ring va surat oling');
     if (me.drone) {
+      body.append(actionBtn('navigation', 'Dron kuryer ishi — posilka yetkazish 📦', droneDelivery, 'btn btn--ghost btn--block'));
       body.append(el('p', 'sheet-note', '🚁 Dron sizda bor. Pastdagi «Dron» tugmasi — tepadan ko\'rish, «📸» — surat (rasm sifatida saqlanadi).'),
         actionBtn('navigation', droneOn ? 'Dronni qaytarish' : 'Dronni uchirish', () => { toggleDrone(); closeSheet(); }, 'btn btn--primary btn--block'));
       return;
@@ -7155,6 +7187,905 @@ import * as THREE from 'three';
       npc.line.geometry.setFromPoints([new THREE.Vector3(x, h + 60, y), new THREE.Vector3(ax, top, ay)]);
     }
     npc.line.visible = swing;
+  }
+
+  // =====================================================================
+  //  Shahar hayoti: bank, maktab, kutubxona, ustaxonalar, bozor, pochta, sarmoya,
+  //  reklama, bayroq, labirint, poygalar, tramvay, soat, svetofor, fasllar,
+  //  bo'ron va kamalak, kometa, suv osti, qor jangi, ot (game_city.py bilan ishlaydi)
+  // =====================================================================
+  const CITY_SIGNS = {
+    bank: ['🏦 BANK', '#a16207', 70], school: ['🏫 MAKTAB', '#1d4ed8', 60], library: ['📚 KUTUBXONA', '#7c2d12', 55],
+    tailor: ['🧵 TIKUVCHI', '#be185d', 45], barber: ['💈 SARTAROSH', '#0f766e', 45], mechanic: ['🔧 AVTOMEXANIK', '#374151', 45],
+    bakery: ['🍞 NOVVOYXONA', '#b45309', 45], florist: ["💐 GUL DO'KONI", '#db2777', 45],
+  };
+  const city = { flag: null, flagView: null, comet: null, cometView: null, board: null, boardKey: '', boardView: null,
+    clockView: null, clockMin: -1, race: null, raceBeacon: null, raceBusy: false, tramView: null, tram: false,
+    lights: [], lastFine: 0, wasStorm: false, rainbow: null, rainbowUntil: 0, droneJob: null, mazeSolids: [] };
+  const P_ = () => world.places;
+  const near = (pt, r) => pt && Math.hypot(pt.x - me.x, pt.y - me.y) < r;
+  const said = (err) => { if (!handleAuthError(err)) toast(err.message, 'warn'); };
+
+  function cityBuilding(id) {
+    const r = P_()[id];
+    const [label, color, h] = CITY_SIGNS[id];
+    const cx = r.x + r.w / 2;
+    const cz = r.y + r.h / 2;
+    const front = r.door.y < r.y ? r.y - 0.6 : r.y + r.h + 0.6;
+    const g = new THREE.Group();
+    g.add(box(r.w, h, r.h, mat(id === 'bank' ? '#e7e5e4' : '#f8fafc', { roughness: 0.8 }), cx, h / 2, cz));
+    g.add(box(r.w + 12, 7, r.h + 12, mat(color), cx, h + 3.5, cz));
+    g.add(box(26, 32, 2, mat('#78350f'), r.door.x, 16, front));
+    [-1, 1].forEach((s) => g.add(box(22, 16, 2, mat('#bae6fd', { roughness: 0.1 }), cx + s * (r.w / 3.2), h * 0.6, front)));
+    if (id === 'bank') [-60, -30, 30, 60].forEach((dx) => g.add(cyl(5, 5, h - 6, mat('#f5f5f4'), cx + dx, (h - 6) / 2, front + (front > cz ? 10 : -10), 10)));
+    g.add(placeSign(label, Math.max(r.w, 150), 30, color, cx, h + 30, front));
+    scene.add(g);
+  }
+
+  function buildCity() {
+    const P = P_();
+    if (!P.bank) return;
+    Object.keys(CITY_SIGNS).forEach((id) => P[id] && cityBuilding(id));
+    // Bozor rastasi: uchta rasta, rang-barang soyabonlar
+    const m = P.market;
+    ['#ef4444', '#22c55e', '#3b82f6'].forEach((c, i) => {
+      const x = m.x + 45 + i * 85;
+      scene.add(box(70, 22, 40, mat('#a16207'), x, 11, m.y + 35), box(80, 4, 52, mat(c), x, 48, m.y + 35),
+        box(3, 46, 3, mat('#78350f'), x - 36, 23, m.y + 12), box(3, 46, 3, mat('#78350f'), x + 36, 23, m.y + 12));
+    });
+    scene.add(placeSign('🛒 BOZOR RASTASI', 200, 28, '#15803d', m.x + m.w / 2, 75, m.y + m.h + 2));
+    // Muzqaymoq aravachasi
+    const ic = P.icecream;
+    scene.add(box(ic.w, 24, ic.h, mat('#f9a8d4'), ic.x + ic.w / 2, 18, ic.y + ic.h / 2),
+      cyl(30, 30, 2, mat('#fde047'), ic.x + ic.w / 2, 52, ic.y + ic.h / 2, 16), cyl(1.5, 1.5, 26, mat('#94a3b8'), ic.x + ic.w / 2, 40, ic.y + ic.h / 2, 6));
+    scene.add(placeSign('🍦', 30, 24, '#ec4899', ic.x + ic.w / 2, 70, ic.y + ic.h + 1));
+    // Shahar soati
+    const ck = P.clock;
+    scene.add(box(ck.w, 150, ck.h, mat('#a8a29e'), ck.x + ck.w / 2, 75, ck.y + ck.h / 2),
+      mesh(new THREE.ConeGeometry(44, 40, 4), mat('#7c2d12'), ck.x + ck.w / 2, 170, ck.y + ck.h / 2));
+    // Reklama taxtasi
+    const bb = P.billboard;
+    scene.add(box(4, 60, 4, mat('#475569'), bb.x + 20, 30, bb.y + 10), box(4, 60, 4, mat('#475569'), bb.x + bb.w - 20, 30, bb.y + 10));
+    setBillboard(null, true);
+    buildMaze();
+    buildTram();
+    buildLights();
+    buildWreck();
+  }
+  function citySolids() {
+    const P = P_();
+    if (!P.bank) return [];
+    const out = Object.keys(CITY_SIGNS).map((id) => ({ ...P[id], top: CITY_SIGNS[id][2] }));
+    out.push({ ...P.clock, top: 190 });
+    return out.concat(city.mazeSolids);
+  }
+
+  // ---- Soat: haqiqiy vaqt, har soatda qo'ng'iroq ----
+  function stepClock() {
+    const ck = P_().clock;
+    if (!ck) return;
+    const d = new Date();
+    const min = d.getHours() * 60 + d.getMinutes();
+    if (min === city.clockMin) return;
+    const first = city.clockMin < 0;
+    city.clockMin = min;
+    if (city.clockView) { scene.remove(city.clockView); disposeTree(city.clockView); }
+    const t = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    city.clockView = placeSign(`🕐 ${t}`, 58, 26, '#1e293b', ck.x + ck.w / 2, 120, ck.y + ck.h / 2 + 31);
+    scene.add(city.clockView);
+    if (!first && d.getMinutes() === 0) {
+      sound.ding();
+      toast(`🔔 Shahar soati: ${t}`);
+    }
+  }
+
+  // ---- Reklama taxtasi ----
+  function setBillboard(b, force = false) {
+    const key = b ? `${b.text}|${b.name}` : '';
+    if (!force && key === city.boardKey) return;
+    city.boardKey = key;
+    const bb = P_().billboard;
+    if (city.boardView) { scene.remove(city.boardView); disposeTree(city.boardView); }
+    city.boardView = placeSign(b ? `📢 ${b.text} — ${b.name}` : "📢 Reklama joyi bo'sh — 20 000 so'm", bb.w + 120, 40, '#7c3aed', bb.x + bb.w / 2, 72, bb.y + 10);
+    scene.add(city.boardView);
+  }
+  function openBillboard() {
+    const text = window.prompt("Reklama matni (24 soat turadi, 20 000 so'm):", '');
+    if (text === null) return;
+    api('/api/game/billboard', { method: 'POST', body: { text } }).then((d) => {
+      localVersion += 1;
+      setEconomy(d.economy);
+      setBillboard(d.billboard);
+      sound.cash();
+      toast('Reklamangiz taxtada! 📢', 'success');
+    }).catch(said);
+  }
+
+  // ---- Bayroqni olish ----
+  function setFlag(f) {
+    city.flag = f || null;
+    if (!city.flag) {
+      if (city.flagView) city.flagView.visible = false;
+      return;
+    }
+    if (!city.flagView) {
+      const g = new THREE.Group();
+      g.add(cyl(1.6, 1.6, 70, mat('#e5e7eb'), 0, 35, 0, 8), box(34, 20, 1, mat('#dc2626'), 17, 58, 0));
+      scene.add(g);
+      city.flagView = g;
+    }
+    city.flagView.visible = true;
+    const h = f.holder === me.key ? me.h : 0;
+    city.flagView.position.set(f.holder === me.key ? me.x : f.x, h + (f.holder ? 30 : 0), f.holder === me.key ? me.y : f.y);
+  }
+  function homeGate() {
+    const id = economy.home;
+    if (id === null || id === undefined || !world.plots[id]) return null;
+    const p = world.plots[id];
+    return { x: p.x + p.w / 2, y: p.gate === 'bottom' ? p.y + p.h + 40 : p.y - 40 };
+  }
+
+  // ---- Labirint (devorlar — hamma o'yinchida bir xil) ----
+  function buildMaze() {
+    const M = world.maze;
+    if (!M) return;
+    const r = M.rect;
+    const n = M.cells;
+    const cw = r.w / n;
+    const ch = r.h / n;
+    let seed = M.seed;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+    const right = Array.from({ length: n }, () => Array(n).fill(true));
+    const down = Array.from({ length: n }, () => Array(n).fill(true));
+    const seen = Array.from({ length: n }, () => Array(n).fill(false));
+    const stack = [[0, 0]];
+    seen[0][0] = true;
+    while (stack.length) {
+      const [cx, cy] = stack[stack.length - 1];
+      const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(([dx, dy]) => {
+        const x = cx + dx;
+        const y = cy + dy;
+        return x >= 0 && y >= 0 && x < n && y < n && !seen[y][x];
+      });
+      if (!opts.length) { stack.pop(); continue; }
+      const [dx, dy] = opts[Math.floor(rnd() * opts.length)];
+      const x = cx + dx;
+      const y = cy + dy;
+      if (dx === 1) right[cy][cx] = false; else if (dx === -1) right[cy][x] = false;
+      else if (dy === 1) down[cy][cx] = false; else down[y][cx] = false;
+      seen[y][x] = true;
+      stack.push([x, y]);
+    }
+    const hedge = mat('#166534', { roughness: 1 });
+    const T = 12;
+    const H = 46;
+    const walls = [];
+    const add = (x, y, w, h) => { walls.push({ x, y, w, h, top: 60 }); scene.add(box(w, H, h, hedge, x + w / 2, H / 2, y + h / 2)); };
+    scene.add(flat(r.w, r.h, mat('#4d7c0f', { roughness: 1 }), r.x + r.w / 2, r.y + r.h / 2, 0.15));
+    const mid = Math.floor(n / 2);
+    for (let i = 0; i < n; i += 1) {
+      if (i !== mid) add(r.x + i * cw, r.y - T / 2, cw, T);            // tepa (chiqish — o'rtada)
+      if (i !== mid) add(r.x + i * cw, r.y + r.h - T / 2, cw, T);      // past (kirish — o'rtada)
+      add(r.x - T / 2, r.y + i * ch, T, ch);
+      add(r.x + r.w - T / 2, r.y + i * ch, T, ch);
+    }
+    for (let y = 0; y < n; y += 1) {
+      for (let x = 0; x < n; x += 1) {
+        if (x < n - 1 && right[y][x]) add(r.x + (x + 1) * cw - T / 2, r.y + y * ch, T, ch);
+        if (y < n - 1 && down[y][x]) add(r.x + x * cw, r.y + (y + 1) * ch - T / 2, cw, T);
+      }
+    }
+    city.mazeSolids = walls;
+    scene.add(placeSign('🌿 LABIRINT — kirish', 170, 28, '#166534', M.start.x, 70, M.start.y + 40));
+    scene.add(placeSign('🏁 CHIQISH', 120, 28, '#b91c1c', M.finish.x, 70, M.finish.y - 30));
+  }
+
+  // ---- Velosiped va qayiq poygalari (nazorat nuqtalari) ----
+  function raceVehicleOk(id) {
+    if (id === 'boat') return Boolean(me.boat);
+    const c = carInfo();
+    return Boolean(c && (c.style === 'bike' || c.style === 'skate'));
+  }
+  async function startRace(id) {
+    try {
+      const d = await api(`/api/game/cprace/${id}/start`, { method: 'POST' });
+      city.race = { id, next: d.next, points: d.points, t0: performance.now() };
+      showRaceBeacon();
+      sound.ding();
+      toast(`${world.cpraces[id].name} boshlandi! Ko'k nurlarni ketma-ket bosib o'ting 🏁`, 'success');
+    } catch (err) { said(err); }
+  }
+  function showRaceBeacon() {
+    city.raceBeacon = dropBeacon(city.raceBeacon);
+    if (!city.race) return;
+    const p = city.race.points[city.race.next];
+    city.raceBeacon = makeBeacon(p.x, p.y, '#22c55e', 60);
+  }
+  async function stepRace() {
+    const R = city.race;
+    if (!R || city.raceBusy) return;
+    const p = R.points[R.next];
+    if (!near(p, 110)) return;
+    city.raceBusy = true;
+    try {
+      const d = await api(`/api/game/cprace/${R.id}/check`, { method: 'POST' });
+      if (d.done) {
+        city.race = null;
+        showRaceBeacon();
+        sound.cash();
+        toast(`Marra! ${d.time} soniya${d.best ? ' — haftalik rekordingiz!' : ''} +${formatNumber(d.pay)} so'm 🏆`, 'success');
+        localVersion += 1;
+        setEconomy(d.economy);
+      } else {
+        R.next = d.next;
+        showRaceBeacon();
+        sound.ding();
+      }
+    } catch (err) {
+      if (/boshlanmagan/.test(err.message)) { city.race = null; showRaceBeacon(); }
+    }
+    city.raceBusy = false;
+  }
+
+  // ---- Tramvay: 1900-ko'chada borib-keladi, bekatlarda to'xtaydi ----
+  const TRAM_STOPS = [800, 2400, 4000, 5600];
+  const TRAM_Y = 1940;
+  const TRAM_V = 260;
+  const TRAM_WAIT = 6;
+  function tramAt(t) {
+    const legs = [];
+    for (let i = 0; i < TRAM_STOPS.length - 1; i += 1) legs.push([TRAM_STOPS[i], TRAM_STOPS[i + 1]]);
+    for (let i = TRAM_STOPS.length - 1; i > 0; i -= 1) legs.push([TRAM_STOPS[i], TRAM_STOPS[i - 1]]);
+    const durs = legs.map(([a, b]) => TRAM_WAIT + Math.abs(b - a) / TRAM_V);
+    const total = durs.reduce((s, d) => s + d, 0);
+    let k = t % total;
+    for (let i = 0; i < legs.length; i += 1) {
+      if (k < durs[i]) {
+        const [a, b] = legs[i];
+        if (k < TRAM_WAIT) return { x: a, dir: Math.sign(b - a), stopped: true };
+        return { x: a + Math.sign(b - a) * (k - TRAM_WAIT) * TRAM_V, dir: Math.sign(b - a), stopped: false };
+      }
+      k -= durs[i];
+    }
+    return { x: TRAM_STOPS[0], dir: 1, stopped: true };
+  }
+  function buildTram() {
+    const g = new THREE.Group();
+    g.add(box(150, 44, 46, mat('#dc2626'), 0, 30, 0), box(152, 8, 48, mat('#fde047'), 0, 6, 0));
+    for (let i = -2; i <= 2; i += 1) g.add(box(20, 14, 47, mat('#bae6fd', { roughness: 0.1 }), i * 28, 38, 0));
+    g.add(cyl(1, 1, 24, mat('#111827'), 0, 64, 0, 6));
+    scene.add(g);
+    city.tramView = g;
+    const rail = mat('#64748b');
+    scene.add(box(TRAM_STOPS[3] - TRAM_STOPS[0] + 200, 1.5, 3, rail, (TRAM_STOPS[0] + TRAM_STOPS[3]) / 2, 0.9, TRAM_Y - 14),
+      box(TRAM_STOPS[3] - TRAM_STOPS[0] + 200, 1.5, 3, rail, (TRAM_STOPS[0] + TRAM_STOPS[3]) / 2, 0.9, TRAM_Y + 14));
+    TRAM_STOPS.forEach((x) => scene.add(placeSign('🚋 Tramvay', 90, 22, '#dc2626', x, 60, TRAM_Y - 60)));
+  }
+  function stepTram() {
+    if (!city.tramView) return;
+    const s = tramAt(Date.now() / 1000);
+    city.tramView.position.set(s.x, 0, TRAM_Y);
+    if (city.tram) {
+      me.x = s.x;
+      me.y = TRAM_Y;
+      me.h = 0;
+      me.vx = 0;
+      me.vz = 0;
+      me.dir = s.dir > 0 ? 0 : Math.PI;
+    }
+  }
+  function toggleTram() {
+    if (city.tram) {
+      city.tram = false;
+      me.y = TRAM_Y - 70;
+      me.rig.root.visible = true;
+      toast('Tramvaydan tushdingiz');
+      return;
+    }
+    city.tram = true;
+    toast('Tramvaydasiz 🚋 — F bosib istalgan joyda tushing');
+  }
+
+  // ---- Svetoforlar: qizilda o'tsa — jarima ----
+  const LIGHT_CROSS = [[1940, 1140], [2720, 1140], [1940, 1900], [3500, 1900]];
+  function lightPhase(t) {
+    const k = t % 26;
+    return k < 11 ? 'ew' : (k < 13 ? 'yellow' : (k < 24 ? 'ns' : 'yellow'));
+  }
+  function buildLights() {
+    LIGHT_CROSS.forEach(([x, y]) => {
+      const g = new THREE.Group();
+      g.add(cyl(2, 2, 60, mat('#334155'), 0, 30, 0, 6), box(12, 30, 10, mat('#111827'), 0, 66, 0));
+      const lamps = ['#ef4444', '#facc15', '#22c55e'].map((c, i) => {
+        const m = new THREE.Mesh(new THREE.SphereGeometry(3.6, 10, 8), new THREE.MeshBasicMaterial({ color: c }));
+        m.position.set(0, 76 - i * 9.5, 5.5);
+        g.add(m);
+        return m;
+      });
+      g.position.set(x - 8, 0, y - 8);
+      scene.add(g);
+      city.lights.push({ x, y, lamps });
+    });
+  }
+  function stepLights() {
+    const ph = lightPhase(Date.now() / 1000);
+    city.lights.forEach((L) => {
+      L.lamps[0].material.color.set(ph === 'ns' ? '#ef4444' : '#3f1d1d');
+      L.lamps[1].material.color.set(ph === 'yellow' ? '#facc15' : '#3a3410');
+      L.lamps[2].material.color.set(ph === 'ew' ? '#22c55e' : '#123020');
+    });
+    const car = carInfo();
+    if (!car || car.flies || me.h > 5 || Math.abs(me.vx) + Math.abs(me.vz) < 60) return;
+    const ew = Math.abs(me.vx) > Math.abs(me.vz);
+    for (const L of city.lights) {
+      if (me.x > L.x && me.x < L.x + 80 && me.y > L.y && me.y < L.y + 80) {
+        const red = ph === 'yellow' ? false : (ew ? ph === 'ns' : ph === 'ew');
+        if (red && performance.now() - city.lastFine > 20000) {
+          city.lastFine = performance.now();
+          api('/api/game/fine', { method: 'POST' }).then((d) => {
+            if (d.fine) {
+              localVersion += 1;
+              if (d.economy) setEconomy(d.economy);
+              toast(`🚦 Qizil chiroqda o'tdingiz — ${formatNumber(d.fine)} so'm jarima`, 'warn');
+            }
+          }).catch(() => null);
+        }
+      }
+    }
+  }
+
+  // ---- Fasllar ----
+  function season() {
+    const m = new Date().getMonth() + 1;
+    return m === 12 || m <= 2 ? 'winter' : m <= 5 ? 'spring' : m <= 8 ? 'summer' : 'autumn';
+  }
+  function seasonCrown(color, i) {
+    const s = season();
+    if (s === 'autumn') return color.setHSL(0.07 + (i % 5) * 0.015, 0.75, 0.42 + (i % 3) * 0.04);
+    if (s === 'winter') return color.setHSL(0.58, 0.15, 0.82 + (i % 3) * 0.04);
+    if (s === 'spring' && i % 6 === 0) return color.setHSL(0.92, 0.6, 0.75);
+    return color.setHSL(0.3 + (i % 5) * 0.012, 0.5, 0.28 + (i % 3) * 0.04);
+  }
+
+  // ---- Bo'rondan keyin kamalak ----
+  function stepRainbow(now) {
+    const storm = weather.kind === 'storm' && weather.level > 0.5;
+    if (city.wasStorm && !storm && weather.kind !== 'storm') {
+      city.rainbowUntil = now + 90000;
+      toast("Bo'ron tugadi — osmonda kamalak! 🌈");
+    }
+    city.wasStorm = storm;
+    const on = now < city.rainbowUntil;
+    if (on && !city.rainbow) {
+      const g = new THREE.Group();
+      ['#ef4444', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#6366f1', '#a855f7'].forEach((c, i) => {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(900 - i * 22, 11, 6, 64, Math.PI),
+          new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
+        g.add(ring);
+      });
+      scene.add(g);
+      city.rainbow = g;
+    }
+    if (city.rainbow) {
+      city.rainbow.visible = on;
+      if (on) city.rainbow.position.set(me.x, 0, me.y - 2200);
+    }
+  }
+
+  // ---- Kometa ----
+  function setComet(c) {
+    const was = city.comet;
+    city.comet = c || null;
+    if (c && (!was || was.id !== c.id)) toast('☄️ Osmonda kometa! F bosib tilak tiling — birinchisi 10 000 so\'m oladi', 'success');
+    if (!city.cometView) {
+      const g = new THREE.Group();
+      g.add(mesh(new THREE.SphereGeometry(18, 12, 8), new THREE.MeshBasicMaterial({ color: '#fef9c3', fog: false }), 0, 0, 0, false));
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(14, 260, 12, 1, true), new THREE.MeshBasicMaterial({ color: '#fde68a', transparent: true, opacity: 0.5, fog: false, depthWrite: false }));
+      tail.rotation.z = Math.PI / 2;
+      tail.position.x = 135;
+      g.add(tail);
+      g.visible = false;
+      scene.add(g);
+      city.cometView = g;
+    }
+    city.cometView.visible = Boolean(c);
+  }
+  function stepComet() {
+    if (!city.comet || !city.cometView) return;
+    const k = 1 - city.comet.left / 30;
+    city.cometView.position.set(me.x - 1800 + k * 3600, 1300 - k * 250, me.y - 1500);
+  }
+  function wish() {
+    api('/api/game/comet/wish', { method: 'POST' }).then((d) => {
+      localVersion += 1;
+      setEconomy(d.economy);
+      sound.cash();
+      toast(d.first ? `Birinchi bo'lib tilak tiladingiz! +${formatNumber(d.pay)} so'm ✨` : `Tilagingiz qabul bo'ldi ✨ +${formatNumber(d.pay)} so'm`, 'success');
+    }).catch(said);
+  }
+
+  // ---- Suv osti: cho'kkan kema xazinasi ----
+  function buildWreck() {
+    const w = world.wreck;
+    if (!w) return;
+    const g = new THREE.Group();
+    const wood = mat('#713f12');
+    g.add(box(140, 30, 50, wood, 0, -6, 0), box(4, 70, 4, wood, 10, 20, 0));
+    g.rotation.z = 0.25;
+    g.position.set(w.x, 0, w.y);
+    scene.add(g);
+    scene.add(placeSign("⚓ Cho'kkan kema", 130, 24, '#0e7490', w.x, 60, w.y));
+  }
+  async function dive() {
+    const ov = document.createElement('div');
+    ov.className = 'dive';
+    ov.innerHTML = '<p>🤿 Sho\'ng\'iyapmiz… 🐠 🐟 🐡</p>';
+    document.body.append(ov);
+    await new Promise((r) => setTimeout(r, 2500));
+    try {
+      const d = await api('/api/game/wreck', { method: 'POST' });
+      localVersion += 1;
+      setEconomy(d.economy);
+      sound.cash();
+      ov.querySelector('p').textContent = `💰 Xazina sandig'i! +${formatNumber(d.pay)} so'm`;
+    } catch (err) {
+      ov.querySelector('p').textContent = err.message;
+    }
+    setTimeout(() => ov.remove(), 2200);
+  }
+
+  // ---- Qor jangi (Q) ----
+  function throwSnow() {
+    const m = new Date().getMonth() + 1;
+    if (![11, 12, 1, 2, 3].includes(m)) { toast('Qor jangi faqat qishda ❄️', 'warn'); return; }
+    let best = null;
+    others.forEach((o, key) => {
+      const p = o.rig.root.position;
+      const dd = Math.hypot(p.x - me.x, p.z - me.y);
+      if (dd < 380 && (!best || dd < best.d)) best = { key, d: dd, p };
+    });
+    if (!best) { toast("Yaqinda hech kim yo'q — kimgadir yaqinlashing", 'warn'); return; }
+    const ball = mesh(new THREE.SphereGeometry(5, 8, 6), mat('#f8fafc'), me.x, 50, me.y, false);
+    scene.add(ball);
+    const t0 = performance.now();
+    const from = { x: me.x, y: me.y };
+    const to = { x: best.p.x, y: best.p.z };
+    const fly = () => {
+      const k = Math.min(1, (performance.now() - t0) / 450);
+      ball.position.set(from.x + (to.x - from.x) * k, 50 + Math.sin(Math.PI * k) * 60, from.y + (to.y - from.y) * k);
+      if (k < 1) requestAnimationFrame(fly);
+      else { scene.remove(ball); ball.geometry.dispose(); }
+    };
+    fly();
+    api('/api/game/snowball', { method: 'POST', body: { key: best.key } })
+      .then((d) => toast(`❄️ Tegdi! Bugun: ${d.hits} ta`, 'success')).catch(said);
+  }
+
+  // ---- Ot ----
+  function carHorse(color) {
+    const g = new THREE.Group();
+    const body = mat(color, { roughness: 0.8 });
+    const dark = mat('#1c1917');
+    g.add(box(14, 16, 40, body, 0, 26, 0));
+    const neck = box(9, 20, 10, body, 0, 38, 20);
+    neck.rotation.x = -0.5;
+    g.add(neck, box(9, 9, 16, body, 0, 48, 28), box(3, 14, 18, dark, 0, 42, 16));
+    const legs = [];
+    [[-5, 14], [5, 14], [-5, -14], [5, -14]].forEach(([x, z]) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, 18, z);
+      pivot.add(box(4, 18, 4, body, 0, -9, 0));
+      g.add(pivot);
+      legs.push(pivot);
+    });
+    g.add(box(2, 16, 3, dark, 0, 28, -21));
+    g.userData = { wheels: [], pods: [], r: 4, roof: 40, legs };
+    return g;
+  }
+  CAR_BUILDERS.horse = carHorse;
+
+  // ---- F tugmasi: shahar joylari ----
+  function citySpot(car) {
+    if (!world.places.bank) return null;
+    if (city.comet) return { kind: 'fun', d: 0, text: 'Tilak tilash ☄️', act: wish };
+    if (city.tram) return { kind: 'fun', d: 0, text: 'Tramvaydan tushish 🚋', act: toggleTram };
+    if (me.boat && world.wreck && near(world.wreck, 150)) return { kind: 'fun', d: 0, text: "Sho'ng'ish — cho'kkan kema 🤿", act: dive };
+    const f = city.flag;
+    if (f && !car) {
+      if (f.holder === me.key) {
+        const g = homeGate();
+        if (g && near(g, 170)) return { kind: 'fun', d: 0, text: 'Bayroqni uyga topshirish 🚩', act: deliverFlag };
+      } else if (near(f, f.holder ? 75 : 60)) {
+        return { kind: 'fun', d: 0, text: f.holder ? `Bayroqni tortib olish (${f.name}) 🚩` : 'Bayroqni olish 🚩', act: grabFlag };
+      }
+    }
+    if (world.cpraces) {
+      for (const [id, r] of Object.entries(world.cpraces)) {
+        if (!city.race && raceVehicleOk(id) && near(r.points[0], 130)) return { kind: 'fun', d: 1, text: `${r.name} — boshlash 🏁`, act: () => startRace(id) };
+      }
+    }
+    if (car) return null;
+    const ts = tramAt(Date.now() / 1000);
+    if (ts.stopped && Math.hypot(ts.x - me.x, TRAM_Y - me.y) < 110) return { kind: 'fun', d: 1, text: "Tramvayga chiqish 🚋", act: toggleTram };
+    const M = world.maze;
+    if (M && near(M.start, 110)) return { kind: 'fun', d: 1, text: 'Labirint — boshlash 🌿', act: () => api('/api/game/maze/start', { method: 'POST' }).then(() => toast('Vaqt ketdi! Chiqishni toping 🏁', 'success')).catch(said) };
+    if (M && near(M.finish, 110)) {
+      return { kind: 'fun', d: 1, text: 'Labirintdan chiqish 🏁', act: () => api('/api/game/maze/finish', { method: 'POST' }).then((d) => {
+        localVersion += 1;
+        setEconomy(d.economy);
+        sound.cash();
+        toast(`Labirint: ${d.time} soniya${d.best ? ' — rekord!' : ''} +${formatNumber(d.pay)} so'm 🏆`, 'success');
+      }).catch(said) };
+    }
+    const doors = [['bank', 'Bank — omonat va kredit 🏦', openBank], ['school', 'Maktab — savollar 🏫', openSchool],
+      ['library', "Kutubxona — kitob o'qish 📚", readBook], ['tailor', 'Tikuvchi — buyurtma 🧵', () => openWork('tailor')],
+      ['barber', 'Sartarosh — soch turmagi 💈', openBarber], ['mechanic', 'Avtomexanik — mashina tuzatish 🔧', () => openWork('mechanic')],
+      ['bakery', 'Novvoyxona — non yopish 🍞', openBakery], ['florist', "Gul do'koni — guldasta 💐", () => openWork('florist')],
+      ['icecream', 'Muzqaymoq sotish 🍦', () => openWork('icecream')], ['market', 'Bozor rastasi 🛒', openMarket],
+      ['billboard', 'Reklama taxtasi 📢', openBillboard]];
+    for (const [id, text, act] of doors) {
+      const pl = world.places[id];
+      const pt = pl && (pl.door || pl.spot);
+      if (near(pt, 90)) return { kind: 'fun', d: 1, text, act };
+    }
+    return null;
+  }
+  function grabFlag() {
+    api('/api/game/flag/grab', { method: 'POST' }).then(() => toast("Bayroq sizda! Uyingiz darvozasiga olib boring 🚩 Boshqalar tegib tortib olishi mumkin", 'success')).catch(said);
+  }
+  function deliverFlag() {
+    api('/api/game/flag/deliver', { method: 'POST' }).then((d) => {
+      localVersion += 1;
+      setEconomy(d.economy);
+      sound.cash();
+      toast(`Bayroq uyda! +${formatNumber(d.pay)} so'm 🚩`, 'success');
+    }).catch(said);
+  }
+
+  // ---- Maktab ----
+  function openSchool() {
+    const st = { kind: 'school', v: 0, data: null, answers: [], result: null };
+    openSheet(st);
+    loadInto(st, '/api/game/school', (d) => { st.data = d; });
+  }
+  function renderSchoolSheet(body, st) {
+    setHead('book', 'Maktab', `Har to'g'ri javob — ${formatNumber(3000)} so'm`);
+    const d = st.data;
+    if (!d) return;
+    if (d.wait) { body.append(el('p', 'sheet-note', `Keyingi dars ${Math.ceil(d.wait / 60)} daqiqadan keyin 🙂`)); return; }
+    if (st.result) {
+      body.append(el('p', st.result.right ? 'kitchen__ok' : 'kitchen__bad', `${st.result.right}/${st.result.total} to'g'ri — +${formatNumber(st.result.pay)} so'm`));
+      return;
+    }
+    d.questions.forEach((q, n) => {
+      const bx = el('div', 'lic-q');
+      bx.append(el('strong', '', `${n + 1}. ${q.question}`));
+      const opts = el('div', 'lic-opts');
+      q.options.forEach((o, i) => {
+        const b = el('button', `btn ${st.answers[n] === i ? 'btn--primary' : 'btn--ghost'} btn--sm`, o);
+        b.type = 'button';
+        b.addEventListener('click', () => { st.answers[n] = i; st.v += 1; renderSheet(); });
+        opts.append(b);
+      });
+      bx.append(opts);
+      body.append(bx);
+    });
+    const send = actionBtn('check', 'Javob berish', async () => {
+      try {
+        st.result = await api('/api/game/school', { method: 'POST', body: { token: d.token, answers: st.answers } });
+        localVersion += 1;
+        setEconomy(st.result.economy);
+        if (st.result.pay) sound.cash();
+      } catch (err) { said(err); }
+      st.v += 1;
+      renderSheet();
+    }, 'btn btn--primary btn--block');
+    send.disabled = st.answers.filter((a) => a !== undefined).length < d.questions.length;
+    body.append(send);
+  }
+  function readBook() {
+    api('/api/game/library', { method: 'POST' }).then((d) => {
+      localVersion += 1;
+      setEconomy(d.economy);
+      sound.cash();
+      toast(`📖 ${d.tip} (+${formatNumber(d.pay)} so'm · bilim: ${d.knowledge})`, 'success');
+    }).catch(said);
+  }
+
+  // ---- Ustaxonalar (buyurtma) ----
+  const WORK_TITLES = { tailor: ['🧵', 'Tikuvchi'], mechanic: ['🔧', 'Avtomexanik'], icecream: ['🍦', 'Muzqaymoq'], florist: ['💐', "Gul do'koni"] };
+  async function openWork(job) {
+    const st = { kind: 'work', v: 0, job, order: null, picked: [], result: null };
+    openSheet(st);
+    try {
+      const d = await api(`/api/game/work/${job}/order`, { method: 'POST' });
+      if (sheetState !== st) return;
+      st.order = d.order;
+      st.v += 1;
+      renderSheet();
+    } catch (err) { closeSheet(); said(err); }
+  }
+  function renderWorkSheet(body, st) {
+    const [ic, title] = WORK_TITLES[st.job];
+    setHead('hammer', `${ic} ${title}`, "Buyurtmani tez va to'g'ri bajaring — tez bo'lsa ko'proq pul");
+    const o = st.order;
+    if (!o) return;
+    body.append(el('p', 'kitchen__dish', o.text));
+    if (st.result) {
+      body.append(el('p', st.result.ok ? 'kitchen__ok' : 'kitchen__bad', st.result.msg),
+        actionBtn('refresh', 'Keyingi buyurtma', () => openWork(st.job), 'btn btn--primary btn--block'));
+      return;
+    }
+    const grid = el('div', 'kitchen__grid');
+    o.options.forEach((opt) => {
+      const on = st.picked.includes(opt);
+      const b = el('button', `btn ${on ? 'btn--primary' : 'btn--ghost'}`, opt);
+      b.type = 'button';
+      b.addEventListener('click', async () => {
+        st.picked = on ? st.picked.filter((x) => x !== opt) : [...st.picked, opt];
+        st.v += 1;
+        if (st.picked.length >= o.need) {
+          try {
+            st.result = await api(`/api/game/work/${st.job}/done`, { method: 'POST', body: { id: o.id, answer: st.picked } });
+            if (st.result.economy) { localVersion += 1; setEconomy(st.result.economy); }
+            if (st.result.ok) sound.cash();
+          } catch (err) { st.result = { ok: false, msg: err.message }; }
+          st.v += 1;
+        }
+        renderSheet();
+      });
+      grid.append(b);
+    });
+    body.append(el('p', 'sheet-note', `${o.need} ta tanlang`), grid);
+  }
+
+  // ---- Novvoyxona: o'z vaqtida oling ----
+  async function openBakery() {
+    const st = { kind: 'bakery', v: 0, t0: 0, ready: 4, burn: 7.5, msg: null, timer: null };
+    openSheet(st);
+  }
+  function renderBakerySheet(body, st) {
+    setHead('home', '🍞 Novvoyxona', 'Nonni tandirga qo\'ying va o\'z vaqtida oling (4–7 soniya)');
+    if (st.msg) body.append(el('p', st.msg.ok ? 'kitchen__ok' : 'kitchen__bad', st.msg.text));
+    if (!st.t0) {
+      body.append(actionBtn('plus', 'Xamirni tandirga qo\'yish', async () => {
+        try {
+          const d = await api('/api/game/bakery/start', { method: 'POST' });
+          st.t0 = performance.now();
+          st.ready = d.ready;
+          st.burn = d.burn;
+          st.msg = null;
+          st.v += 1;
+          renderSheet();
+          const tick = () => {
+            if (sheetState !== st || !st.t0) return;
+            const bar = $('bread-bar');
+            if (bar) bar.style.width = `${Math.min(100, ((performance.now() - st.t0) / 1000 / 9) * 100)}%`;
+            requestAnimationFrame(tick);
+          };
+          tick();
+        } catch (err) { said(err); }
+      }, 'btn btn--primary btn--block'));
+      return;
+    }
+    const track = el('div', 'bread');
+    const zone = el('span', 'bread__zone');
+    zone.style.left = `${(st.ready / 9) * 100}%`;
+    zone.style.width = `${((st.burn - st.ready) / 9) * 100}%`;
+    const bar = el('span', 'bread__bar');
+    bar.id = 'bread-bar';
+    track.append(zone, bar);
+    body.append(el('p', 'sheet-note', 'Yashil zonaga yetganda «Olish» ni bosing!'), track,
+      actionBtn('check', 'Nonni olish', async () => {
+        st.t0 = 0;
+        try {
+          const d = await api('/api/game/bakery/take', { method: 'POST' });
+          st.msg = { ok: d.ok, text: d.msg };
+          if (d.ok) sound.cash();
+        } catch (err) { st.msg = { ok: false, text: err.message }; }
+        st.v += 1;
+        renderSheet();
+      }, 'btn btn--primary btn--block'));
+  }
+
+  // ---- Sartarosh ----
+  function openBarber() {
+    const st = { kind: 'barber', v: 0, data: null, hair: null, hat: null };
+    openSheet(st);
+    loadInto(st, '/api/game/looks', (d) => { st.data = d; st.hair = d.looks.hair; st.hat = d.looks.hat; });
+  }
+  function renderBarberSheet(body, st) {
+    setHead('user', '💈 Sartarosh', "Soch rangi va bosh kiyim — 2 000 so'm");
+    const d = st.data;
+    if (!d) return;
+    const row = (label, list, key, show) => {
+      const wrap = el('div', 'lic-opts');
+      list.forEach((v) => {
+        const b = el('button', `btn ${st[key] === v ? 'btn--primary' : 'btn--ghost'} btn--sm`, show(v));
+        b.type = 'button';
+        if (key === 'hair') b.style.boxShadow = `inset 0 -6px 0 ${v}`;
+        b.addEventListener('click', () => { st[key] = v; st.v += 1; renderSheet(); });
+        wrap.append(b);
+      });
+      body.append(el('strong', '', label), wrap);
+    };
+    row('Soch rangi', d.options.hair, 'hair', () => '✂️');
+    row('Bosh kiyim', d.options.hat, 'hat', (v) => ({ '': "Yo'q", cap: 'Kepka', hat: 'Shlyapa', beanie: 'Do\'ppi', crown: 'Toj' }[v] || v));
+    body.append(priceButton('Soch turmagini qilish', 2000, async () => {
+      const r = await api('/api/game/barber', { method: 'POST', body: { hair: st.hair, hat: st.hat } });
+      localVersion += 1;
+      setEconomy(r.economy);
+      me.looks = r.looks;
+      setRigLooks(me.rig, suitLooks(r.looks, me.spider));
+      sound.cash();
+      toast('Yangi soch turmagi! 💈', 'success');
+      closeSheet();
+    }));
+  }
+
+  // ---- Bozor va narsalar ----
+  function openMarket() {
+    const st = { kind: 'market2', v: 0, data: null };
+    openSheet(st);
+    loadInto(st, '/api/game/stall', (d) => { st.data = d; });
+  }
+  function renderMarket2Sheet(body, st) {
+    setHead('store', '🛒 Bozor rastasi', "O'yinchilar bir-biriga sotadi");
+    const d = st.data;
+    if (!d) return;
+    const reload = (x) => { st.data = x; st.v += 1; renderSheet(); };
+    body.append(el('h3', 'life-h3', 'Sizdagi narsalar'));
+    const mine = Object.entries(d.items);
+    if (!mine.length) body.append(el('p', 'sheet-note', "Hali narsa yo'q: novvoyxonada non yoping, gul do'konida guldasta yasang."));
+    mine.forEach(([id, qty]) => {
+      const c = d.catalog[id];
+      const r = el('div', 'car-row');
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', `${c.icon} ${c.name} × ${qty}`), el('small', '', `Bozorga sotish: ${formatNumber(c.sell)} so'm`));
+      r.append(info,
+        actionBtn('coins', 'Sotish', () => api('/api/game/items/sell', { method: 'POST', body: { item: id, qty: 1 } }).then((x) => {
+          localVersion += 1; setEconomy(x.economy); sound.cash();
+          loadInto(st, '/api/game/stall', (y) => { st.data = y; });
+        }).catch(said), 'btn btn--ghost btn--sm'),
+        actionBtn('plus', 'Rastaga', () => {
+          const price = Number(window.prompt(`${c.name} narxi (so'm):`, String(c.sell * 2)));
+          if (!price) return;
+          api('/api/game/stall', { method: 'POST', body: { item: id, price: Math.round(price) } }).then(reload).catch(said);
+        }, 'btn btn--primary btn--sm'));
+      body.append(r);
+    });
+    body.append(el('h3', 'life-h3', 'Rastadagi narsalar'));
+    if (!d.listings.length) body.append(el('p', 'sheet-note', "Rasta bo'sh"));
+    d.listings.forEach((l) => {
+      const c = d.catalog[l.item];
+      const r = el('div', 'car-row');
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', `${c.icon} ${c.name}`), el('small', '', `${l.seller} · ${formatNumber(l.price)} so'm`));
+      r.append(info, l.mine
+        ? actionBtn('x', 'Olib qo\'yish', () => api(`/api/game/stall/${l.id}`, { method: 'DELETE' }).then(reload).catch(said), 'btn btn--ghost btn--sm')
+        : priceButton('Olish', l.price, async () => { reload(await api(`/api/game/stall/${l.id}/buy`, { method: 'POST' })); localVersion += 1; sound.cash(); }, 'btn--sm'));
+      body.append(r);
+    });
+  }
+
+  // ---- Pochta qutisi ----
+  function openMail() {
+    const st = { kind: 'mail', v: 0, data: null };
+    openSheet(st);
+    loadInto(st, '/api/game/mail', (d) => { st.data = d; });
+  }
+  function renderMailSheet(body, st) {
+    setHead('message', '📮 Pochta qutisi', "Do'stlarga xat va sovg'a");
+    const d = st.data;
+    if (!d) return;
+    const f = el('div', 'sale');
+    const to = el('select', 'input-plain');
+    d.people.forEach((p) => { const o = el('option', '', p.name); o.value = p.key; to.append(o); });
+    const text = el('input', 'input-plain');
+    text.maxLength = 300;
+    text.placeholder = 'Xat matni…';
+    const item = el('select', 'input-plain');
+    item.append(el('option', '', "Sovg'asiz"));
+    item.firstChild.value = '';
+    Object.entries(d.items).forEach(([id, q]) => { const o = el('option', '', `${d.catalog[id].icon} ${d.catalog[id].name} (${q})`); o.value = id; item.append(o); });
+    f.append(to, text, item, actionBtn('send', 'Yuborish', () => api('/api/game/mail', { method: 'POST', body: { to: to.value, text: text.value, item: item.value || null } })
+      .then(() => { toast('Xat yuborildi 📮', 'success'); loadInto(st, '/api/game/mail', (x) => { st.data = x; }); }).catch(said), 'btn btn--primary btn--block'));
+    body.append(f, el('h3', 'life-h3', 'Kelgan xatlar'));
+    if (!d.mail.length) body.append(el('p', 'sheet-note', "Hali xat yo'q"));
+    d.mail.forEach((m) => {
+      const r = el('div', 'car-row');
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', `${m.new ? '🆕 ' : ''}${m.from}${m.item ? ` · ${d.catalog[m.item]?.icon || '🎁'}` : ''}`), el('small', '', `${m.text || "(sovg'a)"} · ${m.at}`));
+      r.append(info);
+      body.append(r);
+    });
+  }
+
+  // ---- Sarmoya ----
+  function openInvest() {
+    const st = { kind: 'invest', v: 0, data: null };
+    openSheet(st);
+    loadInto(st, '/api/game/invest', (d) => { st.data = d; });
+  }
+  function renderInvestSheet(body, st) {
+    setHead('coins', '💼 Sarmoya', "Boshqalarning biznesiga pul tiking — 30 kun har kuni 2%");
+    const d = st.data;
+    if (!d) return;
+    const total = d.mine.reduce((s, x) => s + x.claim, 0);
+    body.append(actionBtn('coins', `Dividend olish (${formatNumber(total)} so'm)`, () => api('/api/game/invest/claim', { method: 'POST' }).then((x) => {
+      localVersion += 1; setEconomy(x.economy); sound.cash(); toast(`Dividend: +${formatNumber(x.pay)} so'm`, 'success');
+      loadInto(st, '/api/game/invest', (y) => { st.data = y; });
+    }).catch(said), 'btn btn--primary btn--block'));
+    d.mine.forEach((x) => body.append(el('p', 'sheet-note', `${x.owner}ning biznesi (${x.plot + 1}-yer): ${formatNumber(x.amount)} so'm · ${x.days_left} kun qoldi`)));
+    body.append(el('h3', 'life-h3', 'Bizneslar'));
+    d.targets.forEach((t) => {
+      const r = el('div', 'car-row');
+      const info = el('div', 'car-row__info');
+      info.append(el('strong', '', `${t.owner} — ${t.kind} (${t.level} qavat)`), el('small', '', `${t.plot + 1}-yer`));
+      r.append(info, actionBtn('plus', 'Tikish', () => {
+        const amount = Math.round(Number(window.prompt("Qancha sarmoya? (10 000 — 5 000 000)", '50000')));
+        if (!amount) return;
+        api('/api/game/invest', { method: 'POST', body: { plot: t.plot, amount } }).then((y) => {
+          localVersion += 1; sound.cash(); st.data = y; st.v += 1; renderSheet(); toast('Sarmoya kiritildi 💼', 'success');
+        }).catch(said);
+      }, 'btn btn--primary btn--sm'));
+      body.append(r);
+    });
+    if (!d.targets.length) body.append(el('p', 'sheet-note', "Hozircha kafe, magazin yoki ofisi bor o'yinchi yo'q"));
+  }
+
+  // ---- Ro'yxatlar: futbol kubogi, rekordlar, qor jangi ----
+  function openList(title, url, line) {
+    const st = { kind: 'list2', v: 0, title, data: null, line };
+    openSheet(st);
+    loadInto(st, url, (d) => { st.data = d; });
+  }
+  function renderList2Sheet(body, st) {
+    setHead('trophy', st.title, '');
+    if (!st.data) return;
+    const items = st.data.top || [];
+    if (!items.length) body.append(el('p', 'sheet-note', "Hali hech kim yo'q"));
+    items.forEach((t, i) => body.append(el('p', 'sheet-note', `${['🥇', '🥈', '🥉'][i] || `${i + 1}.`} ${st.line(t)}`)));
+  }
+
+  // ---- Dron kuryer ----
+  async function droneDelivery() {
+    try {
+      const d = await api('/api/game/dronejob/start', { method: 'POST' });
+      if (!droneOn) toggleDrone();
+      closeSheet();
+      setGuide(d.target.x, d.target.y, 'Posilka manzili');
+      toast(`Dron posilkani olib uchdi 🚁 ${Math.round(d.eta)} soniyada yetadi`, 'success');
+      setTimeout(async () => {
+        try {
+          const r = await api('/api/game/dronejob/finish', { method: 'POST' });
+          localVersion += 1;
+          setEconomy(r.economy);
+          sound.cash();
+          toast(`Posilka yetkazildi! +${formatNumber(r.pay)} so'm 📦`, 'success');
+        } catch (err) { said(err); }
+        setGuide();
+      }, d.eta * 1000 + 300);
+    } catch (err) { said(err); }
+  }
+
+  function claimRent() {
+    api('/api/game/rent/claim', { method: 'POST' }).then((d) => {
+      localVersion += 1;
+      setEconomy(d.economy);
+      sound.cash();
+      toast(`Ijara haqi: ${d.homes} ta uydan +${formatNumber(d.pay)} so'm 🏠`, 'success');
+    }).catch(said);
+  }
+
+  function stepCity(now) {
+    stepClock();
+    stepLights();
+    stepTram();
+    stepRainbow(now);
+    stepComet();
+    if (city.race) stepRace();
+    if (city.flag) setFlag(city.flag);
   }
 
   // ---------------- Kun va tun ----------------
@@ -7616,6 +8547,19 @@ import * as THREE from 'three';
       grid.append(b);
     };
     tile('coins', 'Bank', 'Omonat va kredit', openBank);
+    tile('message', 'Pochta qutisi', "Xat va sovg'a 📮", openMail);
+    tile('coins', 'Sarmoya', "Biznesga pul tiking 💼", openInvest);
+    tile('home', 'Ijara haqi', "Uylaringizdan kunlik pul 🏠", claimRent);
+    tile('store', 'Bozor va ustaxonalar', "Ikkinchi bog'da 🛒", () => { const q = world.places.market; const pt = q.door || q.spot; setGuide(pt.x, pt.y, 'Bozor'); closeSheet(); });
+    tile('book', 'Maktab va kutubxona', "Savol-javob, kitob 📚", () => { const q = world.places.school; const pt = q.door || q.spot; setGuide(pt.x, pt.y, 'Maktab'); closeSheet(); });
+    tile('trophy', 'Futbol kubogi', "Klanlar haftalik gollari ⚽", () => openList('⚽ Klanlar futbol kubogi', '/api/game/fcup', (t) => `[${t.tag}] ${t.name} — ${t.goals} gol`));
+    tile('target', 'Bayroqni olish', "Bayroqni uyingizga olib boring 🚩", () => { if (city.flag) { setGuide(city.flag.x, city.flag.y, 'Bayroq'); closeSheet(); } else toast('Yangi bayroq tez orada chiqadi'); });
+    tile('map-pin', 'Labirint', "Eng tez chiqing 🌿", () => { const m = world.maze.start; setGuide(m.x, m.y, 'Labirint'); closeSheet(); });
+    tile('trophy', 'Labirint rekordlari', "Haftalik eng tezlar", () => openList('🌿 Labirint rekordlari', '/api/game/records/maze', (t) => `${t.name} — ${t.best} s`));
+    tile('car', 'Velo-marafon', "Velosiped/skeyt poygasi 🚲", () => { const q = world.cpraces.bike.points[0]; setGuide(q.x, q.y, 'Velo-marafon'); closeSheet(); });
+    tile('navigation', 'Qayiq poygasi', "Portda, qayiqda ⛵", () => { const q = world.cpraces.boat.points[0]; setGuide(q.x, q.y, 'Qayiq poygasi'); closeSheet(); });
+    tile('map-pin', 'Tramvay', "1900-ko'chada 🚋", () => { setGuide(800, 1880, 'Tramvay bekati'); closeSheet(); });
+    tile('sparkles', 'Qor jangi', "Q — qor otish (qishda) ❄️", () => openList('❄️ Bugungi qor jangi', '/api/game/snowball', (t) => `${t.name} — ${t.hits} ta`));
     tile('trophy', 'Boylar reytingi', "Eng boy 10 o'yinchi", openTop);
     tile('users', 'Klanlar', 'Jamoa, xazina, bayroq', openClans);
     tile('user', "Ko'rinishim", 'Soch, kiyim, shapka', openLooks);
@@ -8641,6 +9585,9 @@ import * as THREE from 'three';
     }
     setMg(data.mg || null);
     setStage(data.stage || null);
+    setFlag(data.flag || null);
+    setComet(data.comet || null);
+    if (data.billboard !== undefined) setBillboard(data.billboard);
     weddings = data.weddings || [];
     onPm(data.pm);
     if (weddings.some((w) => w.treat)) {
@@ -8712,6 +9659,7 @@ import * as THREE from 'three';
     stepSpider(dt);
     stepNpcSpider();
     stepDrone(dt);
+    stepCity(performance.now());
     updateStageUi();
     updateFlight(now);
     updateFestCard();
@@ -8790,6 +9738,7 @@ import * as THREE from 'three';
       buildDepot();
       buildRocket();
       buildRiver();
+      buildCity();
       loadPet();
       initPhone();
       loadTuning();

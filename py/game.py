@@ -99,6 +99,7 @@ CARS = [  # narxi bo'yicha (Avtosalonda shu tartibda)
      "color": "#f97316", "style": "skate"},
     {"id": "bike", "name": "Velosiped", "price": 2000, "speed": 1.25, "fare": 0,
      "color": "#16a34a", "style": "bike"},
+    {"id": "horse", "name": "Ot", "price": 8000, "speed": 1.6, "fare": 0, "color": "#7c2d12", "style": "horse"},
     {"id": "jiguli", "name": "Jiguli", "price": 12000, "speed": 1.4, "fare": 0.8,
      "color": "#16a34a", "style": "sedan"},
     {"id": "damas", "name": "Damas", "price": 20000, "speed": 1.5, "fare": 1.2,
@@ -258,6 +259,8 @@ TRACK["rect"] = {"x": TRACK["cx"] - TRACK["half"] - TRACK["r"] - 140, "y": TRACK
 RIVER = {"rect": {"x": 0, "y": 3740, "w": 1300, "h": 700},
          "water": {"x": 0, "y": 4000, "w": 1300, "h": 150},
          "bridge": {"x": 560, "y": 3985, "w": 120, "h": 180}}
+# Labirint: shimoli-g'arbdagi o'rmonda (game_city.MAZE bilan bir xil)
+MAZE_RECT = {"x": 100, "y": -1250, "w": 1200, "h": 1190}
 # Kosmodrom: aeroportning janubida — Oyga sayohat
 ROCKET = {"x": 7150, "y": 2450, "price": 1000000}
 # Aeroport: xaritaning sharqidagi o'rmonda (1900-ko'cha davomida). Doim kirish mumkin.
@@ -278,6 +281,18 @@ PLACES = {
     "wash": {"x": 60, "y": 860, "w": 260, "h": 200, "door": {"x": 190, "y": 960}},
     "depot": {"x": 2820, "y": 2760, "w": 120, "h": 90, "door": {"x": 2880, "y": 2875}},
     "stage": {"x": 2560, "y": 680, "w": 130, "h": 90, "spot": {"x": 2625, "y": 725}},
+    "bank": {"x": 2290, "y": 960, "w": 160, "h": 110, "door": {"x": 2370, "y": 940}},
+    "clock": {"x": 2340, "y": 520, "w": 60, "h": 60, "spot": {"x": 2370, "y": 610}},
+    "icecream": {"x": 2210, "y": 640, "w": 50, "h": 40, "spot": {"x": 2235, "y": 700}},
+    "school": {"x": 3000, "y": 2760, "w": 200, "h": 130, "door": {"x": 3100, "y": 2905}},
+    "library": {"x": 3260, "y": 2760, "w": 170, "h": 120, "door": {"x": 3345, "y": 2895}},
+    "tailor": {"x": 2830, "y": 2960, "w": 120, "h": 90, "door": {"x": 2890, "y": 3065}},
+    "barber": {"x": 3000, "y": 2960, "w": 120, "h": 90, "door": {"x": 3060, "y": 3065}},
+    "mechanic": {"x": 3170, "y": 2960, "w": 140, "h": 90, "door": {"x": 3240, "y": 3065}},
+    "bakery": {"x": 3350, "y": 2960, "w": 130, "h": 90, "door": {"x": 3415, "y": 3065}},
+    "florist": {"x": 2830, "y": 3150, "w": 120, "h": 90, "door": {"x": 2890, "y": 3255}},
+    "market": {"x": 3000, "y": 3160, "w": 260, "h": 70, "spot": {"x": 3130, "y": 3270}},
+    "billboard": {"x": 3330, "y": 3200, "w": 140, "h": 20, "spot": {"x": 3400, "y": 3260}},
 }
 # Hayvonot bog'i — shimoldagi o'rmonda (1940-ko'cha davomi), port — janubi-sharqda (3420-ko'cha davomi)
 ZOO = {"rect": {"x": 1700, "y": -1300, "w": 1700, "h": 1360},
@@ -788,7 +803,7 @@ def api_sync():
     spider = bool(row["spider"]) and not car
     height = min(max(height, 0), FLY_HEIGHT + 20 if (flying or para or spider) else 120)
     world_rect = {"x": 0, "y": 0, "w": WORLD_W, "h": WORLD_H}
-    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"], ZOO["rect"], PORT["rect"], RIVER["rect"]]
+    areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"], ZOO["rect"], PORT["rect"], RIVER["rect"], MAZE_RECT]
     inside_rect = lambda a: a["x"] + 10 <= x <= a["x"] + a["w"] - 10 and a["y"] + 10 <= y <= a["y"] + a["h"] - 10
     in_area = any(inside_rect(a) for a in areas)
     if not in_area:  # chegaradan tashqarida — eng yaqin ruxsat etilgan joyga
@@ -851,7 +866,8 @@ def api_sync():
         chat_since, voice_since = _int(data.get("chat_since")), _int(data.get("voice_since"))
         chat = [_chat_public(m) for m in _chat if m["id"] > chat_since and _chat_visible(m, key)]
         voices = [{"id": v["id"], "key": v["key"], "name": v["name"]} for v in _voices
-                  if v["id"] > voice_since and v["key"] != key and now - v["t"] < VOICE_TTL]
+                  if v["id"] > voice_since and v["key"] != key and now - v["t"] < VOICE_TTL
+                  and (not v.get("to") or key in v["to"])]
 
     response = {"economy": economy_json(db, row), "passengers": passengers, "ride": ride,
                 "players": players, "plots": plots_list(db), "gifts": gifts, "seat": seat,
@@ -930,10 +946,15 @@ def api_voice():
     if not mime.startswith("audio/"):
         return jsonify(error="Bu ovoz emas"), 400
     now = time.time()
+    to = None
+    if request.form.get("channel") == "clan":  # klan ovozli xonasi: faqat klandoshlar eshitadi
+        to = CHAT_AUDIENCE(player_key(user), "clan")
+        if not to:
+            return jsonify(error="Klaningiz yo'q"), 400
     with _lock:
         vid = next(_msg_ids)
         _voices.append({"id": vid, "key": player_key(user), "name": user["name"], "mime": mime,
-                        "data": data, "t": now})
+                        "data": data, "t": now, "to": to})
     return jsonify(id=vid)
 
 
@@ -943,6 +964,9 @@ def api_voice_get(vid: int):
     now = time.time()
     with _lock:
         v = next((v for v in _voices if v["id"] == vid and now - v["t"] < VOICE_TTL), None)
+        me_key = player_key(current_user())
+        if v is not None and v.get("to") and me_key != v["key"] and me_key not in v["to"]:
+            v = None
     if v is None:
         return jsonify(error="Ovozli xabar topilmadi"), 404
     return Response(v["data"], mimetype=v["mime"], headers={"Cache-Control": "no-store"})

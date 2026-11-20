@@ -123,6 +123,9 @@ def api_job_step():
                 msg = f"Posilka topshirildi: +{pay:,} so'm".replace(",", " ")
             elif j["kind"] == "build":
                 pay = int(900 + dist * 0.5)
+                clan_row = gs._row(get_db(), key)
+                if clan_row and clan_row["clan"]:
+                    pay = int(pay * 1.25)  # qurilish kompaniyasi: klan a'zolariga +25%
                 msg = f"Qurilish ishi bajarildi: +{pay:,} so'm".replace(",", " ")
             else:
                 base = int(600 + dist * 0.6)
