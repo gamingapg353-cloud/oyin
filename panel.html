@@ -41,6 +41,7 @@
         <a class="nav__link" href="#rating" data-view="rating">{{ icon('trophy') }}<span>Reyting</span></a>
         <a class="nav__link" href="#polls" data-view="polls">{{ icon('vote') }}<span>So'rovnoma</span></a>
         <a class="nav__link" href="#shop" data-view="shop">{{ icon('gift') }}<span>Sovg'alar</span></a>
+        <a class="nav__link" href="#deco" data-view="deco">{{ icon('crown') }}<span>Profil bezagi</span></a>
         <a class="nav__link" href="#code" data-view="code">{{ icon('file') }}<span>Kod muharriri</span></a>
         {% if is_owner %}
         <a class="nav__link" href="#settings" data-view="settings">{{ icon('shield') }}<span>Sozlamalar</span></a>
@@ -97,6 +98,7 @@
               {% if not is_owner %}
               <a class="menu__item" role="menuitem" href="#profile/{{ user.id }}">{{ icon('user', 18) }} Profilim</a>
               {% endif %}
+              <a class="menu__item" role="menuitem" href="#deco">{{ icon('crown', 18) }} Profil bezagi</a>
               <button type="button" class="menu__item" role="menuitem" data-avatar-change>{{ icon('camera', 18) }} Rasmni almashtirish</button>
               <button type="button" class="menu__item" role="menuitem" data-avatar-remove {% if not user.avatar %}hidden{% endif %}>{{ icon('trash', 18) }} Rasmni o'chirish</button>
               <div class="menu__sep" role="separator"></div>
@@ -369,6 +371,10 @@
         <!-- Mashqlar: kunlik savol, kod dueli, xatoni top, maket, xatolar daftari, guruh loyihasi, saytlar ko'chasi -->
         <section class="view" data-view="learn" data-title="Mashqlar" hidden>
           <div id="learn-root"></div>
+        </section>
+        <!-- Profil bezagi: ramka, ism rangi, unvon (hamma uchun) -->
+        <section class="view" data-view="deco" data-title="Profil bezagi" hidden>
+          <div class="school-stack" id="deco-root"></div>
         </section>
         {% if is_owner %}
         <!-- Sozlamalar: Telegram, baho berish -->

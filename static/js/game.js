@@ -9188,7 +9188,7 @@ import * as THREE from 'three';
         ['store', 'Bozor rastasi', "Meva va narsalarni sotish 🛒", openMarket],
         ['book', 'Kundalik', "O'yindagi kunlaringiz 📔", () => openTw('diary')],
         ['star', 'Holatim', 'Ochko, sertifikatlar', () => openTw('me2')],
-        ['sparkles', 'Profil bezagi', 'Ramka, ism rangi, unvon 👑', () => { window.location.href = IS_OWNER ? '/panel#settings' : `/panel#profile/${me.key.slice(1)}`; }],
+        ['sparkles', 'Profil bezagi', 'Ramka, ism rangi, unvon 👑', () => { window.location.href = '/panel#deco'; }],
       ]);
       sec("💰 Savdo", [
         ['store', "O'yinchilar do'konlari", "O'z do'koningizni oching 🏪", () => openTw('shops')],

@@ -6996,6 +6996,7 @@ button.hud-online:hover {
 
 #learn-root,
 #settings-root,
+#deco-root,
 #learn-root .school-stack,
 #learn-root .school-card {
   grid-template-columns: minmax(0, 1fr);

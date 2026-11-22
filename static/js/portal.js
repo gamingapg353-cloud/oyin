@@ -47,13 +47,7 @@
     const draw = (d) => {
       c.querySelectorAll('.deco-body').forEach((x) => x.remove());
       const now = { frame: d.frame, color: (d.colors.find((x) => x.id === d.color) || {}).hex, title: d.title ? (d.titles.find((x) => x.id === d.title) || {}).name : '' };
-      paintMe(now); // tepada va profil sahifasida darhol ko'rinsin
-      if (!isOwner) {
-        const pr = $('profile-root');
-        Oyin.applyDeco(pr?.querySelector('.avatar--xl'), pr?.querySelector('.profile-card__main h2'), now);
-        const t = pr?.querySelector('.profile-card__title');
-        if (t) t.textContent = now.title;
-      }
+      paintMe(now); // tepada darhol ko'rinsin
       const body = el('div', 'deco-body');
       const prev = el('div', 'deco-prev');
       const av = avatarEl(APP.name, APP.avatar, 'avatar avatar--lg');
@@ -96,7 +90,7 @@
     };
     try {
       draw(await api('/api/deco'));
-      root.append(c);
+      root.replaceChildren(c);
     } catch (err) { handleAuthError(err); }
   }
 
@@ -108,7 +102,11 @@
     if (!root) return;
     root.replaceChildren();
     const uid = Number(param) || APP.id;
-    if (!isOwner && uid === APP.id) await decoCard(root);
+    if (!isOwner && uid === APP.id) {
+      const a = el('a', 'btn btn--primary', "👑 Profilimni bezash: ramka, ism rangi, unvon");
+      a.href = '#deco';
+      root.append(a);
+    }
     if (isOwner && uid) {
       const c = card('Ota-ona uchun Telegram', 'send');
       c.append(el('p', 'muted', "Havolani ota-onaga yuboring: botni ochib «Start» bossa, har yakshanba hisobot boradi."));
@@ -336,8 +334,8 @@
     api('/api/homeworks/0/peers').then((d) => { cb.checked = d.on; }).catch(() => {});
     cb.addEventListener('change', () => api('/api/peer-settings', { method: 'POST', body: { on: cb.checked } }).catch(fail));
     root.append(p);
-    await decoCard(root);
   };
+  viewLoaders.deco = () => decoCard($('deco-root'));
 
   // ================= 30. Telefonga o'rnatish va bildirishnoma =================
   const canPush = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
