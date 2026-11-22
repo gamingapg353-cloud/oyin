@@ -188,6 +188,8 @@ def profile(user_id: int):
         "max_score": max_score,
         "game": game.summary_for(db, f"u{user_id}"),
     }
+    import portal
+    data["deco"] = portal.deco_map(db, True).get(f"u{user_id}")
     if is_owner:
         data["login"] = row["login"]
     return jsonify(profile=data)

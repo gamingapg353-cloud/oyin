@@ -490,6 +490,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  padding: 14px 8px 6px; // ramka va toj sig'sin
 
   small {
     display: block;
@@ -582,6 +583,26 @@
     line-height: 1;
     content: "👑";
     transform: translateX(-50%);
+  }
+}
+
+// Katta avatarda ramka va toj ham kattaroq
+.avatar--xl.avatar--framed {
+  border: 0;
+}
+
+.avatar--xl.avatar--f-toj::after {
+  top: -34px;
+  font-size: 36px;
+}
+
+.profile-card__title {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-weight: 600;
+
+  &:empty {
+    display: none;
   }
 }
 

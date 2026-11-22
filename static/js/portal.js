@@ -24,24 +24,45 @@
 
   // ================= Bezak: ism rangi, ramka, unvon =================
   Oyin.applyDeco = (avatar, name, deco) => {
-    if (!deco) return;
-    if (avatar && deco.frame) avatar.classList.add('avatar--framed', `avatar--f-${deco.frame}`);
-    if (name && deco.color) name.style.color = deco.color;
+    if (avatar) {
+      [...avatar.classList].filter((c) => c.startsWith('avatar--f')).forEach((c) => avatar.classList.remove(c));
+      if (deco?.frame) avatar.classList.add('avatar--framed', `avatar--f-${deco.frame}`);
+    }
+    if (name) name.style.color = deco?.color || '';
   };
+  // Tepadagi hisob belgisi (va menyusi) — bezak bilan
+  function paintMe(deco) {
+    const chip = $('account-btn');
+    if (!chip) return;
+    Oyin.applyDeco($('my-avatar'), chip.querySelector('strong'), deco);
+    Oyin.applyDeco(null, document.querySelector('#account-menu .menu__head strong'), deco);
+    const small = chip.querySelector('small');
+    small.dataset.role = small.dataset.role || small.textContent;
+    small.textContent = deco?.title || small.dataset.role;
+  }
+  paintMe(APP.deco);
 
   async function decoCard(root) {
     const c = card('Profil bezagi', 'sparkles');
     const draw = (d) => {
       c.querySelectorAll('.deco-body').forEach((x) => x.remove());
+      const now = { frame: d.frame, color: (d.colors.find((x) => x.id === d.color) || {}).hex, title: d.title ? (d.titles.find((x) => x.id === d.title) || {}).name : '' };
+      paintMe(now); // tepada va profil sahifasida darhol ko'rinsin
+      if (!isOwner) {
+        const pr = $('profile-root');
+        Oyin.applyDeco(pr?.querySelector('.avatar--xl'), pr?.querySelector('.profile-card__main h2'), now);
+        const t = pr?.querySelector('.profile-card__title');
+        if (t) t.textContent = now.title;
+      }
       const body = el('div', 'deco-body');
       const prev = el('div', 'deco-prev');
       const av = avatarEl(APP.name, APP.avatar, 'avatar avatar--lg');
       const nm = el('strong', '', APP.name);
-      Oyin.applyDeco(av, nm, { frame: d.frame, color: (d.colors.find((x) => x.id === d.color) || {}).hex });
+      Oyin.applyDeco(av, nm, now);
       const info = el('div', '');
       info.append(nm, el('small', 'muted', (d.titles.find((x) => x.id === d.title) || {}).name || 'Unvonsiz'));
       prev.append(av, info);
-      body.append(prev, el('p', 'muted', `Reytingda, chatda va o'yinda ismingiz yonida ko'rinadi. Hamyoningiz: ${formatNumber(Math.floor(d.money))} so'm`));
+      body.append(prev, el('p', 'muted', `Profilda, reytingda, chatda va o'yinda ko'rinadi. Hamyoningiz: ${formatNumber(Math.floor(d.money))} so'm`));
       const set = (kind, id, x) => {
         if (!x.own && x.price && !window.confirm(`«${x.name}» — ${formatNumber(x.price)} so'm (o'yin puli). Olasizmi?`)) return;
         api('/api/deco', { method: 'POST', body: { kind, id } }).then(draw).catch(fail);

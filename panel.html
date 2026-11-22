@@ -457,7 +457,7 @@
     {% endfor %}
   </template>
 
-  <script>window.APP = {{ {"role": user.role, "id": user.get('id'), "name": user.name, "avatar": user.avatar, "aiEnabled": ai_enabled, "maxScore": max_score, "minScore": min_score, "accept": accept}|tojson }};</script>
+  <script>window.APP = {{ {"role": user.role, "id": user.get('id'), "name": user.name, "avatar": user.avatar, "deco": deco, "aiEnabled": ai_enabled, "maxScore": max_score, "minScore": min_score, "accept": accept}|tojson }};</script>
   <script src="{{ asset('js/common.js') }}"></script>
   <script src="{{ asset('js/codehelp.js') }}"></script>
   <script src="{{ asset('js/homework.js') }}"></script>

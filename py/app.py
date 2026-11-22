@@ -148,6 +148,7 @@ def panel():
         max_score=config.HOMEWORK_MAX_SCORE,
         min_score=config.HOMEWORK_MIN_SCORE,
         accept=",".join(ai_check.ACCEPT),
+        deco=portal.deco_map(get_db(), True).get(user["key"]),
     )
 
 

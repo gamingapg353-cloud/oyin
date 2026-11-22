@@ -66,7 +66,8 @@
 
     const left = el('div', 'profile-card__photo');
     const photo = el('div', 'profile-card__avatar');
-    photo.append(avatarEl(p.name, p.avatar, 'avatar avatar--xl'));
+    const face = avatarEl(p.name, p.avatar, 'avatar avatar--xl');
+    photo.append(face);
     left.append(photo);
 
     if (p.can_edit) {
@@ -114,7 +115,10 @@
     }
 
     const main = el('div', 'profile-card__main');
-    main.append(el('h2', '', p.name));
+    const nameEl = el('h2', '', p.name);
+    const titleEl = el('p', 'profile-card__title', p.deco?.title || '');
+    Oyin.applyDeco?.(face, nameEl, p.deco);
+    main.append(nameEl, titleEl);
     const chips = el('div', 'profile-card__chips');
     chips.append(infoChip('user', 'Foydalanuvchi'));
     if (p.joined_label) chips.append(infoChip('calendar', `${p.joined_label} dan beri`));

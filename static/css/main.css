@@ -7490,6 +7490,7 @@ button.hud-online:hover {
   display: flex;
   align-items: center;
   gap: 14px;
+  padding: 14px 8px 6px;
 }
 
 .deco-prev small {
@@ -7582,6 +7583,25 @@ button.hud-online:hover {
   line-height: 1;
   content: "👑";
   transform: translateX(-50%);
+}
+
+.avatar--xl.avatar--framed {
+  border: 0;
+}
+
+.avatar--xl.avatar--f-toj::after {
+  top: -34px;
+  font-size: 36px;
+}
+
+.profile-card__title {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.profile-card__title:empty {
+  display: none;
 }
 
 .user-row__title {
