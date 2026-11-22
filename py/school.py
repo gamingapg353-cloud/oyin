@@ -84,14 +84,15 @@ def api_user_group(user_id: int):
 def api_lessons():
     user = current_user()
     db = get_db()
-    now = datetime.now().isoformat(timespec="minutes")
+    import portal
+    now = (portal.now_tk() - timedelta(minutes=30)).isoformat(timespec="minutes")  # dars vaqtlari — Toshkent vaqtida
     gid = None
     if user["role"] == "user":
         row = db.execute("SELECT group_id FROM users WHERE id = ?", (user["id"],)).fetchone()
         gid = row["group_id"] if row else None
     rows = db.execute("SELECT l.*, g.name AS gname FROM lessons l LEFT JOIN groups g ON g.id = l.group_id "
                       "WHERE l.starts_at >= ? ORDER BY l.starts_at LIMIT 20", (now[:16],)).fetchall()
-    out = [{"id": r["id"], "starts_at": r["starts_at"], "topic": r["topic"], "group": r["gname"], "group_id": r["group_id"]}
+    out = [{"id": r["id"], "starts_at": r["starts_at"], "topic": r["topic"], "group": r["gname"], "group_id": r["group_id"], "weekly": bool(r["weekly"])}
            for r in rows if user["role"] == "owner" or r["group_id"] in (None, gid)]
     return jsonify(lessons=out)
 
@@ -109,7 +110,7 @@ def api_lesson_add():
         return jsonify(error="Dars mavzusini yozing"), 400
     gid = data.get("group_id")
     db = get_db()
-    db.execute("INSERT INTO lessons (starts_at, topic, group_id) VALUES (?, ?, ?)", (starts, topic, _int(gid)))
+    db.execute("INSERT INTO lessons (starts_at, topic, group_id, weekly) VALUES (?, ?, ?, ?)", (starts, topic, _int(gid), int(bool(data.get("weekly")))))
     db.commit()
     return api_lessons()
 

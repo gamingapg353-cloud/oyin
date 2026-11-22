@@ -10,6 +10,10 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="{{ asset('css/main.css') }}">
   <link rel="icon" href="{{ asset('favicon.svg') }}">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="{{ asset('icons/apple-180.png') }}">
+  <meta name="theme-color" content="#0a1020">
+  <meta name="apple-mobile-web-app-title" content="O'yin">
 </head>
 <body class="page-panel">
   <div class="layout">
@@ -26,6 +30,7 @@
       <nav class="nav" aria-label="Asosiy menyu">
         <a class="nav__link" href="#games" data-view="games">{{ icon('gamepad') }}<span>O'yinlar</span></a>
         <a class="nav__link" href="#homework" data-view="homework">{{ icon('book') }}<span>Uy vazifa</span></a>
+        <a class="nav__link" href="#learn" data-view="learn">{{ icon('sparkles') }}<span>Mashqlar</span></a>
         <a class="nav__link" href="#exam" data-view="exam">{{ icon('target') }}<span>Test</span></a>
         {% if is_owner %}
         <a class="nav__link" href="#add-user" data-view="add-user">{{ icon('user-plus') }}<span>Odam qo'shish</span></a>
@@ -37,6 +42,9 @@
         <a class="nav__link" href="#polls" data-view="polls">{{ icon('vote') }}<span>So'rovnoma</span></a>
         <a class="nav__link" href="#shop" data-view="shop">{{ icon('gift') }}<span>Sovg'alar</span></a>
         <a class="nav__link" href="#code" data-view="code">{{ icon('file') }}<span>Kod muharriri</span></a>
+        {% if is_owner %}
+        <a class="nav__link" href="#settings" data-view="settings">{{ icon('shield') }}<span>Sozlamalar</span></a>
+        {% endif %}
       </nav>
 
       <p class="sidebar__footer">&copy; 2026 O'yin</p>
@@ -358,6 +366,17 @@
           <div class="school-stack" id="code-root"></div>
         </section>
 
+        <!-- Mashqlar: kunlik savol, kod dueli, xatoni top, maket, xatolar daftari, guruh loyihasi, saytlar ko'chasi -->
+        <section class="view" data-view="learn" data-title="Mashqlar" hidden>
+          <div id="learn-root"></div>
+        </section>
+        {% if is_owner %}
+        <!-- Sozlamalar: Telegram, baho berish -->
+        <section class="view" data-view="settings" data-title="Sozlamalar" hidden>
+          <div class="school-stack" id="settings-root"></div>
+        </section>
+        {% endif %}
+
         <!-- Profil (reytingda odamni bossangiz ochiladi) -->
         <section class="view" data-view="profile" data-title="Profil" hidden>
           <div class="page-head">
@@ -367,6 +386,7 @@
           <div class="profile" id="profile-root"></div>
           <div class="profile-extra" id="profile-extra"></div>
           <div class="profile-extra" id="profile-extra2"></div>
+          <div class="profile-extra" id="profile-extra3"></div>
         </section>
       </main>
     </div>
@@ -446,6 +466,8 @@
   <script src="{{ asset('js/classroom.js') }}"></script>
   <script src="{{ asset('js/school.js') }}"></script>
   <script src="{{ asset('js/extras.js') }}"></script>
+  <script src="{{ asset('js/learn.js') }}"></script>
+  <script src="{{ asset('js/portal.js') }}"></script>
   <script src="{{ asset('js/panel.js') }}"></script>
 </body>
 </html>

@@ -2606,6 +2606,109 @@ button.hud-online {
   font-style: normal;
 }
 
+// Chat: javob, stiker
+.chat__quote {
+  max-width: 100%;
+  margin-bottom: 2px;
+  padding: 1px 8px;
+  border-left: 3px solid #7dd3fc;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.chat__line--can {
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(30, 41, 59, 0.92);
+  }
+}
+
+.chat__line.chat__line--sticker > span {
+  display: block;
+  padding: 4px 0 2px;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.chat__reply {
+  @extend %glass;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 12px;
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 12px;
+
+  &[hidden] {
+    display: none;
+  }
+
+  span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  button {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    color: var(--text);
+  }
+}
+
+.stickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  width: 100%;
+  max-height: 190px;
+  overflow-y: auto;
+
+  &__title {
+    width: 100%;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+}
+
+.sticker {
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+
+  &:hover {
+    background: var(--primary-soft);
+  }
+}
+
+.shop-color {
+  width: 36px;
+  min-height: 30px;
+
+  &.is-on {
+    outline: 3px solid var(--text);
+  }
+}
+
+.chip.is-on:not(.shop-color) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.code-preview.site-view {
+  height: 340px;
+}
+
 // Chatda @ — odam tanlash ro'yxati
 .chat__at {
   color: #7dd3fc;

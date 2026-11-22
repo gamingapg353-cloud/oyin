@@ -211,6 +211,8 @@ def api_answer(exam_id: int):
         return jsonify(error="Bu savolga javob berilgan — keyingisiga o'ting"), 409
     answers.append(answer)
     result = _checked(questions[index], answer)
+    import learn
+    learn.note(db, user["key"], questions[index], result["correct"])  # xato bo'lsa — xatolar daftariga
     if len(answers) < len(questions):
         db.execute("UPDATE exam_attempts SET answers = ? WHERE exam_id = ? AND user_id = ?",
                    (json.dumps(answers), exam_id, user["id"]))

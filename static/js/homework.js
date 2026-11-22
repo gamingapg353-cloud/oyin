@@ -284,9 +284,10 @@
       const result = el('div', 'result');
       if (sub.status === 'checked') result.append(scoreBox(sub));
       const body = el('div', 'result__body');
-      body.append(details(sub), fileChips(sub));
+      body.append(details(sub), fileChips(sub), window.Oyin.voiceBox(sub));
       result.append(body);
       card.append(result);
+      if (sub.status === 'checked') card.append(window.Oyin.peerBox(hw.id));
     } else {
       if (sub) card.append(details(sub));
       card.append(uploadForm(hw));
@@ -307,7 +308,7 @@
     if (sub.copy_score) {
       top.append(el('span', 'badge badge--danger', `⚠ ${sub.copy_score}% o'xshash: ${sub.copy_of}`));
     }
-    row.append(top, details(sub), fileChips(sub));
+    row.append(top, details(sub), fileChips(sub), window.Oyin.voiceBox(sub));
 
     // Amallar: bahoni qo'lda qo'yish, AI qayta tekshirsin, o'chirish
     const actions = el('div', 'sub__actions');
@@ -405,7 +406,7 @@
     };
     toggle.addEventListener('click', () => setOpen(subs.hidden));
     setOpen(openHomeworks.has(hw.id));
-    card.append(toggle, subs);
+    card.append(toggle, subs, window.Oyin.peerBox(hw.id, "⭐ O'quvchilar bir-biriga bergan baholar"));
 
     del.addEventListener('click', async () => {
       if (!window.confirm(`«${hw.title}» vazifasini o'chirasizmi? Barcha topshiriqlar va ulardan olingan ballar ham o'chadi.`)) return;

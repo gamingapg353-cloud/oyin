@@ -88,6 +88,11 @@
   }
 
   // <template id="icons"> dagi SVG ikonkadan nusxa
+  // Ilova sifatida o'rnatish va bildirishnoma uchun
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  }
+
   const iconTpl = document.getElementById('icons');
   function icon(name) {
     const svg = iconTpl?.content.querySelector(`[data-icon="${name}"] svg`);

@@ -923,5 +923,27 @@ window.CodeHelp = (() => {
     return frame;
   }
 
-  return { attach, run, hide, _test: { emmet, cssAbbr, suggest, abbrBefore, segment } };
+  // ================= Kodni rasmga aylantirish (skriptsiz, tashqi fayllarsiz) =================
+  const SNAP_CSS = (w, h) => `html,body{box-sizing:border-box;width:${w}px;height:${h}px;margin:0;overflow:hidden}html{background:#fff;font:16px/1.4 sans-serif;color:#000}body{position:relative}`;
+  async function snap(html, css, w, h) {
+    const doc = new DOMParser().parseFromString(html || '', 'text/html');
+    doc.querySelectorAll('script,link,iframe,object,embed,video,audio,img,image,base,meta').forEach((n) => n.remove());
+    const own = doc.createElement('style');
+    own.textContent = `${SNAP_CSS(w, h)}\n${(css || '').replace(/@import[^;]*;?/gi, '').replace(/url\([^)]*\)/gi, 'none')}`;
+    doc.head.prepend(own);
+    const xml = new XMLSerializer().serializeToString(doc.documentElement).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, '');
+    const img = new Image();
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject width="100%" height="100%">${xml}</foreignObject></svg>`)}`;
+    await img.decode().catch(() => { throw new Error("Kodda chizib bo'lmaydigan joy bor — teglarni tekshiring"); });
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, w, h);
+    g.drawImage(img, 0, 0, w, h);
+    return c;
+  }
+
+  return { attach, run, hide, snap, SNAP_CSS, _test: { emmet, cssAbbr, suggest, abbrBefore, segment } };
 })();

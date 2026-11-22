@@ -384,8 +384,8 @@ def init_db() -> None:
     db = sqlite3.connect(DB_PATH)
     try:
         db.executescript(SCHEMA)
-        import extras, game_life, game_city, game_town  # panel qo'shimchalari va o'yindagi yangi jadvallar
-        db.executescript(extras.SCHEMA + game_life.SCHEMA + game_city.SCHEMA + game_town.SCHEMA)
+        import extras, game_life, game_city, game_town, game_trade, learn, portal  # panel qo'shimchalari va o'yindagi yangi jadvallar
+        db.executescript(extras.SCHEMA + game_life.SCHEMA + game_city.SCHEMA + game_town.SCHEMA + learn.SCHEMA + portal.SCHEMA + game_trade.SCHEMA)
         # Eski bazada yangi ustunlar bo'lmasa — qo'shamiz
         columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
         if "score" not in columns:
@@ -434,6 +434,11 @@ def init_db() -> None:
                           ("moon", "INTEGER NOT NULL DEFAULT 0")):
             if name not in player_columns:  # bank, kredit, ko'rinish, klan
                 db.execute(f"ALTER TABLE game_players ADD COLUMN {name} {ddl}")
+        # Ovozli izoh, ota-ona Telegram kodi, har haftalik dars va eslatma
+        for table, name, ddl in (("submissions", "voice", "TEXT"), ("users", "tg_code", "TEXT"), ("lessons", "weekly", "INTEGER NOT NULL DEFAULT 0"),
+                                 ("lessons", "reminded", "INTEGER NOT NULL DEFAULT 0")):
+            if name not in {row[1] for row in db.execute(f"PRAGMA table_info({table})")}:
+                db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
         # Owner — o'rgimchak odam (bir marta beriladi; xohlasa o'zi oddiy odamga qaytadi)
         if not db.execute("SELECT 1 FROM settings WHERE key = 'owner_spider'").fetchone():
             db.execute("UPDATE game_players SET spider = 1 WHERE player_key = 'owner'")

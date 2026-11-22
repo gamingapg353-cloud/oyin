@@ -353,7 +353,7 @@ import * as THREE from 'three';
   }
 
   // depthTest: true — bino ortida qolsa ko'rinmaydi (yer yozuvlari uchun)
-  function makeLabel(text, bg = 'rgba(15,23,42,.82)', avatar = null, depthTest = false) {
+  function makeLabel(text, bg = 'rgba(15,23,42,.82)', avatar = null, depthTest = false, color = '#ffffff', ring = '') {
     const font = '700 30px system-ui, "Segoe UI", sans-serif';
     const probe = document.createElement('canvas').getContext('2d');
     probe.font = font;
@@ -377,10 +377,17 @@ import * as THREE from 'three';
       g.clip();
       g.drawImage(avatar, x, h / 2 - face / 2, face, face);
       g.restore();
+      if (ring) { // profil ramkasi
+        g.strokeStyle = ring;
+        g.lineWidth = 5;
+        g.beginPath();
+        g.arc(x + face / 2, h / 2, face / 2, 0, Math.PI * 2);
+        g.stroke();
+      }
       x += face + 10;
     }
     g.font = font;
-    g.fillStyle = '#ffffff';
+    g.fillStyle = color;
     g.textBaseline = 'middle';
     g.fillText(text, x, h / 2 + 1);
     const tex = new THREE.CanvasTexture(c);
@@ -806,16 +813,21 @@ import * as THREE from 'three';
     rig.root.add(rig.human);
   }
 
-  function setRigLabel(rig, text, avatarUrl) {
-    const img = imageFor(avatarUrl, () => { rig.labelKey = ''; setRigLabel(rig, text, avatarUrl); });
-    const key = `${text}|${img ? avatarUrl : ''}`;
+  // Profil bezagi: to'q yozuv fonida o'qiladigan och ranglar
+  const DECO_LIGHT = { '#3b82f6': '#93c5fd', '#16a34a': '#86efac', '#ec4899': '#f9a8d4', '#8b5cf6': '#c4b5fd', '#ea580c': '#fdba74', '#ef4444': '#fca5a5', '#0d9488': '#5eead4', '#ca8a04': '#fde047' };
+  const DECO_RING = { oddiy: '#3b82f6', yashil: '#22c55e', oltin: '#f59e0b', olov: '#f97316', muz: '#67e8f9', kamalak: '#f472b6', neon: '#d946ef', toj: '#fbbf24' };
+  function setRigLabel(rig, text, avatarUrl, deco = null) {
+    const img = imageFor(avatarUrl, () => { rig.labelKey = ''; setRigLabel(rig, text, avatarUrl, deco); });
+    const color = (deco && DECO_LIGHT[deco.color]) || '#ffffff';
+    const ring = (deco && DECO_RING[deco.frame]) || '';
+    const key = `${text}|${img ? avatarUrl : ''}|${color}|${ring}`;
     if (key === rig.labelKey) return;
     if (rig.label) {
       rig.root.remove(rig.label);
       rig.label.material.map.dispose();
       rig.label.material.dispose();
     }
-    rig.label = makeLabel(text, rig.isMe ? 'rgba(37,99,235,.92)' : 'rgba(15,23,42,.82)', img);
+    rig.label = makeLabel(text, rig.isMe ? 'rgba(37,99,235,.92)' : 'rgba(15,23,42,.82)', img, false, rig.isMe ? '#ffffff' : color, ring);
     rig.label.position.y = 82;
     rig.root.add(rig.label);
     rig.labelKey = key;
@@ -1574,7 +1586,14 @@ import * as THREE from 'three';
     const r = plotsById.get(id);
     if (!r) return 'free';
     const f = r.flag ? `${r.flag.tag}:${r.flag.color}` : '';
-    return `${r.owner}|${r.kind}|${r.variant}|${r.level}|${r.name}|${r.home}|${r.owner === me.key}|${r.price}|${f}`;
+    return `${r.owner}|${r.kind}|${r.variant}|${r.level}|${r.name}|${r.home}|${r.owner === me.key}|${r.price}|${f}|${shopSig(id)}`;
+  }
+
+  const shopSig = (id) => { const s = town.shops.get(id); return s ? `${s.name}|${s.emoji}|${s.color}` : ''; };
+  function setShops(list) {
+    const before = new Map([...town.shops.keys()].map((id) => [id, shopSig(id)]));
+    town.shops = new Map((list || []).map((s) => [s.plot, s]));
+    new Set([...before.keys(), ...town.shops.keys()]).forEach((id) => { if ((before.get(id) || '') !== shopSig(id)) renderPlot(id); });
   }
 
   // "SOTUVDA" taxtachasi darvoza yonida
@@ -1645,7 +1664,14 @@ import * as THREE from 'three';
         group.add(cloth);
       }
       const who = mine ? 'Siz' : rec.name;
-      const what = rec.level ? `${bName(rec.kind, rec.variant)} · ${rec.level} qavat` : "bo'sh yer";
+      const shop = town.shops.get(id);
+      const what = shop ? `${shop.emoji} ${shop.name}` : rec.level ? `${bName(rec.kind, rec.variant)} · ${rec.level} qavat` : "bo'sh yer";
+      if (shop) {
+        const sign = signPlane(`${shop.emoji} ${shop.name}`, 130, 26, shop.color, '#ffffff');
+        sign.position.set(gx, 62, near - out * 6);
+        if (out < 0) sign.rotation.y = Math.PI;
+        group.add(sign);
+      }
       labelText = `${who}${rec.home ? ' · Ota hovli' : ''} · ${what}${rec.price ? ' · SOTUVDA' : ''}`;
       labelBg = mine ? 'rgba(37,99,235,.92)' : 'rgba(15,23,42,.82)';
     }
@@ -1986,7 +2012,7 @@ import * as THREE from 'three';
         tx: p.x, ty: p.y, th: p.h || 0, dir: p.dir, car: p.car, taxi: p.taxi, name: p.name, avatar: p.avatar,
         seat: p.seat || null, pose: p.pose || null, clan: p.clan || null, drift: Boolean(p.drift), tune: p.tune || null,
         emote: p.emote || null, para: Boolean(p.para), ring: Boolean(p.ring), dirt: p.dirt || 0, pet: p.pet || null, boat: Boolean(p.boat),
-        act: p.act || null, spoiler: Boolean(p.spoiler), horn: p.horn || null,
+        act: p.act || null, spoiler: Boolean(p.spoiler), horn: p.horn || null, deco: p.deco || null,
       });
       setRigLooks(o.rig, p.looks);
     });
@@ -1997,10 +2023,10 @@ import * as THREE from 'three';
     list.forEach((p) => {
       const n = riders.get(p.key) || 0;
       const tag = p.clan ? `[${p.clan.tag}] ` : '';
-      setRigLabel(others.get(p.key).rig, `${mayorKey === p.key ? '👑 ' : ''}${p.spider ? '🕷️ ' : ''}${tag}${p.ring ? '💍 ' : ''}${p.name}${n ? ` (+${n})` : ''}`, p.avatar);
+      setRigLabel(others.get(p.key).rig, `${mayorKey === p.key ? '👑 ' : ''}${p.spider ? '🕷️ ' : ''}${tag}${p.ring ? '💍 ' : ''}${p.deco && p.deco.frame === 'toj' ? '👑 ' : ''}${p.name}${n ? ` (+${n})` : ''}${p.deco && p.deco.title ? ` · ${p.deco.title}` : ''}`, p.avatar, p.deco);
     });
     const mine = riders.get(me.key) || 0;
-    setRigLabel(me.rig, `${mayorKey === me.key ? '👑 ' : ''}${mine ? `Siz (+${mine})` : 'Siz'}`, me.avatar);
+    setRigLabel(me.rig, `${mayorKey === me.key ? '👑 ' : ''}${mine ? `Siz (+${mine})` : 'Siz'}`, me.avatar, town.decoMe);
     [...others.keys()].forEach((key) => {
       if (!seen.has(key)) {
         removeRig(others.get(key).rig);
@@ -2751,6 +2777,7 @@ import * as THREE from 'three';
       info.append(el('strong', '', rec.level ? bName(rec.kind, rec.variant) : "Bo'sh yer"),
         el('span', '', rec.level ? `${rec.level} qavat` : 'Hali hech narsa qurilmagan'));
       body.append(info);
+      if (town.shops.has(id)) body.append(actionBtn('store', `${town.shops.get(id).emoji} ${town.shops.get(id).name} — do'konga kirish`, () => openTw('shop', { plot: id })));
       if (rec.price) body.append(buyListedBox(id, rec));
       else body.append(el('p', 'sheet-note', "Bu yer boshqa o'yinchiga tegishli. Egasi sotuvga qo'ysa, sotib olishingiz mumkin."));
       if (IS_OWNER) body.append(saleBox(id, rec, null));
@@ -2825,6 +2852,7 @@ import * as THREE from 'three';
     if (rec.owner === me.key) {
       body.append(actionBtn('home', "Ichkariga kirish — mebel qo'yish", () => enterRoom(id), 'btn btn--ghost btn--block'));
       if (rec.kind === 'kafe') body.append(actionBtn('coffee', 'Oshxona — taom tayyorlab pul ishlash 🍳', openKitchen, 'btn btn--primary btn--block'));
+      if (rec.kind === 'magazin') body.append(actionBtn('store', town.shops.has(id) ? `${town.shops.get(id).emoji} Do'konim: ${town.shops.get(id).name}` : "O'z do'konimni ochish 🏪", () => openTw('shop', { plot: id }), 'btn btn--primary btn--block'));
       if (rec.kind === 'uy') body.append(actionBtn('coins', "Ijara haqini olish (kuniga bir marta) 🏠", claimRent, 'btn btn--ghost btn--block'));
     }
 
@@ -3821,9 +3849,19 @@ import * as THREE from 'three';
     if (m.id && chatShown.has(m.id)) return;
     if (m.id) chatShown.add(m.id);
     const log = $('chat-log');
-    const line = el('div', `chat__line ${extraClass}`.trim());
+    const line = el('div', `chat__line ${extraClass}${m.sticker ? ' chat__line--sticker' : ''}`.trim());
     const who = el('strong', '', m.key === me.key ? 'Siz' : m.name);
-    who.style.color = m.key === me.key ? '#93c5fd' : avatarColor(m.name);
+    who.style.color = m.key === me.key ? '#93c5fd' : (DECO_LIGHT[m.color] || avatarColor(m.name));
+    if (m.reply) {
+      const r = el('div', 'chat__quote');
+      r.append(el('b', '', m.reply.name), ` ${m.reply.text}`);
+      line.append(r);
+    }
+    if (m.id && m.key !== me.key) { // bosilsa — javob yozish
+      line.classList.add('chat__line--can');
+      line.title = 'Javob berish';
+      line.addEventListener('click', () => setReply(m));
+    }
     if (m.channel && m.channel !== 'all') line.append(el('em', 'chat__chan', m.channel === 'clan' ? '[Klan] ' : "[Do'st] "));
     const said2 = el('span', '', ` ${m.text}`);
     line.append(who, said2);
@@ -3852,6 +3890,54 @@ import * as THREE from 'three';
     });
   }
 
+  let replyTo = null;
+  function setReply(m) {
+    replyTo = m;
+    let bar = $('chat-reply');
+    if (!bar) {
+      bar = el('div', 'chat__reply');
+      bar.id = 'chat-reply';
+      $('chat').insertBefore(bar, $('chat-form'));
+    }
+    bar.hidden = !m;
+    if (!m) return;
+    const x = el('button', '', '✕');
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Javobni bekor qilish');
+    x.addEventListener('pointerdown', (e) => e.preventDefault());
+    x.addEventListener('click', () => setReply(null));
+    bar.replaceChildren(el('span', '', `↩ ${m.name}: ${m.text}`), x);
+    if (m.channel && [...$('chat-channel').options].some((o) => o.value === m.channel)) $('chat-channel').value = m.channel;
+    $('chat-input').focus();
+  }
+  async function sendSticker(id) {
+    $('emoji-bar').hidden = true;
+    const reply = replyTo ? replyTo.id : undefined;
+    setReply(null);
+    try {
+      const data = await api('/api/game/chat', { method: 'POST', body: { sticker: id, channel: $('chat-channel').value, reply } });
+      chatLine(data.message);
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+  async function loadStickers() {
+    const bar = $('emoji-bar');
+    if (bar.dataset.stickers) return;
+    bar.dataset.stickers = '1';
+    try {
+      const { stickers } = await api('/api/game/stickers');
+      const box3 = el('div', 'stickers');
+      stickers.forEach((s) => {
+        const b = el('button', 'sticker', s.text);
+        b.type = 'button';
+        b.addEventListener('click', () => sendSticker(s.id));
+        box3.append(b);
+      });
+      bar.append(el('small', 'stickers__title', 'Stikerlar — chatga'), box3);
+    } catch (err) { bar.dataset.stickers = ''; handleAuthError(err); }
+  }
+
   $('chat-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const input = $('chat-input');
@@ -3861,8 +3947,10 @@ import * as THREE from 'three';
       return;
     }
     input.value = '';
+    const reply = replyTo ? replyTo.id : undefined;
+    setReply(null);
     try {
-      const data = await api('/api/game/chat', { method: 'POST', body: { text, channel: $('chat-channel').value } });
+      const data = await api('/api/game/chat', { method: 'POST', body: { text, channel: $('chat-channel').value, reply } });
       chatLine(data.message);
     } catch (err) {
       if (!handleAuthError(err)) toast(err.message, 'warn');
@@ -3874,7 +3962,8 @@ import * as THREE from 'three';
     if (mentionKey(e)) return;
     if (e.key === 'Escape') {
       e.stopPropagation();
-      e.target.blur();
+      if (replyTo) setReply(null);
+      else e.target.blur();
     }
   });
 
@@ -5345,7 +5434,7 @@ import * as THREE from 'three';
     d.title = 'Raqs (G)';
     d.addEventListener('click', toggleDance);
     bar.append(d);
-    $('btn-emoji').addEventListener('click', () => { bar.hidden = !bar.hidden; });
+    $('btn-emoji').addEventListener('click', () => { bar.hidden = !bar.hidden; if (!bar.hidden) loadStickers(); });
   })();
 
   // ---------------- Ishlar: pochtachi va pitsa ----------------
@@ -8128,7 +8217,7 @@ import * as THREE from 'three';
     state: null, wheel: null, carousel: null, words: new Map(), boss: null, bossView: null, uloq: null, uloqView: null,
     castles: '', castleViews: [], zoneViews: new Map(), houseViews: [], houseSig: '', decorViews: [], decorSig: '',
     statueView: null, statueSig: '', boardView: null, boardSig: '', cam: null, fallTop: 0,
-    honks: new Map(), hunt: null, tableSeen: 0, invSeen: '', tug: null, tugTaps: 0, gardenViews: [], heliRotors: [],
+    shops: new Map(), auctions: 0, decoMe: null, sitesSig: '', sites: [], siteViews: [], honks: new Map(), hunt: null, tableSeen: 0, invSeen: '', tug: null, tugTaps: 0, gardenViews: [], heliRotors: [],
     zone: null, lastTown: 0, rentWarned: false, wasX2: null,
   };
   const TW = () => world.town;
@@ -8288,10 +8377,52 @@ import * as THREE from 'three';
     });
     loadTown();
   }
+  // Saytlar ko'chasi: o'quvchilarning saytlari — do'konchalar vitrinasida
+  async function loadSites() {
+    let d;
+    try { d = await api('/api/sites'); } catch (err) { handleAuthError(err); return; }
+    town.sites = d.items;
+    const T = TW();
+    const want = new Map(d.items.filter((s) => s.slot !== null).map((s) => [s.slot, `${s.key}|${s.title}|${s.emoji}|${s.at}`]));
+    town.siteViews = town.siteViews.filter((v) => {
+      if (want.get(v.slot) === v.sig) return true;
+      scene.remove(v.group);
+      if (v.tex) v.tex.dispose();
+      disposeTree(v.group);
+      return false;
+    });
+    for (const s of d.items.filter((x) => x.slot !== null)) {
+      if (town.siteViews.some((v) => v.slot === s.slot)) continue;
+      const pos = T.sites[s.slot];
+      const g = new THREE.Group();
+      g.add(box(96, 4, 40, mat('#78716c'), 0, 2, 0), box(96, 62, 6, mat('#f5f5f4'), 0, 33, -12), box(6, 62, 34, mat('#e7e5e4'), -45, 33, 2), box(6, 62, 34, mat('#e7e5e4'), 45, 33, 2),
+        box(104, 6, 46, mat(['#dc2626', '#2563eb', '#16a34a', '#ca8a04', '#7c3aed', '#db2777', '#0d9488', '#ea580c', '#4f46e5'][s.slot % 9]), 0, 66, 4));
+      const sign = signPlane(`${s.emoji} ${s.title}`, 92, 16, '#0f172a', '#ffffff');
+      sign.position.set(0, 79, 10);
+      const who = signPlane(`${s.name}`, 60, 10, '#334155', '#ffffff');
+      who.position.set(0, 10, -8.5);
+      g.add(sign, who);
+      g.position.set(pos.x, 0, pos.y);
+      scene.add(g);
+      const v = { slot: s.slot, sig: want.get(s.slot), group: g, tex: null };
+      town.siteViews.push(v);
+      // Vitrina: sahifaning kichik surati (skriptsiz)
+      api(`/api/sites/${s.key}`).then((x) => window.CodeHelp.snap(x.html, x.css, 480, 300)).then((c) => {
+        if (!town.siteViews.includes(v)) return;
+        v.tex = new THREE.CanvasTexture(c);
+        v.tex.colorSpace = THREE.SRGBColorSpace;
+        const screen = new THREE.Mesh(new THREE.PlaneGeometry(76, 46), new THREE.MeshBasicMaterial({ map: v.tex }));
+        screen.position.set(0, 39, -8.4);
+        g.add(screen);
+      }).catch(() => {});
+    }
+    buildSolids();
+  }
+
   function townSolids() {
     const T = TW();
     if (!T) return [];
-    return Object.entries(T.places).filter(([id]) => id !== 'nightmarket').map(([, r]) => ({ x: r.x, y: r.y, w: r.w, h: r.h, top: r.hgt + 10 }));
+    return town.siteViews.map((v) => ({ x: T.sites[v.slot].x - 48, y: T.sites[v.slot].y - 16, w: 96, h: 34, top: 70 })).concat(Object.entries(T.places).filter(([id]) => id !== 'nightmarket').map(([, r]) => ({ x: r.x, y: r.y, w: r.w, h: r.h, top: r.hgt + 10 })));
   }
   const townAreas = () => {
     const T = TW();
@@ -8432,6 +8563,13 @@ import * as THREE from 'three';
         toast('🚲 Velosiped ijarasi tugadi', 'warn');
       }
       town.hadRent = t.rent > 0;
+    }
+    if (data.shops) setShops(data.shops);
+    town.auctions = data.auctions || 0;
+    if (JSON.stringify(data.deco_me || null) !== JSON.stringify(town.decoMe)) town.decoMe = data.deco_me || null;
+    if (data.sites_sig && data.sites_sig !== town.sitesSig) {
+      town.sitesSig = data.sites_sig;
+      loadSites();
     }
     setWords(data.words || []);
     setBoss(data.boss || null);
@@ -8650,6 +8788,9 @@ import * as THREE from 'three';
     const P = T.places;
     const doors = [['nightmarket', '🌙 Tungi bozor', () => openTw('night')], ['cave', "🕳️ G'orga kirish — xazina", cave]];
     for (const [id, text, act] of doors) if (twNear(P[id].door, 95)) return { kind: 'fun', d: 1, text, act };
+    for (const s of town.sites) {
+      if (s.slot !== null && T.sites[s.slot] && twNear({ x: T.sites[s.slot].x, y: T.sites[s.slot].y + 40 }, 62)) return { kind: 'fun', d: 1, text: `${s.emoji} ${s.title} (${s.name}) — kirish`, act: () => openTw('site', { key: s.key }) };
+    }
     if (twNear(S.wheel, 120)) return { kind: 'fun', d: 1, text: `🎡 Charxpalak (${formatNumber(1000)} so'm)`, act: () => twRide('wheel') };
     if (twNear(S.carousel, 110)) return { kind: 'fun', d: 1, text: `🎠 Karusel (${formatNumber(700)} so'm)`, act: () => twRide('carousel') };
     if (twNear(S.rope, 200) && (!town.tug || town.tug.phase === 'done')) return { kind: 'fun', d: 1, text: '🪢 Arqon tortishni boshlash', act: () => twPost('/api/game/tug/start', {}, () => toast("Boshlandi! 20 soniyada hamma qo'shilsin 🪢", 'success')) };
@@ -8832,6 +8973,17 @@ import * as THREE from 'three';
   //  Oynalar
   // =====================================================================
   const TW_LOAD = {
+    site: (st) => twLoad(st, `/api/sites/${st.key}`),
+    shop: (st) => twLoad(st, `/api/game/shops/${st.plot}`),
+    shops: (st) => twLoad(st, '/api/game/shops'),
+    auction: (st) => {
+      const load = () => {
+        if (document.activeElement && document.activeElement.closest('#sheet-body') && /SELECT|INPUT/.test(document.activeElement.tagName)) return; // tanlayotganda yopilmasin
+        twLoad(st, '/api/game/auctions');
+      };
+      load();
+      twPoll(st, load, 5000);
+    },
     home: (st) => { twLoad(st, '/api/game/garden'); api('/api/game/chests').then((d) => { st.chests = d.available; twRe(st); }).catch(() => {}); },
     diary: (st) => twLoad(st, '/api/game/diary'),
     night: (st) => twLoad(st, '/api/game/nightmarket'),
@@ -8874,6 +9026,144 @@ import * as THREE from 'three';
   }
 
   const TW_VIEWS = {
+    // ---- Saytlar ko'chasi: saytga kirish ----
+    site(body, st) {
+      const d = st.data;
+      setHead('map-pin', d ? `${d.emoji} ${d.title}` : 'Sayt', d ? `${d.name}ning sayti` : 'Yuklanmoqda…');
+      if (!d) return;
+      const out = el('div', 'code-run');
+      const f = el('iframe', 'code-preview site-view');
+      f.setAttribute('sandbox', '');
+      f.title = d.title;
+      f.srcdoc = `<!doctype html><meta charset="utf-8"><style>body{font-family:system-ui,sans-serif;margin:12px}${d.css.replace(/<\/style/gi, '')}</style>${d.html}`;
+      out.append(f);
+      const row = el('div', 'bank-actions');
+      row.append(actionBtn('refresh', '▶ Ishga tushirish', () => window.CodeHelp.run(out, { html: d.html, css: d.css, js: d.js })));
+      const like = actionBtn('star', `${d.liked ? '⭐' : '☆'} ${d.likes}`, () => api(`/api/sites/${st.key}/like`, { method: 'POST' }).then((x) => { Object.assign(d, x); like.lastChild.textContent = `${d.liked ? '⭐' : '☆'} ${d.likes}`; }).catch(said), 'btn btn--ghost');
+      like.disabled = d.mine;
+      row.append(like);
+      body.append(out, row);
+    },
+
+    // ---- O'z do'koning ----
+    shops(body, st) {
+      setHead('store', "🏪 O'yinchilar do'konlari", "Magazini bor odam o'z do'konini ochadi");
+      const d = st.data;
+      if (!d) return;
+      const my = economy.plots.filter((p) => p.kind === 'magazin' && p.level > 0);
+      my.forEach((p) => { if (!d.shops.some((s) => s.plot === p.plot)) body.append(actionBtn('plus', `${p.plot + 1}-yerdagi Magazinda do'kon ochish`, () => openTw('shop', { plot: p.plot }), 'btn btn--primary btn--block')); });
+      if (!my.length) body.append(el('p', 'sheet-note', "Do'kon ochish uchun yeringizga Magazin quring."));
+      d.shops.forEach((s) => {
+        const gate = plotGate(world.plots[s.plot]);
+        body.append(row2(`${s.emoji} ${s.name}`, `${s.mine ? 'Sizniki' : s.owner} · ${s.goods} xil narsa`, sm('store', 'Kirish', () => openTw('shop', { plot: s.plot })), sm('navigation', "Yo'l", () => { setGuide(gate.x, gate.y, s.name); closeSheet(); }, false)));
+      });
+      if (!d.shops.length) body.append(el('p', 'sheet-note', "Hali hech kim do'kon ochmadi — birinchi bo'ling!"));
+    },
+
+    shop(body, st) {
+      const d = st.data;
+      const s = d && d.shop;
+      setHead('store', s ? `${s.emoji} ${s.name}` : "Do'kon", s ? `Egasi: ${s.owner}` : '');
+      if (!d) return;
+      const done = (x) => { if (x.economy) { localVersion += 1; setEconomy(x.economy); } st.data = x; twRe(st); };
+      const goods = (b) => api(`/api/game/shops/${st.plot}/goods`, { method: 'POST', body: b }).then((x) => { sound.cash(); done(x); }).catch(said);
+      const ask = (text, def) => { const v = window.prompt(text, def); return v === null ? null : Math.round(Number(String(v).replace(/\D/g, ''))) || null; };
+      if (d.mine && (!s || st.edit)) {
+        st.form = st.form || { name: s ? s.name : '', emoji: s ? s.emoji : d.emoji_list[0], color: s ? s.color : d.color_list[0] };
+        const f = el('div', 'sale');
+        const inp = el('input', 'input');
+        inp.placeholder = "Do'kon nomi";
+        inp.maxLength = 24;
+        inp.value = st.form.name;
+        inp.addEventListener('input', () => { st.form.name = inp.value; });
+        const em = el('div', 'chips');
+        d.emoji_list.forEach((x) => { const c = el('button', `chip${x === st.form.emoji ? ' is-on' : ''}`, x); c.type = 'button'; c.addEventListener('click', () => { st.form.emoji = x; twRe(st); }); em.append(c); });
+        const co = el('div', 'chips');
+        d.color_list.forEach((x) => { const c = el('button', `chip shop-color${x === st.form.color ? ' is-on' : ''}`, ''); c.type = 'button'; c.style.background = x; c.setAttribute('aria-label', `Rang ${x}`); c.addEventListener('click', () => { st.form.color = x; twRe(st); }); co.append(c); });
+        f.append(el('strong', 'sale__title', "Do'konni bezash"), inp, em, co, actionBtn('check', s ? 'Saqlash' : "Do'konni ochish", () => api(`/api/game/shops/${st.plot}`, { method: 'POST', body: st.form }).then((x) => { st.edit = false; sound.cash(); done(x); }).catch(said), 'btn btn--primary btn--block'));
+        body.append(f);
+        if (!s) return;
+      }
+      if (!s) { body.append(el('p', 'sheet-note', "Bu yerda hali do'kon yo'q")); return; }
+      if (d.mine) body.append(el('p', 'sheet-note', `Jami tushum: ${formatNumber(Math.floor(s.earned))} so'm. Shahar xaridorlari siz yo'g'ingizda ham oladi — narx qancha to'g'ri bo'lsa, shuncha tez.`));
+      if (!s.goods.length) body.append(el('p', 'sheet-note', "Javonlar bo'sh"));
+      s.goods.forEach((g) => {
+        const c = d.catalog[g.item];
+        if (!d.mine) {
+          body.append(row2(`${c.icon} ${c.name}`, g.qty ? `${g.qty} ta bor · ${formatNumber(g.price)} so'm` : 'Tugagan', ...(g.qty ? [priceButton('Olish', g.price, async () => { done(await api(`/api/game/shops/${st.plot}/buy`, { method: 'POST', body: { id: g.id, price: g.price } })); sound.cash(); toast(`${c.icon} ${c.name} oldingiz`, 'success'); }, 'btn--sm')] : [])));
+          return;
+        }
+        body.append(row2(`${c.icon} ${c.name} × ${g.qty}`, `${formatNumber(g.price)} so'm · soatiga ~${g.per_hour} ta · sotilgan ${g.sold} (o'rtacha narx ${formatNumber(g.fair)})`,
+          sm('coins', 'Narx', () => { const p = ask(`${c.name} narxi (so'm):`, g.price); if (p) goods({ action: 'price', item: g.item, price: p }); }), sm('x', 'Olish', () => goods({ action: 'take', item: g.item }), false)));
+      });
+      if (!d.mine) return;
+      const add = (item, action, max) => {
+        const qty = ask('Nechta?', String(Math.min(10, max)));
+        if (!qty) return;
+        const price = ask('Bittasining narxi (so\'m):', String(Math.round(d.catalog[item].sell * 1.5)));
+        if (price) goods({ action, item, qty, price });
+      };
+      const mine = Object.entries(d.items);
+      if (mine.length) body.append(el('h3', 'life-h3', "O'zimdagi narsalarni qo'yish"));
+      mine.forEach(([id, q]) => body.append(row2(`${d.catalog[id].icon} ${d.catalog[id].name} × ${q}`, '', sm('plus', "Qo'yish", () => add(id, 'add', q)))));
+      body.append(el('h3', 'life-h3', 'Ulgurjidan olish'));
+      Object.entries(d.wholesale).forEach(([id, p]) => body.append(row2(`${d.catalog[id].icon} ${d.catalog[id].name}`, `${formatNumber(p)} so'm dan`, sm('plus', 'Olish', () => add(id, 'buy', 50), false))));
+      if (!st.edit) body.append(actionBtn('hammer', "Nomi va belgisini o'zgartirish", () => { st.edit = true; st.form = null; twRe(st); }, 'btn btn--ghost btn--block'));
+    },
+
+    // ---- Auksion ----
+    auction(body, st) {
+      setHead('hammer', '🔨 Auksion', "Kim ko'p bersa — o'shaniki");
+      const d = st.data;
+      if (!d) return;
+      const set = (x) => { if (x.economy) { localVersion += 1; setEconomy(x.economy); } st.data = x; twRe(st); };
+      const left = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} soat ${Math.floor((s % 3600) / 60)} daq` : s >= 60 ? `${Math.floor(s / 60)} daq ${s % 60} s` : `${s} s`);
+      if (!d.lots.length) body.append(el('p', 'sheet-note', 'Hozir lot yo\'q. Birinchi bo\'lib qo\'ying!'));
+      d.lots.forEach((l) => {
+        const btns = [];
+        if (!l.mine && !d.owner && !l.lead) {
+          btns.push(sm('coins', `${formatNumber(l.min)}+`, () => {
+            const v = window.prompt(`${l.title}\nKamida ${formatNumber(l.min)} so'm. Taklifingiz:`, String(l.min));
+            const n = v === null ? 0 : Math.round(Number(String(v).replace(/\D/g, '')));
+            if (n) api(`/api/game/auctions/${l.id}/bid`, { method: 'POST', body: { amount: n } }).then((x) => { sound.cash(); set(x); }).catch((e) => { said(e); twLoad(st, '/api/game/auctions'); });
+          }));
+        }
+        if (l.plot !== null) btns.push(sm('navigation', "Yo'l", () => { const g = plotGate(world.plots[l.plot]); setGuide(g.x, g.y, l.title); closeSheet(); }, false));
+        if ((l.mine && !l.bidder) || d.owner) btns.push(sm('x', 'Bekor', () => window.confirm('Lot bekor qilinsinmi?') && api(`/api/game/auctions/${l.id}`, { method: 'DELETE' }).then(set).catch(said), false));
+        body.append(row2(`${l.title}${l.lead ? ' · siz yetakchisiz 🏆' : ''}`, `${l.bid ? `${formatNumber(l.bid)} so'm — ${l.bidder}` : `boshlang'ich ${formatNumber(l.min)} so'm`} · ⏱ ${left(l.left)} · ${l.seller}`, ...btns));
+      });
+      st.form = st.form || { kind: 'car', ref: '', start: '', minutes: 60 };
+      const f = el('div', 'sale');
+      const kind = el('select', 'input-plain');
+      [['car', 'Mashina'], ['plot', 'Yer / uy'], ['item', 'Narsa']].forEach(([v, t]) => { const o = el('option', '', t); o.value = v; kind.append(o); });
+      kind.value = st.form.kind;
+      const ref = el('select', 'input-plain');
+      const fill = () => {
+        ref.replaceChildren();
+        const list = d.can[kind.value];
+        if (!list.length) { const o = el('option', '', 'Sizda yo\'q'); o.value = ''; ref.append(o); }
+        list.forEach((x) => { const o = el('option', '', x.name); o.value = x.id; ref.append(o); });
+        if (list.some((x) => x.id === st.form.ref)) ref.value = st.form.ref;
+      };
+      fill();
+      kind.addEventListener('change', () => { st.form.kind = kind.value; fill(); st.form.ref = ref.value; });
+      ref.addEventListener('change', () => { st.form.ref = ref.value; });
+      const start = el('input', 'input');
+      start.inputMode = 'numeric';
+      start.placeholder = "Boshlang'ich narx (so'm)";
+      start.value = st.form.start;
+      start.addEventListener('input', () => { st.form.start = start.value; });
+      const mins = el('select', 'input-plain');
+      d.times.forEach((m) => { const o = el('option', '', m < 60 ? `${m} daqiqa` : `${m / 60} soat`); o.value = m; mins.append(o); });
+      mins.value = String(st.form.minutes);
+      mins.addEventListener('change', () => { st.form.minutes = Number(mins.value); });
+      f.append(el('strong', 'sale__title', "Lot qo'yish"), el('small', '', `Sotilsa ${d.fee}% auksionga qoladi. ${d.owner ? "Owner istalgan mashinani noyob lot qilib qo'ya oladi." : `Bir vaqtda ${d.max} tagacha lot. Ota hovli qo'yilmaydi.`}`), kind, ref, start, mins,
+        actionBtn('hammer', "Auksionga qo'yish", () => api('/api/game/auctions', { method: 'POST', body: { kind: kind.value, ref: ref.value, start: parseAmount(start.value), minutes: Number(mins.value) } }).then((x) => { st.form.start = ''; sound.cash(); set(x); }).catch(said), 'btn btn--primary btn--block'));
+      body.append(f);
+      if (d.last.length) body.append(el('h3', 'life-h3', "So'nggi sotuvlar"));
+      d.last.forEach((l) => body.append(el('p', 'sheet-note', `${l.title} — ${l.name}: ${formatNumber(l.bid)} so'm`)));
+    },
+
     hub(body) {
       setHead('sparkles', 'Yangi shahar', "Joylar, o'yinlar, do'stlar, darslar va transport");
       const sec = (title, tiles) => {
@@ -8898,12 +9188,18 @@ import * as THREE from 'three';
         ['store', 'Bozor rastasi', "Meva va narsalarni sotish 🛒", openMarket],
         ['book', 'Kundalik', "O'yindagi kunlaringiz 📔", () => openTw('diary')],
         ['star', 'Holatim', 'Ochko, sertifikatlar', () => openTw('me2')],
+        ['sparkles', 'Profil bezagi', 'Ramka, ism rangi, unvon 👑', () => { window.location.href = IS_OWNER ? '/panel#settings' : `/panel#profile/${me.key.slice(1)}`; }],
+      ]);
+      sec("💰 Savdo", [
+        ['store', "O'yinchilar do'konlari", "O'z do'koningizni oching 🏪", () => openTw('shops')],
+        ['hammer', `Auksion${town.auctions ? ` (${town.auctions})` : ''}`, "Kim ko'p bersa — o'shaniki 🔨", () => openTw('auction')],
       ]);
       sec('🏙️ Joylar', [
         ['map-pin', "Istirohat bog'i", 'Charxpalak, karusel, tungi bozor', go(S.wheel, "Istirohat bog'i")],
         ['map-pin', "Tog' va g'or", "Chang'i, ko'pkari, xazina", go(T.places.cave.door, "G'or")],
         ['map-pin', 'Plyaj', 'Dengiz, qasr, suv osti kemasi', go(S.sun, 'Plyaj')],
         ['plane', 'Orol', 'Aeroportdan samolyotda 🏝️', go(world.airport.gate, 'Aeroport (orolga)')],
+        ['map-pin', "Saytlar ko'chasi", `Do'stlaringiz saytlari 🏪 (${town.sites.length})`, go({ x: T.sites[0].x + 130, y: T.sites[0].y + 60 }, "Saytlar ko'chasi")],
       ]);
       sec("🎲 O'yinlar", [
         ['target', 'Shaxmat', "Do'st bilan ♟️", () => openTw('invite', { game: 'chess' })],
@@ -8927,6 +9223,7 @@ import * as THREE from 'three';
         ['x', 'Shikoyat', "Yomon xulq haqida owner'ga", () => openTw('report')],
       ]);
       sec('📚 Dars', [
+        ['sparkles', 'Mashqlar', '🔥 savol, ⚔️ kod dueli, 🐞, 🎨', () => { window.location.href = '/panel#learn'; }],
         ['star', 'Sandiqlar', 'Uy vazifasi uchun 📦', () => openTw('home')],
         ['file', 'Kod topshiriqlari', 'Uyingizga bezak 🏮', () => openTw('codetasks')],
         ['book', 'Kitob va sertifikat', 'O\'qing va test yeching 📜', () => openTw('books')],
@@ -10279,6 +10576,9 @@ import * as THREE from 'three';
     tile('coins', 'Sarmoya', "Biznesga pul tiking 💼", openInvest);
     tile('home', 'Ijara haqi', "Uylaringizdan kunlik pul 🏠", claimRent);
     tile('store', 'Bozor rastasi', "Narsalarni sotish va olish 🛒", openMarket);
+    tile('hammer', `Auksion${town.auctions ? ` (${town.auctions})` : ''}`, "Kim ko'p bersa — o'shaniki 🔨", () => openTw('auction'));
+    tile('store', "O'yinchilar do'konlari", "O'z do'koningizni oching 🏪", () => openTw('shops'));
+    tile('sparkles', 'Mashqlar', '🔥 kunlik savol, ⚔️ kod dueli', () => { window.location.href = '/panel#learn'; });
     tile('trophy', 'Futbol kubogi', "Klanlar haftalik gollari ⚽", () => openList('⚽ Klanlar futbol kubogi', '/api/game/fcup', (t) => `[${t.tag}] ${t.name} — ${t.goals} gol`));
     tile('target', 'Bayroqni olish', "Bayroqni uyingizga olib boring 🚩", () => { if (city.flag) { setGuide(city.flag.x, city.flag.y, 'Bayroq'); closeSheet(); } else toast('Yangi bayroq tez orada chiqadi'); });
     tile('map-pin', 'Labirint', "Eng tez chiqing 🌿", () => { const m = world.maze.start; setGuide(m.x, m.y, 'Labirint'); closeSheet(); });

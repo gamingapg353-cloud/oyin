@@ -158,11 +158,16 @@
       link.title = isOwner || user.me ? 'Profilni ochish' : "O'z profilingizni ochish";
       const info = el('span', 'user-row__info');
       const nameLine = el('span', 'user-row__name');
-      nameLine.append(el('strong', '', user.name));
+      const nameEl = el('strong', '', user.name);
+      const av = avatarEl(user.name, user.avatar);
+      Oyin.applyDeco?.(av, nameEl, user.deco);
+      nameLine.append(nameEl);
+      if (user.fire) nameLine.append(el('span', 'fire-tag', `🔥${user.fire}`));
       if (user.me) nameLine.append(el('span', 'me-tag', 'Siz'));
       info.append(nameLine);
+      if (user.deco?.title) info.append(el('small', 'user-row__title', user.deco.title));
       if (isOwner && user.login) info.append(el('small', '', `login: ${user.login}`));
-      link.append(avatarEl(user.name, user.avatar), info, el('span', 'pill score', `${user.score} ball`));
+      link.append(av, info, el('span', 'pill score', `${user.score} ball`));
 
       li.append(rank, link);
 

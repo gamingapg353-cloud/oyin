@@ -897,13 +897,34 @@ def _int(value) -> int:
 @login_required
 def api_chat():
     user = current_user()
-    text = " ".join(str((request.get_json(silent=True) or {}).get("text") or "").split())
+    data = request.get_json(silent=True) or {}
+    import game_trade
+    import portal
+    sticker = data.get("sticker") if data.get("sticker") in game_trade.STICKERS else None
+    text = game_trade.STICKERS[sticker] if sticker else " ".join(str(data.get("text") or "").split())
     if not text:
         return jsonify(error="Xabar bo'sh"), 400
-    channel = (request.get_json(silent=True) or {}).get("channel")
+    channel = data.get("channel")
     channel = channel if channel in ("clan", "friends") else "all"
     msg = {"id": 0, "key": player_key(user), "name": user["name"], "avatar": user["avatar"],
            "text": text[:CHAT_MAX_LEN], "t": time.time(), "channel": channel}
+    if sticker:
+        msg["sticker"] = sticker
+    deco = portal.deco_map(get_db()).get(msg["key"])
+    if deco and deco["color"]:
+        msg["color"] = deco["color"]
+    reply = data.get("reply")
+    if isinstance(reply, int) and not isinstance(reply, bool):
+        with _lock:
+            src = next((m for m in _chat if m["id"] == reply and _chat_visible(m, msg["key"])), None)
+            # maxfiy (klan/do'st) xabarga javob ham faqat o'sha kanalda iqtibos qilinadi
+            if src and src.get("channel", "all") in ("all", channel):
+                msg["reply"] = {"name": src["name"], "text": src["text"][:80]}
+                reply_to = src["key"]
+            else:
+                reply_to = None
+    else:
+        reply_to = None
     if channel != "all":
         msg["to"] = CHAT_AUDIENCE(player_key(user), channel)
         if not msg["to"]:
@@ -912,6 +933,9 @@ def api_chat():
         msg["id"] = next(_msg_ids)
         _chat.append(msg)
     MENTION(user, msg["text"], msg.get("to"))  # @ism — o'sha odamga bildirishnoma
+    if reply_to and reply_to != msg["key"] and (reply_to == "owner" or reply_to.startswith("u")) and (channel == "all" or reply_to in msg["to"]):
+        import game_social
+        game_social._notify(reply_to, f"↩️ {user['name']} sizga javob berdi: {msg['text'][:60]}")
     return jsonify(message=_chat_public(msg))
 
 
@@ -1032,7 +1056,9 @@ def api_people():
     now = time.time()
     with _lock:
         online = {k for k, p in _live.items() if now - p["t"] < ONLINE_SECONDS}
-    people = [{**p, "online": p["key"] in online, "me": p["key"] == me} for p in _all_people(db)]
+    import portal
+    deco = portal.deco_map(db)
+    people = [{**p, "online": p["key"] in online, "me": p["key"] == me, "deco": deco.get(p["key"])} for p in _all_people(db)]
     people.sort(key=lambda p: (not p["me"], not p["online"], p["name"].lower()))
     return jsonify(people=people)
 
@@ -1472,6 +1498,10 @@ def api_upgrade(plot_id: int):
         results.append({"correct": ok, "right_index": q["correct"], "right_answer": q["options"][q["correct"]],
                         "explain": q["explain"]})
     if not all(r["correct"] for r in results):
+        import learn
+        for q, r in zip(questions, results):
+            learn.note(get_db(), key, q, r["correct"])  # xatolar daftariga
+        get_db().commit()
         _quiz_cooldown[key] = now + QUIZ_COOLDOWN
         wrong = next(r for r in results if not r["correct"])
         return jsonify(correct=False, right_answer=wrong["right_answer"], right_index=results[0]["right_index"],

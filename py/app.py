@@ -28,6 +28,9 @@ import game_town
 import game
 import game_social
 import game_fun
+import game_trade
+import learn
+import portal
 import classroom
 import school
 import homework
@@ -84,6 +87,10 @@ app.register_blueprint(extras.bp)
 app.register_blueprint(game_life.bp)
 app.register_blueprint(game_city.bp)
 app.register_blueprint(game_town.bp)
+app.register_blueprint(learn.bp)
+app.register_blueprint(portal.bp)
+app.register_blueprint(game_trade.bp)
+app.after_request(portal.after_request)
 
 
 def asset(filename: str) -> str:
@@ -231,11 +238,14 @@ def rating():
     rows = get_db().execute(RATING_SQL).fetchall()
     is_owner = user["role"] == "owner"
     my_id = user.get("id")
+    deco = portal.deco_map(get_db(), True)
+    fire = {r["user_key"]: r["cur"] for r in get_db().execute("SELECT user_key, cur FROM streaks WHERE last_day IN (?, ?) AND cur > 1",
+                                                                (learn._today(), learn._yesterday()))}
 
     result = []
     for row in rows:
         item = {"id": row["id"], "name": row["name"], "avatar": avatar_url(row["avatar"]), "group_id": row["group_id"],
-                "score": row["total"], "me": row["id"] == my_id}
+                "score": row["total"], "me": row["id"] == my_id, "deco": deco.get(f"u{row['id']}"), "fire": fire.get(f"u{row['id']}", 0)}
         if is_owner:  # login faqat owner'ga ko'rinadi
             item["login"] = row["login"]
         result.append(item)

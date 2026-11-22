@@ -33,6 +33,9 @@ def homework_dir(hw_id: int) -> Path:
 
 
 def remove_files(sub_ids) -> None:
+    import portal
+    sub_ids = list(sub_ids)
+    portal.drop_voice(sub_ids)
     for sub_id in sub_ids:
         shutil.rmtree(submission_dir(sub_id), ignore_errors=True)
 
@@ -92,6 +95,7 @@ def submission_json(row, *, for_owner: bool) -> dict:
         "graded_by": row["graded_by"],
         "files": json.loads(row["files"]),
         "created_at": row["created_at"],
+        "voice": bool(row["voice"]),
     }
     if for_owner:
         data.update(ai_probability=probability, user_id=row["user_id"], user_name=row["user_name"],
@@ -307,7 +311,9 @@ def download_file(sub_id: int, index: int):
     if row is None:
         return jsonify(error="Topilmadi"), 404
     import extras
-    if user["role"] != "owner" and row["user_id"] != user.get("id") and not extras.in_portfolio(get_db(), sub_id):
+    import learn
+    if (user["role"] != "owner" and row["user_id"] != user.get("id") and not extras.in_portfolio(get_db(), sub_id)
+            and not learn._may_peer(get_db(), row, user)):
         return jsonify(error="Ruxsat yo'q"), 403
     names = json.loads(row["files"])
     if not 0 <= index < len(names):

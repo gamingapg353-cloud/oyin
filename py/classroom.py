@@ -239,7 +239,14 @@ def notify(user_key: str, text: str, link: str = "") -> None:
     db = get_db()
     db.execute("INSERT INTO notifications (user_key, text, link, t, seen) VALUES (?, ?, ?, ?, 0)",
                (user_key, text[:300], link, time.time()))
+    _push(db, [user_key])
     db.commit()
+
+
+def _push(db, keys) -> None:
+    """Telefonga ham bildirishnoma (push) — navbatga."""
+    import portal
+    portal.enqueue(db, keys)
 
 
 def notify_all_users(text: str, link: str = "") -> None:
@@ -247,6 +254,7 @@ def notify_all_users(text: str, link: str = "") -> None:
     now = time.time()
     db.executemany("INSERT INTO notifications (user_key, text, link, t, seen) VALUES (?, ?, ?, ?, 0)",
                    [(f"u{r['id']}", text[:300], link, now) for r in db.execute("SELECT id FROM users")])
+    _push(db, [f"u{r['id']}" for r in db.execute("SELECT id FROM users").fetchall()])
     db.commit()
 
 
@@ -559,6 +567,8 @@ def api_lesson_quiz_answer(qid: int):
     i = len(answers)
     cur = questions[i]
     answers.append(choice)
+    import learn
+    learn.note(db, user["key"], cur, choice == cur["correct"])  # xato bo'lsa — xatolar daftariga
     done = len(answers) >= len(questions)
     correct_count = sum(1 for k, a in enumerate(answers) if a == questions[k]["correct"])
     db.execute("UPDATE lesson_quiz SET answers = ?, status = ? WHERE id = ?",

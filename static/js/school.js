@@ -46,11 +46,12 @@
       }
       // Dars jadvali
       const sch = card('Dars jadvali', 'calendar');
+      sch.append(el('p', 'muted', "Dars boshlanishiga 10 daqiqa qolganda hammaga eslatma boradi (vaqt — Toshkent bo'yicha)"));
       if (!lessons.lessons.length) sch.append(el('p', 'muted', isOwner ? "Hali dars qo'shilmagan" : "Keyingi dars hali belgilanmagan"));
       lessons.lessons.slice(0, 6).forEach((l, i) => {
         const row = el('div', `lesson-row${i === 0 ? ' is-next' : ''}`);
         const info = el('div', '');
-        info.append(el('strong', '', l.topic), el('small', 'muted', `${fmtLesson(l.starts_at)}${l.group ? ` · ${l.group}` : ''} · ${countdown(l.starts_at)}`));
+        info.append(el('strong', '', l.topic), el('small', 'muted', `${fmtLesson(l.starts_at)}${l.group ? ` · ${l.group}` : ''}${l.weekly ? ' · har hafta' : ''} · ${countdown(l.starts_at)}`));
         row.append(el('span', 'lesson-row__dot', i === 0 ? '⏰' : '📅'), info);
         if (isOwner) {
           const del = el('button', 'icon-btn');
@@ -75,10 +76,14 @@
         groups.groups.forEach((g) => grp.append(new Option(g.name, g.id)));
         const add = el('button', 'btn btn--primary', "Qo'shish");
         add.type = 'submit';
-        f.append(when, topic, grp, add);
+        const wk = el('label', 'pick');
+        const wkBox = el('input', '');
+        wkBox.type = 'checkbox';
+        wk.append(wkBox, el('span', '', 'Har hafta'));
+        f.append(when, topic, grp, wk, add);
         f.addEventListener('submit', (e) => {
           e.preventDefault();
-          api('/api/lessons', { method: 'POST', body: { starts_at: when.value, topic: topic.value, group_id: grp.value ? Number(grp.value) : null } })
+          api('/api/lessons', { method: 'POST', body: { starts_at: when.value, topic: topic.value, group_id: grp.value ? Number(grp.value) : null, weekly: wkBox.checked } })
             .then(extra.games).catch(fail);
         });
         sch.append(f);
