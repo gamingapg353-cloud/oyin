@@ -1102,7 +1102,7 @@ def homework_bonus(db, sub_id: int) -> int:
 
 
 # --------------------------------------------------------------------------- #
-#  Kod chellenji: kichik HTML/CSS topshiriq, AI tekshiradi, to'g'ri bo'lsa — katta pul
+#  Kod chellenji: kichik HTML/CSS/JS topshiriq, AI tekshiradi, to'g'ri bo'lsa — katta pul
 # --------------------------------------------------------------------------- #
 import random  # noqa: E402
 
@@ -1133,6 +1133,18 @@ CHALLENGES = [
      "task": "Navbar yarating: chapda logotip matni, o'ngda 3 ta havola (Bosh sahifa, Biz haqimizda, Aloqa). Hammasi bir qatorda (display: flex, justify-content: space-between)."},
     {"id": "circle", "title": "Doira", "reward": 80000,
      "task": "150×150px yashil doira (border-radius: 50%) yarating, uning o'rtasida oq «OK» yozuvi tursin."},
+    {"id": "js_hello", "title": "JS: Salom", "reward": 80000, "js": True,
+     "task": "Tugma (button) va h1 yarating. JavaScript bilan: tugma bosilganda h1 yozuvi «Salom, dunyo!» ga o'zgarsin."},
+    {"id": "js_counter", "title": "JS: Hisoblagich", "reward": 120000, "js": True,
+     "task": "Ekranda 0 soni va «+» hamda «-» tugmalari bo'lsin. JavaScript bilan: «+» bosilsa son 1 ga oshsin, «-» bosilsa 1 ga kamaysin."},
+    {"id": "js_toggle", "title": "JS: Yashirish", "reward": 100000, "js": True,
+     "task": "Paragraf (p) va tugma yarating. JavaScript bilan: tugma bosilganda paragraf yashirinsin, yana bosilsa qayta ko'rinsin."},
+    {"id": "js_color", "title": "JS: Tungi rejim", "reward": 110000, "js": True,
+     "task": "Tugma yarating. JavaScript bilan: bosilganda body ga «dark» klassi qo'shilsin, yana bosilsa olib tashlansin. CSS'da .dark uchun qora fon va oq yozuv yozing."},
+    {"id": "js_sum", "title": "JS: Kalkulyator", "reward": 130000, "js": True,
+     "task": "Ikkita input (son uchun) va «Qo'shish» tugmasi yarating. JavaScript bilan: tugma bosilganda ikki sonning yig'indisi sahifada chiqsin."},
+    {"id": "js_todo", "title": "JS: Vazifalar ro'yxati", "reward": 150000, "js": True,
+     "task": "Input, «Qo'shish» tugmasi va bo'sh ro'yxat (ul) yarating. JavaScript bilan: tugma bosilganda input ichidagi matn ro'yxatga yangi li bo'lib qo'shilsin va input tozalansin."},
 ]
 CHALLENGES_BY_ID = {c["id"]: c for c in CHALLENGES}
 CODE_MIN, CODE_MAX = 10, 8000

@@ -353,7 +353,7 @@
           <div class="school-stack" id="shop-root"></div>
         </section>
 
-        <!-- Kod muharriri: HTML/CSS va jonli natija -->
+        <!-- Kod muharriri: HTML/CSS/JS va jonli natija -->
         <section class="view" data-view="code" data-title="Kod muharriri" hidden>
           <div class="school-stack" id="code-root"></div>
         </section>
@@ -439,6 +439,7 @@
 
   <script>window.APP = {{ {"role": user.role, "id": user.get('id'), "name": user.name, "avatar": user.avatar, "aiEnabled": ai_enabled, "maxScore": max_score, "minScore": min_score, "accept": accept}|tojson }};</script>
   <script src="{{ asset('js/common.js') }}"></script>
+  <script src="{{ asset('js/codehelp.js') }}"></script>
   <script src="{{ asset('js/homework.js') }}"></script>
   <script src="{{ asset('js/profile.js') }}"></script>
   <script src="{{ asset('js/exam.js') }}"></script>

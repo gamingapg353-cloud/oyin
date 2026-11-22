@@ -6943,6 +6943,20 @@ import * as THREE from 'three';
         }, 'btn btn--ghost btn--block'));
       return;
     }
+    if (APP.role === 'owner') {
+      body.append(actionBtn('target', "O'rgimchak odamga aylanish 🕷️", async () => {
+        try {
+          await api('/api/game/spider/on', { method: 'POST' });
+          localVersion += 1;
+          setSpiderMe(true);
+          closeSheet();
+          toast("Siz yana o'rgimchak odamsiz 🕷️", 'success');
+        } catch (err) {
+          if (!handleAuthError(err)) toast(err.message, 'warn');
+        }
+      }, 'btn btn--primary btn--block'));
+      return;
+    }
     body.append(el('p', 'sheet-note', "Shaharda kichkina qora o'rgimchak yashiringan. U odamlar kam boradigan burchaklarda o'tiradi — juda yaqin kelsangizgina ko'rinadi."),
       el('p', 'sheet-note', "Topsangiz F bosing — o'rgimchak sizni chaqadi va siz o'rgimchak odamga aylanasiz! Keyin u boshqa joyga qochib yashirinadi."),
       el('p', 'sheet-note', "Maslahat: xaritaning chekkalari, o'rmon va port tomonlarni qidiring 🔍"),
@@ -9024,6 +9038,9 @@ import * as THREE from 'three';
           ta.rows = 7;
           ta.spellcheck = false;
           ta.placeholder = 'Kodingizni shu yerga yozing…';
+          ta.value = st.drafts?.[t.id] || '';
+          ta.addEventListener('input', () => { st.drafts = { ...st.drafts, [t.id]: ta.value }; });
+          window.CodeHelp.attach(ta, { mode: 'auto' });
           body.append(ta, actionBtn('check', 'Tekshirish', () => api(`/api/game/codetasks/${t.id}`, { method: 'POST', body: { code: ta.value } }).then((x) => {
             toast(x.text, x.ok ? 'success' : 'warn');
             if (x.ok) { sound.cash(); loadTown(); TW_LOAD.codetasks(st); st.task = null; }
@@ -10121,7 +10138,7 @@ import * as THREE from 'three';
       closeSheet();
     });
     tile('sparkles', 'Sovg\'a', "Mashina yoki uy sovg'a qilish", openPeople);
-    tile('star', 'Kod chellenji', "HTML/CSS topshiriq — katta pul", openChallenge);
+    tile('star', 'Kod chellenji', "HTML/CSS/JS topshiriq — katta pul", openChallenge);
     tile('check', 'Kunlik vazifalar', 'Har kuni 3 ta vazifa + bonus', openDaily);
     tile('rotate', "Omad g'ildiragi", 'Kuniga 1 marta bepul', openSpin);
     tile('hammer', 'Garaj', "Bo'yash, tezlik, neon", openGarage);
@@ -10582,7 +10599,7 @@ import * as THREE from 'three';
     setTimeout(() => input.focus(), 0);
   }
 
-  // --- Kod chellenji: HTML/CSS topshiriq, AI tekshiradi ---
+  // --- Kod chellenji: HTML/CSS/JS topshiriq, AI tekshiradi ---
   function openChallenge() {
     const st = { kind: 'code', data: null, v: 0, draft: '', result: null, busy: false };
     openSheet(st);
@@ -10625,28 +10642,31 @@ import * as THREE from 'three';
     }
     const area = el('textarea', 'code-input');
     area.spellcheck = false;
-    area.placeholder = '<style>\n  button { ... }\n</style>\n<button>Yuborish</button>';
+    area.placeholder = c.js ? "<button>Bos</button>\n<script>\n  document.querySelector('button')...\n</script>" : '<style>\n  button { ... }\n</style>\n<button>Yuborish</button>';
     area.value = st.draft || '';
-    area.setAttribute('aria-label', 'HTML/CSS kodingiz');
+    area.setAttribute('aria-label', 'Kodingiz (HTML, CSS, JavaScript)');
+    const out = el('div', 'code-run');
     const frame = el('iframe', 'code-preview');
-    frame.setAttribute('sandbox', '');   // skriptlar ishlamaydi — faqat ko'rinish
+    frame.setAttribute('sandbox', '');   // skriptlar faqat «Ishga tushirish» bosilganda (alohida oynada) ishlaydi
     frame.title = 'Natija';
     let timer = null;
-    const preview = () => { frame.srcdoc = area.value; };
+    const preview = () => {
+      if (frame.parentNode !== out) out.replaceChildren(frame);
+      frame.srcdoc = area.value;
+    };
+    const runJs = () => {
+      clearTimeout(timer);
+      window.CodeHelp.run(out, { html: area.value });
+    };
     area.addEventListener('input', () => {
       st.draft = area.value;
       clearTimeout(timer);
       timer = setTimeout(preview, 300);
     });
-    area.addEventListener('keydown', (e) => {
-      if (e.key !== 'Tab') return;
-      e.preventDefault(); // Tab — 2 ta probel
-      const a = area.selectionStart;
-      area.setRangeText('  ', a, area.selectionEnd, 'end');
-      st.draft = area.value;
-    });
+    window.CodeHelp.attach(area, { mode: 'auto', onRun: runJs });
     preview();
-    body.append(el('small', 'code-label', 'Kodingiz (HTML va <style>):'), area, el('small', 'code-label', "Natija:"), frame);
+    body.append(el('small', 'code-label', "Kodingiz (HTML, <style>, <script>). Yozsangiz yordam chiqadi: Enter yoki Tab — qo'yish"), area, el('small', 'code-label', "Natija:"), out,
+      actionBtn('refresh', 'JavaScript ishga tushirish (Ctrl+Enter)', runJs, 'btn btn--ghost btn--block'));
     const actions = el('div', 'bank-actions');
     const send = actionBtn('check', st.busy ? 'Tekshirilyapti…' : 'Tekshirish', async () => {
       const wait = Math.ceil(((st.waitUntil || 0) - Date.now()) / 1000);

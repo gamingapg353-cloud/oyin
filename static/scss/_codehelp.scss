@@ -1,0 +1,140 @@
+// Kod yordamchisi (VS Code'dagidek ro'yxat) va JavaScript konsoli
+.codehelp {
+  position: fixed;
+  z-index: 9999;
+  width: unquote("min(420px, calc(100vw - 12px))");
+  max-height: 264px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #454545;
+  border-radius: 4px;
+  background: #252526;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  color: #cccccc;
+  font: 14px/22px ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 20px minmax(0, auto) minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px 0 4px;
+    cursor: pointer;
+
+    &:hover {
+      background: #2a2d2e;
+    }
+
+    &.is-on {
+      background: #04395e;
+      color: #ffffff;
+    }
+  }
+
+  &__icon {
+    display: grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    color: #c5c5c5;
+
+    svg {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.2;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+
+    &--prop {
+      color: #75beff;
+    }
+
+    &--fn {
+      color: #b180d7;
+    }
+
+    &--value,
+    &--key {
+      color: #ee9d28;
+    }
+
+    &--color {
+      width: 12px;
+      height: 12px;
+      border: 1px solid #888888;
+    }
+  }
+
+  &__name {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+
+    b {
+      color: #2aaaff;
+      font-weight: 700;
+    }
+  }
+
+  &__detail {
+    overflow: hidden;
+    color: #9d9d9d;
+    font-size: 12px;
+    text-align: right;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  // Telefonda barmoq bilan bosish oson bo'lsin
+  @media (pointer: coarse) {
+    max-height: 216px;
+    line-height: 36px;
+  }
+}
+
+.code-side {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.code-console {
+  max-height: 160px;
+  padding: 6px 10px;
+  overflow: auto;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font: 12px/1.5 ui-monospace, Consolas, monospace;
+
+  small {
+    color: #8a8a8a;
+  }
+
+  &__row {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+
+    &--error {
+      color: #f48771;
+    }
+
+    &--warn {
+      color: #e2c08d;
+    }
+  }
+}
+
+.code-run .code-console {
+  margin: 0 0 10px;
+  border-radius: 10px;
+}

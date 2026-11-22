@@ -129,15 +129,17 @@ CREATE TABLE IF NOT EXISTS rewards (
     name        TEXT NOT NULL,
     cost        INTEGER NOT NULL,
     stock       INTEGER NOT NULL DEFAULT 0,
-    active      INTEGER NOT NULL DEFAULT 1
+    active      INTEGER NOT NULL DEFAULT 1,
+    bonus       INTEGER NOT NULL DEFAULT 0     -- olgan o'quvchiga darhol beriladigan ball
 );
 CREATE TABLE IF NOT EXISTS reward_orders (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     reward_id   INTEGER NOT NULL,
     user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     cost        INTEGER NOT NULL,
-    status      TEXT NOT NULL,                 -- pending | given | cancelled
-    t           REAL NOT NULL
+    status      TEXT NOT NULL,                 -- given | cancelled (pending — eski buyurtmalar)
+    t           REAL NOT NULL,
+    bonus       INTEGER NOT NULL DEFAULT 0
 );
 
 -- Qurilmalar: akkauntga birinchi kirgan qurilma — asosiy (himoya uchun)
@@ -432,6 +434,16 @@ def init_db() -> None:
                           ("moon", "INTEGER NOT NULL DEFAULT 0")):
             if name not in player_columns:  # bank, kredit, ko'rinish, klan
                 db.execute(f"ALTER TABLE game_players ADD COLUMN {name} {ddl}")
+        # Owner — o'rgimchak odam (bir marta beriladi; xohlasa o'zi oddiy odamga qaytadi)
+        if not db.execute("SELECT 1 FROM settings WHERE key = 'owner_spider'").fetchone():
+            db.execute("UPDATE game_players SET spider = 1 WHERE player_key = 'owner'")
+            db.execute("INSERT INTO settings (key, value) VALUES ('owner_spider', '1')")
+        # Sovg'alar: olinganda beriladigan ball
+        for table in ("rewards", "reward_orders"):
+            if "bonus" not in {row[1] for row in db.execute(f"PRAGMA table_info({table})")}:
+                db.execute(f"ALTER TABLE {table} ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0")
+        if "js" not in {row[1] for row in db.execute("PRAGMA table_info(code_pad)")}:  # kod muharriri: JavaScript
+            db.execute("ALTER TABLE code_pad ADD COLUMN js TEXT NOT NULL DEFAULT ''")
         # Eski "Ota hovli" (game_players.plot + house_level) -> yangi yerlar jadvali (bino turi: uy)
         db.execute(
             "INSERT OR IGNORE INTO game_plots (plot, owner_key, kind, level, bought_at) "

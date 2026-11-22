@@ -517,6 +517,19 @@ def api_spider_catch():
     return jsonify(ok=True, spider=True)
 
 
+@bp.post("/api/game/spider/on")
+@login_required
+def api_spider_on():
+    """Owner istagan payt o'rgimchak odam bo'ladi (o'rgimchakni qidirmasdan)."""
+    if current_user()["role"] != "owner":
+        return jsonify(error="Avval o'rgimchakni toping 🕷️"), 403
+    db = get_db()
+    game.ensure_player(db, "owner")
+    db.execute("UPDATE game_players SET spider = 1 WHERE player_key = 'owner'")
+    db.commit()
+    return jsonify(ok=True, spider=True)
+
+
 @bp.post("/api/game/spider/off")
 @login_required
 def api_spider_off():

@@ -549,8 +549,8 @@ def ensure_player(db, key: str):
         home = next((p["id"] for p in PLOTS if p["id"] not in used), None)
         now = time.time()
         cur = db.execute(
-            "INSERT OR IGNORE INTO game_players (player_key, money, income_at, plot) VALUES (?, ?, ?, ?)",
-            (key, OWNER_MONEY if key == "owner" else START_MONEY, now, home),
+            "INSERT OR IGNORE INTO game_players (player_key, money, income_at, plot, spider) VALUES (?, ?, ?, ?, ?)",
+            (key, OWNER_MONEY if key == "owner" else START_MONEY, now, home, int(key == "owner")),  # owner — o'rgimchak odam
         )
         if cur.rowcount and home is not None:
             db.execute(

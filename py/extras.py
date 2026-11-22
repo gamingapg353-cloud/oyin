@@ -169,7 +169,7 @@ def api_badges(user_id: int):
 
 
 # --------------------------------------------------------------------------- #
-#  6. Kod muharriri: HTML/CSS yozib, darhol natijani ko'rish (owner o'quvchilarnikini ko'radi)
+#  6. Kod muharriri: HTML/CSS/JS yozib, darhol natijani ko'rish (owner o'quvchilarnikini ko'radi)
 # --------------------------------------------------------------------------- #
 CODE_MAX = 20000
 
@@ -179,7 +179,7 @@ CODE_MAX = 20000
 def api_code_get():
     user = current_user()
     row = get_db().execute("SELECT * FROM code_pad WHERE user_key = ?", (user["key"] if user["role"] == "owner" else f"u{user['id']}",)).fetchone()
-    return jsonify(html=row["html"] if row else "", css=row["css"] if row else "")
+    return jsonify(html=row["html"] if row else "", css=row["css"] if row else "", js=row["js"] if row else "")
 
 
 @bp.post("/api/code")
@@ -187,14 +187,14 @@ def api_code_get():
 def api_code_save():
     user = current_user()
     data = request.get_json(silent=True) or {}
-    html, css = str(data.get("html") or ""), str(data.get("css") or "")
-    if len(html) > CODE_MAX or len(css) > CODE_MAX:
+    html, css, js = (str(data.get(k) or "") for k in ("html", "css", "js"))
+    if max(len(html), len(css), len(js)) > CODE_MAX:
         return jsonify(error=f"Kod {CODE_MAX} belgidan oshmasin"), 400
     key = "owner" if user["role"] == "owner" else f"u{user['id']}"
     db = get_db()
-    db.execute("INSERT INTO code_pad (user_key, html, css, updated_at) VALUES (?, ?, ?, ?) "
-               "ON CONFLICT(user_key) DO UPDATE SET html = excluded.html, css = excluded.css, updated_at = excluded.updated_at",
-               (key, html, css, time.time()))
+    db.execute("INSERT INTO code_pad (user_key, html, css, js, updated_at) VALUES (?, ?, ?, ?, ?) "
+               "ON CONFLICT(user_key) DO UPDATE SET html = excluded.html, css = excluded.css, js = excluded.js, updated_at = excluded.updated_at",
+               (key, html, css, js, time.time()))
     db.commit()
     return jsonify(ok=True)
 
@@ -204,7 +204,7 @@ def api_code_save():
 def api_code_all():
     rows = get_db().execute(
         "SELECT c.*, u.name, u.avatar FROM code_pad c JOIN users u ON 'u' || u.id = c.user_key ORDER BY c.updated_at DESC").fetchall()
-    return jsonify(items=[{"name": r["name"], "avatar": avatar_url(r["avatar"]), "html": r["html"], "css": r["css"],
+    return jsonify(items=[{"name": r["name"], "avatar": avatar_url(r["avatar"]), "html": r["html"], "css": r["css"], "js": r["js"],
                            "updated": datetime.fromtimestamp(r["updated_at"]).strftime("%d.%m %H:%M")} for r in rows])
 
 
@@ -306,6 +306,7 @@ CREATE TABLE IF NOT EXISTS code_pad (
     user_key   TEXT PRIMARY KEY,
     html       TEXT NOT NULL DEFAULT '',
     css        TEXT NOT NULL DEFAULT '',
-    updated_at REAL NOT NULL
+    updated_at REAL NOT NULL,
+    js         TEXT NOT NULL DEFAULT ''
 );
 """

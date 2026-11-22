@@ -204,6 +204,7 @@
     c.append(el('p', 'muted', "Kodingizni qo'ying va savol bering — AI javobni emas, maslahat beradi, xatoni o'zingiz topasiz. Kuniga 15 ta savol."));
     const code = el('textarea', 'code-input');
     code.placeholder = '<h1>Salom</h1> ...';
+    window.CodeHelp.attach(code, { mode: 'auto' });
     code.spellcheck = false;
     const q = el('input', 'input-plain');
     q.placeholder = 'Savolingiz: masalan, nega sarlavha markazda emas?';
@@ -324,7 +325,7 @@
   viewLoaders.polls = loadPolls;
 
   // ---------------- Sovg'alar do'koni ----------------
-  const ORDER = { pending: '⏳ Kutilmoqda', given: '✅ Berildi', cancelled: '↩ Bekor qilindi' };
+  const ORDER = { pending: '⏳ Kutilmoqda', given: '✅ Olindi', cancelled: '↩ Bekor qilindi' };
   async function loadShop() {
     const root = $('shop-root');
     try {
@@ -338,38 +339,44 @@
         name.placeholder = "Sovg'a nomi (masalan: Shokolad)";
         const cost = el('input', 'input-plain');
         cost.type = 'number';
-        cost.min = 1;
+        cost.min = 0;
         cost.placeholder = 'Narxi (ball)';
         const stock = el('input', 'input-plain');
         stock.type = 'number';
         stock.min = 0;
         stock.placeholder = 'Nechta bor';
+        const bonus = el('input', 'input-plain');
+        bonus.type = 'number';
+        bonus.min = 0;
+        bonus.placeholder = 'Beriladigan ball (ixtiyoriy)';
+        bonus.title = "O'quvchi sovg'ani olganda shuncha ball o'zi qo'shiladi";
         const b = el('button', 'btn btn--primary', "Qo'shish");
         b.type = 'submit';
-        f.append(name, cost, stock, b);
+        f.append(name, cost, stock, bonus, b);
         f.addEventListener('submit', (e) => {
           e.preventDefault();
-          api('/api/rewards', { method: 'POST', body: { name: name.value, cost: Number(cost.value), stock: Number(stock.value) } }).then(loadShop).catch(fail);
+          api('/api/rewards', { method: 'POST', body: { name: name.value, cost: Number(cost.value), stock: Number(stock.value), bonus: Number(bonus.value) || 0 } }).then(loadShop).catch(fail);
         });
-        c.append(f);
+        c.append(f, el('p', 'muted', "Siz tasdiqlashingiz shart emas: o'quvchi «Olish»ni bosishi bilan narxi yechiladi va «Beriladigan ball» o'zi qo'shiladi."));
         root.append(c);
       }
       const grid = el('div', 'shop-grid');
       d.rewards.forEach((r) => {
         const t = el('div', 'card shop-item');
-        t.append(el('span', 'shop-item__icon', '🎁'), el('strong', '', r.name), el('span', 'pill', `${r.cost} ball`), el('small', 'muted', `Qoldi: ${r.stock} ta`));
+        t.append(el('span', 'shop-item__icon', '🎁'), el('strong', '', r.name), el('span', 'pill', r.cost ? `${r.cost} ball` : 'Bepul'),
+          ...(r.bonus ? [el('span', 'pill', `+${r.bonus} ball beradi`)] : []), el('small', 'muted', `Qoldi: ${r.stock} ta`));
         if (isOwner) {
           const del = el('button', 'btn btn--ghost', "O'chirish");
           del.type = 'button';
           del.addEventListener('click', () => api(`/api/rewards/${r.id}`, { method: 'DELETE' }).then(loadShop).catch(fail));
           t.append(del);
         } else {
-          const get = el('button', 'btn btn--primary', 'Olish');
+          const get = el('button', 'btn btn--primary', r.taken ? 'Olingan ✓' : 'Olish');
           get.type = 'button';
-          get.disabled = r.stock <= 0 || d.my_total < r.cost;
+          get.disabled = r.taken || r.stock <= 0 || d.my_total < r.cost;
           get.addEventListener('click', () => {
-            if (window.confirm(`«${r.name}» uchun ${r.cost} ball sarflaysizmi?`)) {
-              api(`/api/rewards/${r.id}/redeem`, { method: 'POST' }).then(() => { window.alert("Olindi! Ustoz sovg'ani topshiradi."); loadShop(); }).catch(fail);
+            if (window.confirm(r.cost ? `«${r.name}» uchun ${r.cost} ball sarflaysizmi?` : `«${r.name}» sovg'asini olasizmi?`)) {
+              api(`/api/rewards/${r.id}/redeem`, { method: 'POST' }).then(() => { window.alert(r.bonus ? `Olindi! Sizga +${r.bonus} ball berildi 🎉` : 'Olindi! 🎉'); loadShop(); }).catch(fail);
             }
           });
           t.append(get);
@@ -381,12 +388,12 @@
       const oc = card(isOwner ? 'Buyurtmalar' : 'Mening sovg\'alarim', 'gift');
       d.orders.forEach((o) => {
         const row = el('div', 'group-row');
-        row.append(el('span', '', `${isOwner ? `${o.user}: ` : ''}${o.reward} (${o.cost} ball)`), el('small', 'muted', ORDER[o.status]));
-        if (isOwner && o.status === 'pending') {
-          ['given', 'cancelled'].forEach((st) => {
+        row.append(el('span', '', `${isOwner ? `${o.user}: ` : ''}${o.reward} (${o.cost} ball${o.bonus ? `, +${o.bonus} berildi` : ''})`), el('small', 'muted', ORDER[o.status]));
+        if (isOwner && o.status !== 'cancelled') {
+          (o.status === 'pending' ? ['given', 'cancelled'] : ['cancelled']).forEach((st) => {
             const b = el('button', st === 'given' ? 'btn btn--primary' : 'btn btn--ghost', st === 'given' ? 'Berildi' : 'Bekor');
             b.type = 'button';
-            b.addEventListener('click', () => api(`/api/orders/${o.id}`, { method: 'POST', body: { status: st } }).then(loadShop).catch(fail));
+            b.addEventListener('click', () => (st === 'given' || window.confirm("Bekor qilinsinmi? Ball va sovg'a qaytadi.")) && api(`/api/orders/${o.id}`, { method: 'POST', body: { status: st } }).then(loadShop).catch(fail));
             row.append(b);
           });
         }

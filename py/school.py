@@ -440,13 +440,18 @@ def api_poll_close(pid: int):
 #  Sovg'alar do'koni: ballni sovg'aga almashtirish
 # --------------------------------------------------------------------------- #
 def _rewards_json(db, user):
-    rewards = [{"id": r["id"], "name": r["name"], "cost": r["cost"], "stock": r["stock"]}
+    mine = set()  # ball beradigan sovg'ani har kim bir marta oladi
+    if user["role"] == "user":
+        mine = {r["reward_id"] for r in db.execute(
+            "SELECT reward_id FROM reward_orders WHERE user_id = ? AND bonus > 0 AND status != 'cancelled'", (user["id"],))}
+    rewards = [{"id": r["id"], "name": r["name"], "cost": r["cost"], "stock": r["stock"], "bonus": r["bonus"],
+                "taken": r["id"] in mine}
                for r in db.execute("SELECT * FROM rewards WHERE active = 1 ORDER BY cost")]
     q = ("SELECT o.*, r.name AS rname, u.name AS uname FROM reward_orders o JOIN rewards r ON r.id = o.reward_id "
          "JOIN users u ON u.id = o.user_id ")
     rows = (db.execute(q + "ORDER BY o.id DESC LIMIT 50") if user["role"] == "owner"
             else db.execute(q + "WHERE o.user_id = ? ORDER BY o.id DESC LIMIT 20", (user["id"],)))
-    orders = [{"id": r["id"], "reward": r["rname"], "user": r["uname"], "cost": r["cost"], "status": r["status"], "t": r["t"]}
+    orders = [{"id": r["id"], "reward": r["rname"], "user": r["uname"], "cost": r["cost"], "bonus": r["bonus"], "status": r["status"], "t": r["t"]}
               for r in rows]
     total = classroom.user_total(db, user["id"]) if user["role"] == "user" else None
     return jsonify(rewards=rewards, orders=orders, my_total=total)
@@ -464,10 +469,14 @@ def api_reward_add():
     data = request.get_json(silent=True) or {}
     name = _clean(data.get("name"), 80)
     cost, stock = _int(data.get("cost")), _int(data.get("stock"))
-    if not name or cost is None or not 1 <= cost <= 10000 or stock is None or not 0 <= stock <= 1000:
-        return jsonify(error="Nomi, narxi (1–10000 ball) va soni (0–1000) kerak"), 400
+    bonus = _int(data.get("bonus") or 0)
+    if bonus is None or not 0 <= bonus <= 1000:
+        return jsonify(error="Beriladigan ball 0–1000 bo'lsin"), 400
+    low = 0 if bonus else 1  # ball beradigan sovg'a bepul ham bo'lishi mumkin
+    if not name or cost is None or not low <= cost <= 10000 or stock is None or not 0 <= stock <= 1000:
+        return jsonify(error=f"Nomi, narxi ({low}–10000 ball) va soni (0–1000) kerak"), 400
     db = get_db()
-    db.execute("INSERT INTO rewards (name, cost, stock, active) VALUES (?, ?, ?, 1)", (name, cost, stock))
+    db.execute("INSERT INTO rewards (name, cost, stock, active, bonus) VALUES (?, ?, ?, 1, ?)", (name, cost, stock, bonus))
     db.commit()
     return _rewards_json(db, current_user())
 
@@ -498,12 +507,29 @@ def api_reward_redeem(rid: int):
         return jsonify(error="Bu sovg'a tugagan"), 400
     if classroom.user_total(db, user["id"]) < r["cost"]:
         return jsonify(error="Ballingiz yetmaydi"), 400
-    db.execute("UPDATE users SET score = score - ? WHERE id = ?", (r["cost"], user["id"]))
-    db.execute("UPDATE rewards SET stock = stock - 1 WHERE id = ?", (rid,))
-    db.execute("INSERT INTO reward_orders (reward_id, user_id, cost, status, t) VALUES (?, ?, ?, 'pending', ?)",
-               (rid, user["id"], r["cost"], time.time()))
+    # Owner tasdig'i kerak emas: olindi — ball darhol yechiladi/beriladi. Ikki marta bosilsa ham bir marta o'tadi.
     db.commit()
-    classroom.notify("owner", f"🎁 {user['name']} «{r['name']}» sovg'asini oldi ({r['cost']} ball) — topshiring", "/panel#shop")
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        if r["bonus"] and db.execute("SELECT 1 FROM reward_orders WHERE reward_id = ? AND user_id = ? AND status != 'cancelled'",
+                                     (rid, user["id"])).fetchone():
+            db.rollback()
+            return jsonify(error="Bu sovg'ani allaqachon olgansiz"), 400
+        if classroom.user_total(db, user["id"]) < r["cost"]:
+            db.rollback()
+            return jsonify(error="Ballingiz yetmaydi"), 400
+        if not db.execute("UPDATE rewards SET stock = stock - 1 WHERE id = ? AND active = 1 AND stock > 0", (rid,)).rowcount:
+            db.rollback()
+            return jsonify(error="Bu sovg'a tugagan"), 400
+        db.execute("UPDATE users SET score = score + ? WHERE id = ?", (r["bonus"] - r["cost"], user["id"]))
+        db.execute("INSERT INTO reward_orders (reward_id, user_id, cost, status, t, bonus) VALUES (?, ?, ?, 'given', ?, ?)",
+                   (rid, user["id"], r["cost"], time.time(), r["bonus"]))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    plus = f", +{r['bonus']} ball berildi" if r["bonus"] else ""
+    classroom.notify("owner", f"🎁 {user['name']} «{r['name']}» sovg'asini oldi ({r['cost']} ball{plus})", "/panel#shop")
     return _rewards_json(db, user)
 
 
@@ -515,11 +541,13 @@ def api_order_status(oid: int):
         return jsonify(error="?"), 400
     db = get_db()
     o = db.execute("SELECT * FROM reward_orders WHERE id = ?", (oid,)).fetchone()
-    if o is None or o["status"] != "pending":
+    # given — faqat eski kutilayotganlar uchun; bekor qilish — istalgan payt
+    if o is None or o["status"] == "cancelled" or (status == "given" and o["status"] != "pending"):
         return jsonify(error="Buyurtma topilmadi"), 400
-    db.execute("UPDATE reward_orders SET status = ? WHERE id = ?", (status, oid))
+    if not db.execute("UPDATE reward_orders SET status = ? WHERE id = ? AND status = ?", (status, oid, o["status"])).rowcount:
+        return jsonify(error="Buyurtma topilmadi"), 400
     if status == "cancelled":  # ball va sovg'a qaytadi
-        db.execute("UPDATE users SET score = score + ? WHERE id = ?", (o["cost"], o["user_id"]))
+        db.execute("UPDATE users SET score = score + ? WHERE id = ?", (o["cost"] - o["bonus"], o["user_id"]))
         db.execute("UPDATE rewards SET stock = stock + 1 WHERE id = ?", (o["reward_id"],))
     db.commit()
     classroom.notify(f"u{o['user_id']}", "🎁 Sovg'angiz topshirildi!" if status == "given" else "Sovg'a bekor qilindi — ballingiz qaytdi")

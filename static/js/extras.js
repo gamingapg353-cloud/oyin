@@ -40,10 +40,10 @@
     const root = $('code-root');
     if (!root) return;
     root.replaceChildren();
-    let data = { html: '', css: '' };
+    let data = { html: '', css: '', js: '' };
     try { data = await api('/api/code'); } catch (err) { handleAuthError(err); }
-    const c = card('HTML / CSS muharrir', 'file', 'code-card');
-    c.append(el('p', 'muted', "Chapda kod yozing — o'ngda natija darhol ko'rinadi. Kod o'zi saqlanadi."));
+    const c = card('HTML / CSS / JS muharrir', 'file', 'code-card');
+    c.append(el('p', 'muted', "Chapda kod yozing — o'ngda natija darhol ko'rinadi. Harf yozsangiz yordam ro'yxati chiqadi: ↑ ↓ tanlash, Enter yoki Tab — qo'yish. Emmet ham ishlaydi: ul>li*3, .card, m10, log. JavaScript uchun «▶ Ishga tushirish» (Ctrl+Enter). Kod o'zi saqlanadi."));
     const grid = el('div', 'code-grid');
     const eds = el('div', 'code-eds');
     const mk = (label, val, ph) => {
@@ -58,8 +58,13 @@
     };
     const html = mk('HTML', data.html || '', '<h1>Salom dunyo!</h1>\n<p>Birinchi sahifam</p>');
     const css = mk('CSS', data.css || '', 'h1 { color: tomato; }');
+    const js = mk('JavaScript', data.js || '', "document.querySelector('h1').textContent = 'Salom!';");
     const out = el('div', 'code-out');
-    grid.append(eds, out);
+    const side = el('div', 'code-side');
+    const play = el('button', 'btn btn--primary', '▶ Ishga tushirish');
+    play.type = 'button';
+    side.append(out, play);
+    grid.append(eds, side);
     const status = el('small', 'muted', '');
     c.append(grid, status);
     root.append(c);
@@ -69,18 +74,15 @@
       render();
       status.textContent = 'Saqlanmoqda…';
       clearTimeout(saveT);
-      saveT = setTimeout(() => api('/api/code', { method: 'POST', body: { html: html.value, css: css.value } })
+      saveT = setTimeout(() => api('/api/code', { method: 'POST', body: { html: html.value, css: css.value, js: js.value } })
         .then(() => { status.textContent = 'Saqlandi ✓'; }).catch((err) => { status.textContent = err.message; }), 1200);
     };
-    [html, css].forEach((t) => {
+    // JS faqat tugma bosilganda, alohida himoyalangan oynada ishlaydi
+    const runJs = () => window.CodeHelp.run(out, { html: html.value, css: css.value, js: js.value, modals: true });
+    play.addEventListener('click', runJs);
+    [[html, 'html'], [css, 'css'], [js, 'js']].forEach(([t, mode]) => {
       t.addEventListener('input', onInput);
-      t.addEventListener('keydown', (e) => { // Tab — bo'sh joy qo'yadi
-        if (e.key !== 'Tab') return;
-        e.preventDefault();
-        const s = t.selectionStart;
-        t.setRangeText('  ', s, t.selectionEnd, 'end');
-        onInput();
-      });
+      window.CodeHelp.attach(t, { mode, onRun: runJs, peers: () => [html, css, js].filter((x) => x !== t).map((x) => x.value).join('\n') });
     });
     render();
     if (isOwner) {
@@ -97,10 +99,18 @@
             if (!row.open || row.dataset.done) return;
             row.dataset.done = '1';
             const g = el('div', 'code-grid');
-            const pre = el('pre', 'code-pre', `${it.html}\n\n/* CSS */\n${it.css}`);
+            const pre = el('pre', 'code-pre', `${it.html}\n\n/* CSS */\n${it.css}${it.js ? `\n\n// JavaScript\n${it.js}` : ''}`);
             const o = el('div', 'code-out');
             o.append(preview(it.html, it.css));
-            g.append(pre, o);
+            const sd = el('div', 'code-side');
+            sd.append(o);
+            if (it.js) {
+              const go = el('button', 'btn btn--ghost', '▶ Ishga tushirish');
+              go.type = 'button';
+              go.addEventListener('click', () => window.CodeHelp.run(o, { html: it.html, css: it.css, js: it.js }));
+              sd.append(go);
+            }
+            g.append(pre, sd);
             row.append(g);
           });
           list.append(row);
@@ -273,8 +283,8 @@
       "O'z ballingizdan do'stingizga sovg'a qilishingiz mumkin."],
     polls: ["Owner tepada savol yozib yuboradi — hamma o'quvchiga boradi.",
       "O'quvchilar savol ostida javob yozadi. Javoblarni faqat owner ko'radi."],
-    shop: ["Ballingizni sovg'aga almashtiring: sovg'ani tanlang va buyurtma bering — owner tasdiqlaydi."],
-    code: ["Chapda HTML va CSS yozing — o'ngda natija darhol ko'rinadi. Kod o'zi saqlanadi.",
+    shop: ["Ballingizni sovg'aga almashtiring: sovg'ani tanlang va «Olish»ni bosing — tasdiq kutilmaydi, ball darhol hisoblanadi."],
+    code: ["Chapda HTML, CSS va JavaScript yozing — o'ngda natija ko'rinadi. JS uchun «▶ Ishga tushirish». Kod o'zi saqlanadi.",
       "Owner hammaning kodini ko'rib, yordam bera oladi."],
     profile: ["Profil: ball, nishonlar, portfolio (eng yaxshi ishlar) va faollik.",
       "Owner bu yerda o'quvchiga yangi parol yaratadi va kirish tarixini ko'radi."],
