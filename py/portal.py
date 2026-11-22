@@ -415,6 +415,7 @@ def api_voice_delete(sub_id: int):
 # --------------------------------------------------------------------------- #
 FRAMES = {"": ("Ramkasiz", 0), "oddiy": ("Ko'k halqa", 20000), "yashil": ("Yashil halqa", 20000), "oltin": ("Oltin", 100000), "olov": ("Olov", 150000),
           "muz": ("Muz", 150000), "kamalak": ("Kamalak", 300000), "neon": ("Neon", 300000), "toj": ("Qirollik", 1000000)}
+OWNER_FRAMES = {"toj"}      # faqat owner
 COLORS = {"": ("Oddiy", 0, ""), "kok": ("Ko'k", 15000, "#3b82f6"), "yashil": ("Yashil", 15000, "#16a34a"), "pushti": ("Pushti", 25000, "#ec4899"),
           "siyoh": ("Binafsha", 25000, "#8b5cf6"), "toq": ("To'q sariq", 40000, "#ea580c"), "qizil": ("Qizil", 40000, "#ef4444"),
           "feruza": ("Feruza", 60000, "#0d9488"), "oltin": ("Oltin", 200000, "#ca8a04")}
@@ -476,7 +477,8 @@ def _deco_json(db, key: str) -> dict:
     st = _stats(db, key)
     econ = game.economy_json(db, game.ensure_player(db, key))
     return {"frame": row["frame"], "color": row["color"], "title": row["title"], "money": econ["money"],
-            "frames": [{"id": k, "name": n, "price": p, "own": p == 0 or f"f:{k}" in owned} for k, (n, p) in FRAMES.items()],
+            "frames": [{"id": k, "name": n, "price": p, "own": p == 0 or f"f:{k}" in owned} for k, (n, p) in FRAMES.items()
+                       if k not in OWNER_FRAMES or key == "owner"],
             "colors": [{"id": k, "name": n, "price": p, "hex": h, "own": p == 0 or f"c:{k}" in owned} for k, (n, p, h) in COLORS.items()],
             "titles": [{"id": k, "name": n, "about": a, "own": kind is None or st[kind] >= need, "have": min(st[kind], need) if kind else 0, "need": need}
                        for k, (n, a, kind, need) in TITLES.items() if k != "owner" or key == "owner"]}
@@ -511,7 +513,7 @@ def api_deco_set():
         db.commit()
     elif kind in ("frame", "color"):
         cat = FRAMES if kind == "frame" else COLORS
-        if item not in cat:
+        if item not in cat or (kind == "frame" and item in OWNER_FRAMES and key != "owner"):
             return _err("Bunday bezak yo'q")
         tag, price = f"{kind[0]}:{item}", cat[item][1]
         if price and tag not in owned:
@@ -743,6 +745,17 @@ def manifest():
 def service_worker():
     return Response((ROOT_DIR / "static" / "js" / "sw.js").read_text(encoding="utf-8"), mimetype="text/javascript",
                     headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+
+
+def return_owner_frames(db) -> None:
+    """Faqat owner uchun qolgan ramkalar: o'quvchilardan yechiladi, sotib olganga puli qaytadi (init_db chaqiradi)."""
+    for key, frame, raw in db.execute("SELECT user_key, frame, owned FROM deco WHERE user_key != 'owner'").fetchall():
+        owned = set(json.loads(raw))
+        bad = {f"f:{f}" for f in OWNER_FRAMES} & owned
+        if bad:
+            db.execute("UPDATE game_players SET money = money + ? WHERE player_key = ?", (sum(FRAMES[b[2:]][1] for b in bad), key))
+        if bad or frame in OWNER_FRAMES:
+            db.execute("UPDATE deco SET owned = ?, frame = ? WHERE user_key = ?", (json.dumps(sorted(owned - bad)), "" if frame in OWNER_FRAMES else frame, key))
 
 
 SCHEMA = """

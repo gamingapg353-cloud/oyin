@@ -439,6 +439,7 @@ def init_db() -> None:
                                  ("lessons", "reminded", "INTEGER NOT NULL DEFAULT 0")):
             if name not in {row[1] for row in db.execute(f"PRAGMA table_info({table})")}:
                 db.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+        portal.return_owner_frames(db)  # «Qirollik» ramkasi — faqat ownerda
         # Owner — o'rgimchak odam (bir marta beriladi; xohlasa o'zi oddiy odamga qaytadi)
         if not db.execute("SELECT 1 FROM settings WHERE key = 'owner_spider'").fetchone():
             db.execute("UPDATE game_players SET spider = 1 WHERE player_key = 'owner'")
