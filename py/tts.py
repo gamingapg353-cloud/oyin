@@ -153,6 +153,8 @@ def synth(text: str, key: str, voice: str) -> tuple[bytes, str]:
             low = why.lower()
             if code == 0:
                 raise TTSError("ElevenLabs bilan aloqa yo'q — birozdan keyin urinib ko'ring")
+            if "library voice" in low or "free users" in low:
+                raise TTSError("Bu ovoz bepul hisobda ishlamaydi — Sozlamalarda boshqasini tanlang (masalan George yoki Sarah)")
             if code == 402 or "quota" in low or "credit" in low:
                 raise TTSError("Ovoz limiti tugagan (ElevenLabs hisobida kredit qolmagan yoki bu ovoz pullik)")
             if code == 429:
@@ -260,7 +262,7 @@ def _state(extra: bool = False) -> dict:
         code, raw = _http("GET", "/v2/voices?page_size=60", _key(), timeout=10)
         if code == 200:
             try:
-                out["voices"] = [{"id": v["voice_id"], "name": str(v.get("name") or "")[:60]} for v in json.loads(raw).get("voices", []) if isinstance(v, dict) and v.get("voice_id")]
+                out["voices"] = [{"id": v["voice_id"], "name": str(v.get("name") or "")[:60] + (" — pullik tarif kerak" if v.get("category") == "professional" else "")} for v in json.loads(raw).get("voices", []) if isinstance(v, dict) and v.get("voice_id")]
             except (ValueError, AttributeError):
                 pass
         code, raw = _http("GET", "/v1/user/subscription", _key(), timeout=10)
