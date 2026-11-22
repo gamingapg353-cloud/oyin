@@ -250,19 +250,30 @@ def notify_all_users(text: str, link: str = "") -> None:
     db.commit()
 
 
-def mention(author: dict, text: str) -> int:
-    """Chatdagi @ism — o'sha odamga bildirishnoma. Nechta odam belgilanganini qaytaradi."""
+def mention(author: dict, text: str, only=None) -> int:
+    """Chatdagi @ism — o'sha odamga bildirishnoma. Nechta odam belgilanganini qaytaradi.
+
+    only — klan/do'stlar chati: faqat shu xabarni ko'ra oladiganlarga boradi."""
     if "@" not in text:
         return 0
     db = get_db()
     people = [("owner", config.OWNER_NAME, config.OWNER_LOGIN)] + [
         (f"u{r['id']}", r["name"], r["login"]) for r in db.execute("SELECT id, name, login FROM users")]
+    handles: dict[str, set] = {}
+    for key, name, login in people:
+        for handle in {name.lower(), name.lower().replace(" ", ""), (login or "").lower()} - {""}:
+            handles.setdefault(handle, set()).add(key)
+    # Har bir @ uchun eng uzun mos ism: «@Alisher» — Alisherga, Aliga emas
+    by_len = sorted(handles, key=len, reverse=True)
     low = text.lower()
     hits = set()
-    for key, name, login in people:
-        for handle in {name.lower(), name.lower().replace(" ", ""), (login or "").lower()}:
-            if handle and f"@{handle}" in low and key != author["key"]:
-                hits.add(key)
+    for part in low.split("@")[1:]:
+        best = next((h for h in by_len if part.startswith(h)), None)
+        if best:
+            hits |= handles[best]
+    hits.discard(author["key"])
+    if only is not None:
+        hits &= set(only)
     for key in hits:
         notify(key, f"💬 {author['name']} o'yin chatida sizni eslatdi: {text[:160]}", "/game")
     return len(hits)

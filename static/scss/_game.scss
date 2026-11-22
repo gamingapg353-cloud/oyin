@@ -1621,6 +1621,10 @@ button.hud-online {
   }
 }
 
+.bank-all {
+  margin: 0 0 12px;
+}
+
 .sheet-note--warn {
   color: var(--danger);
   font-weight: 600;
@@ -2600,6 +2604,76 @@ button.hud-online {
 .chat__chan {
   color: #fcd34d;
   font-style: normal;
+}
+
+// Chatda @ — odam tanlash ro'yxati
+.chat__at {
+  color: #7dd3fc;
+  font-weight: 700;
+
+  &.is-me {
+    padding: 0 4px;
+    border-radius: 5px;
+    background: #facc15;
+    color: #1c1917;
+  }
+}
+
+.chat__line.chat__line--me {
+  background: rgba(113, 63, 18, 0.88);
+}
+
+.at-list {
+  position: fixed;
+  z-index: 60;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-solid);
+  box-shadow: var(--shadow);
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+    padding: 4px 10px;
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 14px;
+    cursor: pointer;
+
+    .avatar {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      font-size: 13px;
+    }
+
+    small {
+      margin-left: auto;
+      color: var(--success);
+      font-size: 12px;
+    }
+
+    &:hover,
+    &.is-on {
+      background: var(--primary-soft);
+    }
+  }
+
+  &__name {
+    overflow: hidden;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
 }
 
 .life-h3 {

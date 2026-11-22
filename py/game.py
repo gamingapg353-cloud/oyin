@@ -640,7 +640,7 @@ def plots_list(db) -> list[dict]:
 
 FORGET_HOOKS: list = []  # game_social qo'shadi: hook(db, key)
 SECURITY = lambda user, action: None   # classroom.guard: boshqa qurilmadan xavfli amal
-MENTION = lambda user, text: 0         # classroom.mention: chatdagi @eslatish
+MENTION = lambda user, text, only=None: 0   # classroom.mention: chatdagi @eslatish
 RACE_AREA_KEYS: set = set()  # poygadagilar — trassada yura oladi
 _teleports: dict = {}        # player_key -> (x, y, dir): keyingi sinxronda shu joyga ko'chiriladi
 SYNC_HOOKS: list = []   # game_social qo'shadi: hook(db, key, row, now, response)
@@ -911,7 +911,7 @@ def api_chat():
     with _lock:
         msg["id"] = next(_msg_ids)
         _chat.append(msg)
-    MENTION(user, msg["text"])  # @ism — o'sha odamga bildirishnoma
+    MENTION(user, msg["text"], msg.get("to"))  # @ism — o'sha odamga bildirishnoma
     return jsonify(message=_chat_public(msg))
 
 

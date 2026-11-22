@@ -3825,7 +3825,18 @@ import * as THREE from 'three';
     const who = el('strong', '', m.key === me.key ? 'Siz' : m.name);
     who.style.color = m.key === me.key ? '#93c5fd' : avatarColor(m.name);
     if (m.channel && m.channel !== 'all') line.append(el('em', 'chat__chan', m.channel === 'clan' ? '[Klan] ' : "[Do'st] "));
-    line.append(who, el('span', '', ` ${m.text}`));
+    const said2 = el('span', '', ` ${m.text}`);
+    line.append(who, said2);
+    if (String(m.text).includes('@')) {
+      mentionNames().then((list) => {
+        const toMe = markMentions(said2, ` ${m.text}`, list);
+        if (toMe && m.key !== me.key) {
+          line.classList.add('chat__line--me');
+          if (m.id && Date.now() - bornAt > 6000) sound.ding();
+        }
+        log.scrollTop = log.scrollHeight;
+      });
+    }
     log.append(line);
     while (log.children.length > 40) log.firstChild.remove();
     log.scrollTop = log.scrollHeight;
@@ -3860,11 +3871,136 @@ import * as THREE from 'three';
   $('chat-input').addEventListener('focus', () => { releaseAll(); $('chat').classList.add('is-open'); });
   $('chat-input').addEventListener('blur', () => $('chat').classList.remove('is-open'));
   $('chat-input').addEventListener('keydown', (e) => {
+    if (mentionKey(e)) return;
     if (e.key === 'Escape') {
       e.stopPropagation();
       e.target.blur();
     }
   });
+
+  // --- @ism: ro'yxatdan odam tanlab yozish ---
+  const bornAt = Date.now();
+  const at = { list: null, loadedAt: 0, loading: null, box: null, items: [], on: 0, from: -1, done: -1 };
+  function mentionNames() {
+    if (at.list && Date.now() - at.loadedAt < 30000) return Promise.resolve(at.list);
+    if (!at.loading) {
+      at.loading = api('/api/game/people')
+        .then((d) => { at.list = d.people; at.loadedAt = Date.now(); return at.list; })
+        .catch((err) => { handleAuthError(err); return at.list || []; })
+        .finally(() => { at.loading = null; });
+    }
+    return at.loading;
+  }
+  // Xabardagi @ismlarni rangli qiladi; menga yozilgan bo'lsa true
+  function markMentions(span, text, list) {
+    const people = [...list].sort((a, b) => b.name.length - a.name.length);
+    const low = text.toLowerCase();
+    const parts = [];
+    let last = 0;
+    let mine = false;
+    for (let i = text.indexOf('@'); i >= 0; i = text.indexOf('@', i + 1)) {
+      const p = people.find((x) => low.startsWith(x.name.toLowerCase(), i + 1));
+      if (!p) continue;
+      const end = i + 1 + p.name.length;
+      parts.push(text.slice(last, i), el('b', `chat__at${p.me ? ' is-me' : ''}`, text.slice(i, end)));
+      if (p.me) mine = true;
+      last = end;
+    }
+    if (parts.length) span.replaceChildren(...parts, text.slice(last));
+    return mine;
+  }
+  function mentionHide() {
+    if (at.box) at.box.hidden = true;
+    at.items = [];
+    $('chat-input').removeAttribute('aria-activedescendant');
+  }
+  function mentionMark() {
+    [...at.box.children].forEach((r, i) => {
+      r.classList.toggle('is-on', i === at.on);
+      r.setAttribute('aria-selected', String(i === at.on));
+    });
+    at.box.children[at.on].scrollIntoView({ block: 'nearest' });
+    $('chat-input').setAttribute('aria-activedescendant', `at-${at.on}`);
+  }
+  function mentionFind() { // kursordan oldingi «@so'z»
+    const input = $('chat-input');
+    const before = input.value.slice(0, input.selectionStart);
+    const from = before.lastIndexOf('@');
+    if (from < 0 || (from > 0 && /[\w@]/.test(before[from - 1]))) return null;
+    return { from, word: before.slice(from + 1).toLowerCase() };
+  }
+  async function mentionUpdate() {
+    const input = $('chat-input');
+    if (at.done >= 0 && input.value[at.done] !== '@') at.done = -1;
+    const q = mentionFind();
+    if (!q || q.from === at.done || q.word.length > 40) { mentionHide(); return; }
+    const list = await mentionNames();
+    const now = mentionFind();
+    if (!now || now.from !== q.from || now.word !== q.word || document.activeElement !== input) return;
+    const starts = (n) => n.startsWith(q.word) || n.split(/\s+/).some((w) => w.startsWith(q.word));
+    at.items = list.filter((p) => !p.me && starts(p.name.toLowerCase()))
+      .sort((a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name));
+    if (!at.items.length) { mentionHide(); return; }
+    at.from = q.from;
+    at.on = 0;
+    if (!at.box) {
+      at.box = el('div', 'at-list');
+      at.box.id = 'at-list';
+      at.box.setAttribute('role', 'listbox');
+      at.box.setAttribute('aria-label', 'Kimga yozasiz');
+      at.box.setAttribute('data-no-translate', '');
+      at.box.addEventListener('pointerdown', (e) => e.preventDefault()); // maydon fokusi yo'qolmasin
+      at.box.addEventListener('click', (e) => {
+        const row = e.target.closest('.at-list__row');
+        if (row) { at.on = Number(row.dataset.i); mentionPick(); }
+      });
+      document.body.append(at.box);
+    }
+    at.box.replaceChildren(...at.items.map((p, i) => {
+      const row = el('div', 'at-list__row');
+      row.id = `at-${i}`;
+      row.dataset.i = i;
+      row.setAttribute('role', 'option');
+      row.append(avatarEl(p), el('span', 'at-list__name', p.name), el('small', p.online ? 'is-online' : '', p.online ? "o'yinda" : ''));
+      return row;
+    }));
+    at.box.hidden = false;
+    at.box.scrollTop = 0;
+    mentionMark();
+    const r = $('chat-form').getBoundingClientRect();
+    at.box.style.left = `${Math.max(8, r.left)}px`;
+    at.box.style.width = `${Math.min(r.width, window.innerWidth - 16)}px`;
+    at.box.style.maxHeight = `${Math.max(90, Math.min(264, r.top - 14))}px`;
+    at.box.style.top = `${Math.max(8, r.top - at.box.offsetHeight - 6)}px`;
+  }
+  function mentionPick() {
+    const input = $('chat-input');
+    const p = at.items[at.on];
+    if (!p) return;
+    const pos = input.selectionStart;
+    const head = `${input.value.slice(0, at.from)}@${p.name} `;
+    input.value = (head + input.value.slice(pos).replace(/^\s+/, '')).slice(0, input.maxLength);
+    const to = Math.min(head.length, input.value.length);
+    input.setSelectionRange(to, to);
+    at.done = at.from; // tanlandi — shu @ uchun ro'yxat qayta chiqmaydi
+    mentionHide();
+    input.focus();
+  }
+  function mentionKey(e) {
+    if (!at.items.length || e.isComposing) return false;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      at.on = (at.on + (e.key === 'ArrowDown' ? 1 : at.items.length - 1)) % at.items.length;
+      mentionMark();
+    } else if (e.key === 'Enter' || e.key === 'Tab') mentionPick();
+    else if (e.key === 'Escape') { at.done = at.from; mentionHide(); } else return false;
+    e.preventDefault();
+    e.stopPropagation();
+    return true;
+  }
+  $('chat-input').addEventListener('input', mentionUpdate);
+  $('chat-input').addEventListener('click', mentionUpdate);
+  $('chat-input').addEventListener('blur', mentionHide);
+  $('chat-form').addEventListener('submit', () => { at.done = -1; mentionHide(); });
 
   // ---------------- Mikrofon: bir bosishda yoqiladi, ovoz hammaga jonli eshitiladi ----------------
   // Bepul serverda doimiy ulanish yo'q, shuning uchun ovoz ~1 soniyalik bo'laklarda yuboriladi
@@ -10259,15 +10395,15 @@ import * as THREE from 'three';
     const input = amountInput(st);
     box2.append(el('strong', 'sale__title', 'Summa'), input, amountChips(input, st));
     const actions = el('div', 'bank-actions');
-    const go = (action, done) => async () => {
-      const amount = parseAmount(input.value);
-      if (!amount) {
+    const go = (action, done, all = false) => async () => {
+      const amount = all ? null : parseAmount(input.value);
+      if (!all && !amount) {
         toast('Summani yozing', 'warn');
         input.focus();
         return;
       }
       try {
-        const res = await api('/api/game/bank', { method: 'POST', body: { action, amount } });
+        const res = await api('/api/game/bank', { method: 'POST', body: all ? { action, all } : { action, amount } });
         localVersion += 1;
         st.data = res.bank;
         st.draft = '';
@@ -10287,7 +10423,14 @@ import * as THREE from 'three';
       actionBtn('check', "Qarzni to'lash", go('repay', (a) => `${formatNumber(a)} so'm qarz to'landi`), 'btn btn--ghost'),
     );
     box2.append(actions);
-    body.append(stats, box2);
+    // Tepada: hammasini birdan qo'yish / olish
+    const allRow = el('div', 'bank-actions bank-all');
+    allRow.append(
+      actionBtn('download', "Hammasini qo'yish", go('deposit', (a) => `Hammasi bankka qo'yildi: ${formatNumber(a)} so'm`, true)),
+      actionBtn('upload', 'Hammasini olish', go('withdraw', (a) => `Hammasi bankdan olindi: ${formatNumber(a)} so'm`, true)),
+    );
+    allRow.children[1].disabled = d.bank < 1;
+    body.append(stats, allRow, box2);
     if (d.loan) {
       body.append(el('p', 'sheet-note sheet-note--warn',
         d.loan_left > 0

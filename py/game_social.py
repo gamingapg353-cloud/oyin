@@ -119,18 +119,25 @@ def api_bank_action():
     key = game.player_key(current_user())
     data = request.get_json(silent=True) or {}
     action = data.get("action")
+    every = data.get("all") is True and action in ("deposit", "withdraw")  # «Hammasi» — summani server o'zi hisoblaydi
     amount = _amount(data.get("amount"))
     if action not in ("deposit", "withdraw", "borrow", "repay"):
         return jsonify(error="Noma'lum amal"), 400
-    if amount is None:
+    if amount is None and not every:
         return jsonify(error="Summani yozing (butun son)"), 400
     db = get_db()
     game.ensure_player(db, key)
     done = {}
 
     def change(row, money):
+        nonlocal amount
         now = time.time()
         bank, loan = bank_now(row, now), loan_now(row, now)
+        if every:
+            amount = math.floor(money if action == "deposit" else bank)
+            if amount < 1:
+                raise game.GameError("Hamyonda pul yo'q" if action == "deposit" else "Bankda pul yo'q")
+            done["paid"] = amount
         if action == "deposit":
             if money < amount:
                 raise game.GameError("Pul yetarli emas")
