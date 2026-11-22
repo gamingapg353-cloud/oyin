@@ -1988,7 +1988,7 @@ import * as THREE from 'three';
         emote: p.emote || null, para: Boolean(p.para), ring: Boolean(p.ring), dirt: p.dirt || 0, pet: p.pet || null, boat: Boolean(p.boat),
         act: p.act || null, spoiler: Boolean(p.spoiler), horn: p.horn || null,
       });
-      setRigLooks(o.rig, suitLooks(p.looks, p.spider));
+      setRigLooks(o.rig, p.looks);
     });
     // Mashinadagi yo'lovchilar soni haydovchi ismi yonida: "Jasur (+2)"
     const riders = new Map();
@@ -2537,7 +2537,7 @@ import * as THREE from 'three';
   }
 
   function closeSheet() {
-    if (sheetState && sheetState.kind === 'looks' && me) setRigLooks(me.rig, suitLooks(me.looks, me.spider));
+    if (sheetState && sheetState.kind === 'looks' && me) setRigLooks(me.rig, me.looks);
     sheetState = null;
     clearTimeout(quizTimer);
     sheet.hidden = true;
@@ -6775,7 +6775,8 @@ import * as THREE from 'three';
   // ---------------- O'rgimchak odam ----------------
   // Shaharda kichkina o'rgimchak yashiringan. Topsangiz — chaqadi va siz tomlarga chiqib,
   // to'r otib uchadigan bo'lasiz. Kostyum — qizil va qora.
-  const SPIDER_SUIT = { shirt: '#dc2626', pants: '#111111', skin: '#b91c1c', hat: null };
+  const SPIDER_SUIT = { // faqat tomda uchib yurgan NPC uchun — o'yinchining kiyimi o'zgarmaydi
+    shirt: '#dc2626', pants: '#111111', skin: '#b91c1c', hat: null };
   const WEB_RANGE = 460;
   const WEB_TIME = 0.7;
   let spiderBug = null;
@@ -6783,14 +6784,9 @@ import * as THREE from 'three';
   let zip = null;
   const webLines = new Map();
 
-  function suitLooks(looks, on) {
-    return on ? { ...(looks || {}), ...SPIDER_SUIT } : (looks || {});
-  }
-
   function setSpiderMe(on) {
     if (Boolean(me.spider) === Boolean(on)) return;
     me.spider = Boolean(on);
-    setRigLooks(me.rig, suitLooks(me.looks, me.spider));
     $('btn-web').hidden = !me.spider;
     if (!me.spider) { zip = null; me.web = null; }
   }
@@ -11279,7 +11275,7 @@ import * as THREE from 'three';
       };
       me.rig = makeRig(me.name, me.avatar, true);
       me.looks = {};
-      api('/api/game/looks').then((d) => { me.looks = d.looks; setRigLooks(me.rig, suitLooks(d.looks, me.spider)); }).catch(() => {});
+      api('/api/game/looks').then((d) => { me.looks = d.looks; setRigLooks(me.rig, d.looks); }).catch(() => {});
 
       // Kichik xarita dunyo nisbatida (kesilib qolmasin)
       mini.height = Math.round((mini.width * world.h) / world.w);
