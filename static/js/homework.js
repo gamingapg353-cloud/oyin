@@ -284,7 +284,7 @@
       const result = el('div', 'result');
       if (sub.status === 'checked') result.append(scoreBox(sub));
       const body = el('div', 'result__body');
-      body.append(details(sub), fileChips(sub), window.Oyin.voiceBox(sub));
+      body.append(details(sub), window.Oyin.speakBox(sub), fileChips(sub), window.Oyin.voiceBox(sub));
       result.append(body);
       card.append(result);
       if (sub.status === 'checked') card.append(window.Oyin.peerBox(hw.id));
@@ -308,7 +308,7 @@
     if (sub.copy_score) {
       top.append(el('span', 'badge badge--danger', `⚠ ${sub.copy_score}% o'xshash: ${sub.copy_of}`));
     }
-    row.append(top, details(sub), fileChips(sub), window.Oyin.voiceBox(sub));
+    row.append(top, details(sub), window.Oyin.speakBox(sub), fileChips(sub), window.Oyin.voiceBox(sub));
 
     // Amallar: bahoni qo'lda qo'yish, AI qayta tekshirsin, o'chirish
     const actions = el('div', 'sub__actions');

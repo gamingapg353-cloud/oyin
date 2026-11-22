@@ -211,6 +211,44 @@
     dlg.showModal();
   }
 
+  // ================= AI natijani o'qib beradi (ElevenLabs yoki brauzerning o'zbekcha ovozi) =================
+  const uzVoice = () => ('speechSynthesis' in window ? window.speechSynthesis.getVoices().find((v) => /^uz/i.test(v.lang)) : null);
+  if ('speechSynthesis' in window) window.speechSynthesis.getVoices(); // ro'yxat keyinroq yuklanadi
+  let playing = null;
+  Oyin.speakBox = (sub) => {
+    if (sub.status !== 'checked' || !(sub.feedback || (sub.mistakes && sub.mistakes.length))) return document.createDocumentFragment();
+    if (!APP.tts && !uzVoice()) return document.createDocumentFragment();
+    const w = el('div', 'voice speak');
+    const b = btn("🔊 AI o'qib bersin", 'btn--ghost', go);
+    w.append(b);
+    async function go() {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      b.disabled = true;
+      b.textContent = '🔊 Tayyorlanyapti…';
+      try {
+        const r = await api(`/api/submissions/${sub.id}/speech`, { method: 'POST' });
+        if (r.url) {
+          const a = el('audio', 'voice-player');
+          a.controls = true;
+          a.src = r.url;
+          a.addEventListener('play', () => { if (playing && playing !== a) playing.pause(); playing = a; });
+          w.replaceChildren(a);
+          a.play().catch(() => {});
+          return;
+        }
+        const v = uzVoice();
+        if (!v) throw new Error("Ustoz hali ovoz kalitini qo'ymagan");
+        const u = new SpeechSynthesisUtterance(r.text);
+        u.voice = v;
+        u.lang = v.lang;
+        window.speechSynthesis.speak(u);
+      } catch (err) { fail(err); }
+      b.disabled = false;
+      b.textContent = "🔊 AI o'qib bersin";
+    }
+    return w;
+  };
+
   // ================= 13. Ovozli izoh =================
   function player(subId) {
     const a = el('audio', 'voice-player');
@@ -325,6 +363,50 @@
     };
     root.append(c);
     try { draw(await api('/api/telegram')); } catch (err) { handleAuthError(err); }
+    // ElevenLabs: uy vazifa natijasini o'qib berish
+    const v = card("AI ovozi (ElevenLabs): uy vazifa natijasini o'qib beradi", 'volume');
+    const drawV = (d) => {
+      [...v.children].slice(1).forEach((x) => x.remove());
+      const key = el('input', 'input-plain');
+      key.type = 'password';
+      key.autocomplete = 'off';
+      key.placeholder = d.connected ? "Yangi kalit (almashtirish uchun)" : 'ElevenLabs API kaliti';
+      const save = (body, b) => {
+        b.disabled = true;
+        const old = b.textContent;
+        b.textContent = 'Sinab ko\'rilyapti…';
+        api('/api/tts', { method: 'POST', body }).then((r) => { drawV(r); new Audio(r.audio).play().catch(() => {}); APP.tts = true; }).catch((err) => { b.disabled = false; b.textContent = old; fail(err); });
+      };
+      if (!d.connected) {
+        const ol = el('ol', 'muted steps');
+        ['elevenlabs.io saytida hisob oching', 'Developers → API Keys → Create key («Text to Speech» ruxsati bilan)', "Kalitni pastga qo'ying va «Saqlash»ni bosing — darhol bitta gap o'qib beradi"].forEach((t) => ol.append(el('li', '', t)));
+        v.append(ol, key, btn('Saqlash', 'btn--primary', (e) => save({ key: key.value }, e.target)));
+        return;
+      }
+      v.append(el('p', '', `✅ Ulangan${d.env ? ' (.env faylidan)' : ''}. O'quvchi uy vazifasida «🔊 AI o'qib bersin» tugmasini ko'radi.`));
+      if (d.usage) v.append(el('p', 'muted', `Bu oy ishlatildi: ${formatNumber(d.usage.used)} / ${formatNumber(d.usage.limit)} belgi`));
+      v.append(el('p', 'muted', `Har natija bir marta o'qiladi va saqlanadi — qayta tinglash limitni yemaydi. O'quvchi kuniga ${d.per_day} ta yangi natija o'qitadi.`));
+      let pick;
+      if (d.voices.length) {
+        pick = el('select', 'input-plain');
+        d.voices.forEach((x) => pick.append(new Option(x.name, x.id)));
+        if (!d.voices.some((x) => x.id === d.voice)) pick.append(new Option('Hozirgi ovoz', d.voice));
+      } else {
+        pick = el('input', 'input-plain');
+        pick.placeholder = 'Voice ID';
+      }
+      pick.value = d.voice;
+      v.append(el('h3', 'deco-h', 'Ovoz'), pick, btn("Shu ovozni saqlash va eshitib ko'rish", 'btn--primary', (e) => save({ voice: pick.value }, e.target)));
+      if (!d.env) {
+        v.append(el('h3', 'deco-h', 'Kalit'), key);
+        const line = el('div', 'btn-line');
+        line.append(btn('Kalitni almashtirish', 'btn--ghost', (e) => save({ key: key.value }, e.target)),
+          btn("Kalitni o'chirish", 'btn--ghost', () => window.confirm("Kalit o'chirilsinmi?") && api('/api/tts', { method: 'DELETE' }).then((r) => { APP.tts = false; drawV(r); }).catch(fail)));
+        v.append(line);
+      }
+    };
+    root.append(v);
+    api('/api/tts').then(drawV).catch(handleAuthError);
     const p = card('Baho berish', 'star');
     const l = el('label', 'pick');
     const cb = el('input', '');

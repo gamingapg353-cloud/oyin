@@ -36,6 +36,8 @@ def remove_files(sub_ids) -> None:
     import portal
     sub_ids = list(sub_ids)
     portal.drop_voice(sub_ids)
+    import tts
+    tts.drop(sub_ids)
     for sub_id in sub_ids:
         shutil.rmtree(submission_dir(sub_id), ignore_errors=True)
 

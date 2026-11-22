@@ -31,6 +31,7 @@ import game_fun
 import game_trade
 import learn
 import portal
+import tts
 import classroom
 import school
 import homework
@@ -89,6 +90,7 @@ app.register_blueprint(game_city.bp)
 app.register_blueprint(game_town.bp)
 app.register_blueprint(learn.bp)
 app.register_blueprint(portal.bp)
+app.register_blueprint(tts.bp)
 app.register_blueprint(game_trade.bp)
 app.after_request(portal.after_request)
 
@@ -149,6 +151,7 @@ def panel():
         min_score=config.HOMEWORK_MIN_SCORE,
         accept=",".join(ai_check.ACCEPT),
         deco=portal.deco_map(get_db(), True).get(user["key"]),
+        tts_on=tts.enabled(),
     )
 
 
