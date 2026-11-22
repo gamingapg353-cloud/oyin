@@ -172,6 +172,9 @@
   <button type="button" class="prompt" id="prompt" hidden>
     <kbd>F</kbd><span id="prompt-text"></span>
   </button>
+  <button type="button" class="prompt prompt--plot" id="prompt-plot" hidden>
+    <kbd>R</kbd><span id="prompt-plot-text"></span>
+  </button>
 
   <!-- Amallar -->
   <div class="hud-actions">
@@ -198,7 +201,7 @@
     <button type="button" class="dpad__btn dpad__btn--down" data-dir="down" tabindex="-1">{{ icon('chevron-down', 28) }}</button>
   </div>
 
-  <p class="hud-hint" id="hint">WASD — yurish · Probel — sakrash (Teslada — uchish) · E — mashina · F — yer/yo'lovchi · H — signal · M — katta xarita · Enter — chat · V — mikrofon (yoqish/o'chirish) · sichqoncha — kamera · Shift / DRIFT — drift (yomg'ir va qorda oson) · G — raqs · P — parashyut · Menyu — hammasi</p>
+  <p class="hud-hint" id="hint">WASD — yurish · Probel — sakrash (Teslada — uchish) · E — mashina · F — yer/yo'lovchi · R — yondagi uy · H — signal · M — katta xarita · Enter — chat · V — mikrofon (yoqish/o'chirish) · sichqoncha — kamera · Shift / DRIFT — drift (yomg'ir va qorda oson) · G — raqs · P — parashyut · Menyu — hammasi</p>
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
   <div class="conn" id="conn" role="alert" hidden>{{ icon('alert', 18) }} Server bilan aloqa uzildi… qayta ulanmoqda</div>
   <div class="loading" id="loading">{{ icon('gamepad', 34) }}<span>Mahalla yuklanmoqda…</span></div>

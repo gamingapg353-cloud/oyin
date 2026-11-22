@@ -4139,6 +4139,10 @@ button.user-chip:hover, button.user-chip[aria-expanded="true"] {
   white-space: nowrap;
 }
 
+.prompt--plot.prompt--plot {
+  bottom: 150px;
+}
+
 .prompt {
   position: absolute;
   bottom: 92px;

@@ -1284,7 +1284,7 @@ def api_list_plot(plot_id: int):
     if blocked:
         return blocked
     if isinstance(price, bool) or not isinstance(price, int) or not MIN_SALE_PRICE <= price <= MAX_SALE_PRICE:
-        return jsonify(error=f"Narx {MIN_SALE_PRICE:,} so'mdan kam bo'lmasin".replace(",", " ")), 400
+        return jsonify(error=f"Narx {MIN_SALE_PRICE:,} dan {MAX_SALE_PRICE:,} so'mgacha bo'lsin".replace(",", " ")), 400
     db, key, err = _listing_plot(plot_id)
     if err:
         return err

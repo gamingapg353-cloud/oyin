@@ -2041,7 +2041,17 @@ import * as THREE from 'three';
     economyAt = Date.now();
     if (me && me.car && !economy.cars.includes(me.car) && !(me.car === 'bike' && me.rentBike)) me.car = null;
     updateRideButton();
-    if (sheetState && sheetSignature() !== sheetSig) renderSheet();
+    if (sheetState && sheetSignature() !== sheetSig) {
+      // Narx yozilayotgan bo'lsa — qayta chizilgandan keyin ham yozish davom etadi
+      const typing = document.activeElement;
+      const keep = typing && typing.matches('#sheet-body .sale__row .input') ? [typing.selectionStart, typing.selectionEnd] : null;
+      renderSheet();
+      const again = keep && $('sheet-body').querySelector('.sale__row .input');
+      if (again) {
+        again.focus();
+        again.setSelectionRange(...keep);
+      }
+    }
   }
 
   function bestCar() {
@@ -2406,6 +2416,7 @@ import * as THREE from 'three';
 
   // ---------------- Yaqin joy va bosish ----------------
   let nearTarget = null;
+  let nearPlot = null; // yaqindagi uy (F boshqa ishga band bo'lsa — R bilan ochiladi)
   let lastNearCheck = 0;
   function nearShop() {
     const d = world.shop.door;
@@ -2423,10 +2434,13 @@ import * as THREE from 'three';
     }
     if (me.seat) {
       nearTarget = null;
+      nearPlot = null;
       $('prompt').hidden = true;
+      $('prompt-plot').hidden = true;
       return;
     }
     let best = null;
+    nearPlot = me.sit || (me.h >= 40 && !me.spider) ? null : nearestPlot();
     if (me.sit) best = { kind: 'stand', d: 0 };
     if (!best && !me.car && me.h < 20) {
       const nb = nearestBench();
@@ -2457,13 +2471,13 @@ import * as THREE from 'three';
       const door = world.shop.door;
       const dShop = Math.hypot(door.x - me.x, door.y - me.y);
       if (dShop < 140) best = { kind: 'shop', d: dShop };
-      world.plots.forEach((p) => {
-        const gate = { x: p.x + p.w / 2, y: p.gate === 'bottom' ? p.y + p.h : p.y };
-        const d = Math.min(Math.hypot(gate.x - me.x, gate.y - me.y), Math.hypot(p.x + p.w / 2 - me.x, p.y + p.h / 2 - me.y));
-        if (d < 120 && (!best || d < best.d)) best = { kind: 'plot', id: p.id, d };
-      });
     }
+    if ((!best || best.kind === 'bench' || best.kind === 'shop') && nearPlot && (!best || nearPlot.d < best.d)) best = nearPlot;
     nearTarget = best;
+    if (best === nearPlot) nearPlot = null; // F ning o'zi uyni ochadi
+    const prompt2 = $('prompt-plot');
+    prompt2.hidden = !nearPlot || Boolean(sheetState);
+    if (nearPlot) $('prompt-plot-text').textContent = plotPrompt(nearPlot.id);
     const prompt = $('prompt');
     if (!best || sheetState) {
       prompt.hidden = true;
@@ -2484,14 +2498,32 @@ import * as THREE from 'three';
       const p = passengers.get(best.id);
       text = `Yo'lovchini olish — ${formatNumber(p.fare * carInfo().fare)} so'm`;
     } else if (best.kind === 'plot') {
-      const r = plotsById.get(best.id);
-      if (!r) text = `${plotTitle(best.id)} — sotuvda`;
-      else if (r.owner === me.key) text = r.level ? `${bName(r.kind, r.variant)} · ${r.level} qavat` : `${plotTitle(best.id)} — nima quramiz?`;
-      else text = `${r.name}: ${r.level ? `${bName(r.kind, r.variant)} · ${r.level} qavat` : "bo'sh yer"}`
-        + (r.price ? ` — sotuvda ${formatNumber(r.price)} so'm` : '');
+      text = plotPrompt(best.id);
     }
     $('prompt-text').textContent = text;
     prompt.hidden = false;
+  }
+
+  // Yaqindagi uy/yer (darvozasi yoki o'rtasi bo'yicha eng yaqini)
+  function nearestPlot() {
+    let best = null;
+    world.plots.forEach((p) => {
+      const gate = { x: p.x + p.w / 2, y: p.gate === 'bottom' ? p.y + p.h : p.y };
+      const d = Math.min(Math.hypot(gate.x - me.x, gate.y - me.y), Math.hypot(p.x + p.w / 2 - me.x, p.y + p.h / 2 - me.y));
+      if (d < 120 && (!best || d < best.d)) best = { kind: 'plot', id: p.id, d };
+    });
+    return best;
+  }
+  function plotPrompt(id) {
+    const r = plotsById.get(id);
+    if (!r) return `${plotTitle(id)} — sotuvda`;
+    if (r.owner === me.key) return r.level ? `${bName(r.kind, r.variant)} · ${r.level} qavat` : `${plotTitle(id)} — nima quramiz?`;
+    return `${r.name}: ${r.level ? `${bName(r.kind, r.variant)} · ${r.level} qavat` : "bo'sh yer"}`
+      + (r.price ? ` — sotuvda ${formatNumber(r.price)} so'm` : '');
+  }
+  function openNearPlot() {
+    if (!nearPlot || room.on || sheetState) return;
+    openSheet({ kind: 'plot', id: nearPlot.id });
   }
 
   function interact() {
@@ -2533,6 +2565,7 @@ import * as THREE from 'three';
     sheet.hidden = false;
     sheetBackdrop.hidden = false;
     $('prompt').hidden = true;
+    $('prompt-plot').hidden = true;
     $('sheet-close').focus();
   }
 
@@ -2563,7 +2596,7 @@ import * as THREE from 'three';
     const prices = [catalog.land_price, ...catalog.buildings.map((b) => b.first.price),
       ...catalog.cars.map((c) => c.price), ...economy.plots.map((p) => p.next_price || 0)];
     const rec = sheetState.kind === 'plot' ? plotsById.get(sheetState.id) : null;
-    return [JSON.stringify(sheetState), JSON.stringify(economy.plots), economy.cars.join(), me.car,
+    return [JSON.stringify({ ...sheetState, draftPrice: '' }), JSON.stringify(economy.plots), economy.cars.join(), me.car,
       sheetState.kind === 'shop' ? nearShop() : '', rec ? `${rec.owner}|${rec.kind}|${rec.level}|${rec.price}` : '-',
       rec && rec.price ? m >= rec.price : '',
       ...prices.map((p) => m >= p)].join('|');
@@ -2727,6 +2760,7 @@ import * as THREE from 'three';
 
     const own = economy.plots.find((p) => p.plot === id);
     const title = rec.home ? 'Ota hovli' : plotTitle(id);
+    if (rec.home) body.append(actionBtn('home', "Hovli: bog', uyqu, mehmon 🏡", () => openTw('home'), 'btn btn--ghost btn--block'));
     if (!rec.level) {
       setHead('hammer', `${title} — nima quramiz?`, `Bino turini tanlang: har birining qavat chegarasi bor.`);
       // Tanlangan turning 4 ta varianti (bosilgan kartaning darhol tagida chiqadi)
@@ -3589,6 +3623,7 @@ import * as THREE from 'three';
   $('btn-horn').addEventListener('click', honk);
   $('btn-yandex').addEventListener('click', toggleTaxi);
   $('prompt').addEventListener('click', interact);
+  $('prompt-plot').addEventListener('click', openNearPlot);
   $('taxi-cancel').addEventListener('click', cancelCard);
   $('sheet-close').addEventListener('click', closeSheet);
   sheetBackdrop.addEventListener('click', closeSheet);
@@ -3695,6 +3730,8 @@ import * as THREE from 'three';
       toggleRide();
     } else if (e.code === 'KeyF' || ch === 'f' || ch === 'а') {
       interact();
+    } else if (e.code === 'KeyR' || ch === 'r' || ch === 'к') {
+      openNearPlot();
     } else if (e.code === 'KeyH' || ch === 'h' || ch === 'р') {
       honk();
     } else if (e.code === 'KeyM' || ch === 'm' || ch === 'ь') {
@@ -8485,8 +8522,6 @@ import * as THREE from 'three';
     if (twNear(S.sub, 160)) return { kind: 'fun', d: 1, text: '🚢 Suv osti kemasi — marvarid yig\'ish', act: () => openTw('play', { game: 'sub' }) };
     if (twNear(S.coconut, 150)) return { kind: 'fun', d: 1, text: '🥥 Palma — kokos va sandiq', act: () => twPost('/api/game/island/coconut', {}, (d) => { sound.cash(); toast(d.text, 'success'); }) };
     for (const s of T.clan_slots) if (twNear(s.door, 80)) return { kind: 'fun', d: 1, text: '🏰 Klan uyi — kunlik bonus', act: () => twPost('/api/game/clanhouse/bonus', {}, (d) => { sound.cash(); toast(`Klan bonusi: +${formatNumber(d.pay)} so'm`, 'success'); }) };
-    const hg = homeGate();
-    if (hg && twNear(hg, 120)) return { kind: 'fun', d: 2, text: "🏡 Hovli: bog', uyqu, mehmon", act: () => openTw('home') };
     return null;
   }
 
@@ -8771,6 +8806,7 @@ import * as THREE from 'three';
     home(body, st) {
       setHead('home', "🏡 Hovli", "Bog', uyqu, mehmon va sandiqlar");
       const d = st.data;
+      if (plotsById.has(economy.home)) body.append(actionBtn('store', "Uyni ochish: qavat qo'shish, sotish 🏠", () => openSheet({ kind: 'plot', id: economy.home }), 'btn btn--ghost btn--block'));
       body.append(actionBtn('star', 'Uxlash 😴 (kuniga bonus)', () => {
         twPost('/api/game/sleep', {}, (x) => {
           closeSheet();
