@@ -56,12 +56,13 @@ def speakable(text: str) -> str:
     """«<p>» -> «p tegi», «margin-left: 999px» -> «margin left, 999 piksel»."""
     s = str(text or "").replace("ʻ", "'").replace("‘", "'").replace("’", "'").replace("`", "'").replace("ʼ", "'")
     s = re.sub(r"['\"]([a-z-]+)\s*:\s*([^'\";]+);?['\"]", r" \1 \2 ", s)               # 'display: flex'
-    s = re.sub(r"(^|[\s(])\.([a-zA-Z][\w-]*)(?=[\s,;.)])", r"\1\2 klassi", s)           # .img-left
+    s = re.sub(r"\(?\bline\s+(\d+)\)?", r" \1 qator", s, flags=re.I)
+    s = re.sub(r"(^|[\s('\"])\.([a-zA-Z][\w-]*)(?=[\s,;.)'\"]|$)", r"\1\2 klassi", s)           # .img-left
     s = re.sub(r"(^|[\s(])#([a-zA-Z][\w-]*)(\s+id(si)?\b)?", r"\1\2 id", s)             # #menu
     s = re.sub(r"</\s*([a-zA-Z][\w-]*)\s*>", r" yopuvchi \1 tegi ", s)
     s = re.sub(r"<\s*([a-zA-Z][\w-]*)[^<>]*>", r" \1 tegi ", s)
     s = re.sub(r"\b(yopuvchi|yopiluvchi)\s+yopuvchi\b", r"\1", s)
-    s = re.sub(r"\btegi['\"]?\s+teg(i|lari|lar|ini|idan|ida)?\b", lambda m: "teg" + (m.group(1) or "i"), s)
+    s = re.sub(r"\btegi\s*['\"]?\s+teg(i|lari|lar|ini|idan|ida)?\b", lambda m: "teg" + (m.group(1) or "i"), s)
     s = re.sub(r"(\d+)\s*[–—-]\s*(qator|satr)", r"\1 \2", s)
     s = re.sub(r"(\d+(?:\.\d+)?)\s*(px|%|rem|em|vh|vw)(?![a-zA-Z])", lambda m: f"{m.group(1)} {UNITS[m.group(2)]}", s)
     # xossa: qiymat; -> vergul bilan; fayl nomlari

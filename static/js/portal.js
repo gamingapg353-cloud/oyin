@@ -217,7 +217,6 @@
   let playing = null;
   Oyin.speakBox = (sub) => {
     if (sub.status !== 'checked' || !(sub.feedback || (sub.mistakes && sub.mistakes.length))) return document.createDocumentFragment();
-    if (!APP.tts && !uzVoice()) return document.createDocumentFragment();
     const w = el('div', 'voice speak');
     const b = btn("🔊 AI o'qib bersin", 'btn--ghost', go);
     w.append(b);
@@ -237,7 +236,7 @@
           return;
         }
         const v = uzVoice();
-        if (!v) throw new Error("Ustoz hali ovoz kalitini qo'ymagan");
+        if (!v) throw new Error(isOwner ? "Avval Sozlamalar → «AI ovozi (ElevenLabs)» ga kalitni qo'ying" : "Ovoz hali yoqilmagan — ustozga ayting");
         const u = new SpeechSynthesisUtterance(r.text);
         u.voice = v;
         u.lang = v.lang;
