@@ -2799,6 +2799,10 @@ button.hud-online {
   text-overflow: ellipsis;
   transform: translateX(-50%);
   pointer-events: none;
+
+  &:empty {
+    display: none;
+  }
 }
 
 .tw-big {

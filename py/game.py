@@ -259,8 +259,8 @@ TRACK["rect"] = {"x": TRACK["cx"] - TRACK["half"] - TRACK["r"] - 140, "y": TRACK
 RIVER = {"rect": {"x": 0, "y": 3740, "w": 1300, "h": 700},
          "water": {"x": 0, "y": 4000, "w": 1300, "h": 150},
          "bridge": {"x": 560, "y": 3985, "w": 120, "h": 180}}
-# Labirint: shimoli-g'arbdagi o'rmonda (game_city.MAZE bilan bir xil)
-MAZE_RECT = {"x": 100, "y": -1250, "w": 1200, "h": 1190}
+# Labirint: shimoli-g'arbdagi o'rmonda. Yurish maydoni — game_city.MAZE["rect"] + shahar bilan ulaydigan kirish yo'lagi
+MAZE_RECT = {"x": 100, "y": -1250, "w": 1200, "h": 1350}
 EXTRA_AREAS: list[dict] = []     # game_town: bog', tog', plyaj, orol
 RENTALS: dict[str, tuple] = {}     # game_town: ijaraga olingan transport (mashina, tugash vaqti)
 # Kosmodrom: aeroportning janubida — Oyga sayohat

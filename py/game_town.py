@@ -3,7 +3,7 @@ plyaj, g'or, tungi bozor, attraksionlar), mini-o'yinlar (shaxmat, domino, bilim 
 xazina xaritasi, matematik poyga, o'yinlar markazi), ijtimoiy (do'stga teleport, harakatlar,
 mahalla yig'ini, ustoz, klan uyi, hududlar, reyting taxtasi, shikoyat), dars bilan bog'liq
 (sandiq, davomat x2, inglizcha so'zlar, kod topshiriqlari, owner boss, haykal, kitob sertifikati,
-imtihon kuni) va transport (velosiped ijarasi, vertolyot, kosmos, tuning, ochko tikish, benzin).
+imtihon kuni) va transport (velosiped ijarasi, vertolyot, kosmos, tuning, ochko tikish).
 """
 import json
 import math
@@ -73,9 +73,9 @@ def _online(key: str, now: float | None = None):
 
 
 # --------------------------------------------------------------------------- #
-#  O'yinchining qo'shimcha holati (energiya, kuch, benzin, ...) — bitta JSON
+#  O'yinchining qo'shimcha holati (ochko, hovli, bezaklar, ...) — bitta JSON
 # --------------------------------------------------------------------------- #
-DEFAULTS = {"energy": 100, "strength": 0, "fuel": 100, "points": 0, "garden": [], "decor": [], "certs": [],
+DEFAULTS = {"energy": 100, "strength": 0, "points": 0, "garden": [], "decor": [], "certs": [],
             "chests": 0, "kit": {}, "mentor": None, "moon_seen": 0, "base": 0, "mars": 0, "hurt": 0}
 
 
@@ -136,7 +136,6 @@ SPOTS = {
     "kopkari_goal": {"x": -850, "y": 2700},
 }
 KOPKARI = {"x": -1300, "y": 2450, "w": 900, "h": 500}
-FUEL = [{"x": 6800, "y": 2150}, {"x": -150, "y": 700}, {"x": 5560, "y": 3850}, {"x": -150, "y": 2600}]
 BIKES = [{"x": -150, "y": 400}, {"x": 5700, "y": 3850}]
 CLAN_SLOTS = [{"id": i, "x": -1350 + i * 165, "y": 2190, "w": 130, "h": 100, "door": {"x": -1285 + i * 165, "y": 2310}} for i in range(8)]
 ZONES = {"park": {"x": -700, "y": -100, "name": "Istirohat bog'i"},
@@ -152,7 +151,7 @@ game.CARS_BY_ID["heli"] = game.CARS[[c["id"] for c in game.CARS].index("heli")]
 
 game.WORLD_DATA.update(
     town={"park": PARK, "mount": MOUNT, "beach": BEACH, "sea": BEACH_SEA, "island": ISLAND,
-          "places": TOWN_PLACES, "spots": SPOTS, "kopkari": KOPKARI, "fuel": FUEL, "bikes": BIKES, "clan_slots": CLAN_SLOTS,
+          "places": TOWN_PLACES, "spots": SPOTS, "kopkari": KOPKARI, "bikes": BIKES, "clan_slots": CLAN_SLOTS,
           "zones": ZONES},
     cpraces={k: {"name": v["name"], "points": v["points"]} for k, v in gc.CPRACES.items()},
 )
@@ -581,7 +580,7 @@ def api_ride():
 def api_me2():
     key = _me()
     d = tget(get_db(), key)
-    return jsonify(energy=d["energy"], strength=d["strength"], fuel=round(d["fuel"], 1), points=d["points"], certs=d["certs"],
+    return jsonify(energy=d["energy"], strength=d["strength"], points=d["points"], certs=d["certs"],
                    decor=d["decor"], base=d["base"], mars=d["mars"], kit=d["kit"])
 
 
@@ -2367,40 +2366,6 @@ def _settle_bets(db) -> None:
                 gs._notify(k, f"🎯 Tikkan ochkongiz yutdi! +{2 * amount} ochko")
 
 
-# ---- Benzin ----
-FUEL_PRICE = 40      # 1% uchun
-
-
-@bp.post("/api/game/fuel")
-@login_required
-def api_fuel():
-    key = _me()
-    v = (request.get_json(silent=True) or {}).get("fuel")
-    if not isinstance(v, (int, float)) or isinstance(v, bool) or not math.isfinite(v):
-        return _err("?")
-    d = tupdate(get_db(), key, lambda d: d.update(fuel=max(0.0, min(d["fuel"], float(v)))))
-    return jsonify(fuel=round(d["fuel"], 1))
-
-
-@bp.post("/api/game/fuel/fill")
-@login_required
-def api_fuel_fill():
-    key = _me()
-    if not any(_near_pt(key, f, 150) for f in FUEL):
-        return _err("Yoqilg'i quyish shoxobchasiga boring ⛽")
-    db = get_db()
-    d = tget(db, key)
-    need = 100 - d["fuel"]
-    if need < 1:
-        return _err("Bak to'la ⛽")
-    price = math.ceil(need) * FUEL_PRICE
-    err = _spend(db, key, price, "Benzin")
-    if err:
-        return err
-    tupdate(db, key, lambda d: d.update(fuel=100.0))
-    return jsonify(fuel=100, price=price, economy=_econ(db, key))
-
-
 # =========================================================================== #
 #  Sinxron
 # =========================================================================== #
@@ -2412,7 +2377,7 @@ def _town_hook(db, key: str, row, now: float, response: dict) -> None:
     _last_seen[key] = now
     d = tget(db, key)
     me = _online(key, now)
-    response["town"] = {"fuel": round(d["fuel"], 1), "x2": attended_today(db, key),
+    response["town"] = {"x2": attended_today(db, key),
                         "rent": max(0, round(game.RENTALS.get(key, (None, 0))[1] - now)), "kit": d["kit"]}
     # boshqa o'yinchilarning harakatlari, spoyler va signali
     for p in response.get("players", []):

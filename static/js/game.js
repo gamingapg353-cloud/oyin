@@ -1413,7 +1413,7 @@ import * as THREE from 'three';
     const onAqua = ([x, y]) => QR && x > QR.x - 60 && x < QR.x + QR.w + 60 && y > QR.y - 60 && y < QR.y + QR.h + 60;
     const inR = (r, [x, y]) => r && x > r.x - 60 && x < r.x + r.w + 60 && y > r.y - 60 && y < r.y + r.h + 60;
     const onZooPort = (sp) => inR(world.zoo && world.zoo.rect, sp) || inR(world.port && world.port.rect, sp)
-      || inR(world.river && world.river.rect, sp) || inR(world.maze && world.maze.rect, sp) || inR(world.craft, sp) || townAreas().some((r) => inR(r, sp)) || (world.rocket && Math.hypot(sp[0] - world.rocket.x, sp[1] - world.rocket.y) < 160);
+      || inR(world.river && world.river.rect, sp) || inR(world.maze && world.maze.area, sp) || inR(world.craft, sp) || townAreas().some((r) => inR(r, sp)) || (world.rocket && Math.hypot(sp[0] - world.rocket.x, sp[1] - world.rocket.y) < 160);
     const groups = [spots.filter((sp) => !onTrack(sp) && !onAirport(sp) && !onAqua(sp) && !onZooPort(sp)), spots.filter((sp) => onTrack(sp) && !onAirport(sp))];
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -1686,7 +1686,7 @@ import * as THREE from 'three';
     if (trackOn()) return [world.track.rect];
     if (me && me.boat) return [world.port.sea]; // qayiqda — faqat dengizda
     return [{ x: 0, y: 0, w: world.w, h: world.h }, world.airport.rect, world.aqua.rect, world.zoo.rect, world.port.rect,
-      ...(world.river ? [world.river.rect] : []), ...(world.maze ? [world.maze.rect] : []), ...(world.craft ? [world.craft] : []), ...townAreas()];
+      ...(world.river ? [world.river.rect] : []), ...(world.maze ? [world.maze.area] : []), ...(world.craft ? [world.craft] : []), ...townAreas()];
   }
   function area() {
     return areas()[0];
@@ -2260,7 +2260,7 @@ import * as THREE from 'three';
       dx /= len;
       dz /= len;
       const speed = walkSpeed * (car ? car.speed * tuneSpeed(me.car) : 1) * (car && drifting() ? 1.08 : 1)
-        * (!car && inPool(me.x, me.y) ? 0.55 : 1) * (me.para ? 1.3 : 1) * (me.boat ? 2 : 1) * townSpeed(car);
+        * (!car && inPool(me.x, me.y) ? 0.55 : 1) * (me.para ? 1.3 : 1) * (me.boat ? 2 : 1);
       wantX = dx * speed;
       wantZ = dz * speed;
       me.dir = Math.atan2(dz, dx);
@@ -7941,16 +7941,15 @@ import * as THREE from 'three';
   //  uy hayoti, mini-o'yinlar, ijtimoiy, dars bilan bog'liq va transport yangiliklari
   // =====================================================================
   const town = {
-    me: { energy: 100, strength: 0, fuel: 100, hurt: false, jail: 0, x2: false, rent: 0, kit: {} },
+    me: { energy: 100, strength: 0, hurt: false, jail: 0, x2: false, rent: 0, kit: {} },
     state: null, wheel: null, carousel: null, words: new Map(), boss: null, bossView: null, uloq: null, uloqView: null,
     castles: '', castleViews: [], zoneViews: new Map(), houseViews: [], houseSig: '', decorViews: [], decorSig: '',
-    statueView: null, statueSig: '', boardView: null, boardSig: '', cam: null, fallTop: 0, fuelSent: 100, fuelAt: 0,
+    statueView: null, statueSig: '', boardView: null, boardSig: '', cam: null, fallTop: 0,
     honks: new Map(), hunt: null, tableSeen: 0, invSeen: '', tug: null, tugTaps: 0, gardenViews: [], heliRotors: [],
     zone: null, lastTown: 0, rentWarned: false, wasX2: null,
   };
   const TW = () => world.town;
   const twNear = (pt, r) => pt && Math.hypot(pt.x - me.x, pt.y - me.y) < r;
-  const FREE_FUEL = ['bike', 'skate', 'horse', 'carpet'];
   const CLUE_IDS = ['cave', 'nightmarket', 'bank', 'clock', 'icecream', 'cinema', 'post', 'pizza', 'wash', 'court', 'stage'];
 
   function twBuilding(id, r) {
@@ -8083,11 +8082,7 @@ import * as THREE from 'three';
     }
     scene.add(box(40, 24, 26, mat('#a16207'), S.coconut.x, 12, S.coconut.y), box(42, 6, 28, mat('#facc15', { metalness: 0.6 }), S.coconut.x, 26, S.coconut.y));
     scene.add(placeSign("🏝️ OROL · 🛫 aeroportga qaytish", 260, 30, '#0369a1', S.island_land.x, 60, S.island_land.y - 60));
-    // Yoqilg'i shoxobchalari va velosiped ijarasi
-    T.fuel.forEach((f) => {
-      scene.add(box(120, 6, 70, mat('#f8fafc'), f.x, 60, f.y), box(6, 60, 6, mat('#e5e7eb'), f.x - 50, 30, f.y), box(6, 60, 6, mat('#e5e7eb'), f.x + 50, 30, f.y),
-        box(14, 30, 10, mat('#dc2626'), f.x - 20, 15, f.y), box(14, 30, 10, mat('#16a34a'), f.x + 20, 15, f.y), placeSign('⛽ BENZIN', 100, 22, '#dc2626', f.x, 78, f.y + 36));
-    });
+    // Velosiped ijarasi
     T.bikes.forEach((b) => {
       scene.add(box(70, 4, 20, mat('#64748b'), b.x, 12, b.y), placeSign('🚲 IJARA', 70, 20, '#16a34a', b.x, 40, b.y));
       [-20, 0, 20].forEach((dx) => scene.add(box(3, 18, 22, mat('#16a34a'), b.x + dx, 9, b.y + 4)));
@@ -8246,9 +8241,7 @@ import * as THREE from 'three';
       const t = data.town;
       if (town.wasX2 === null && t.x2) toast("📚 Bugun darsga keldingiz — binolar daromadi x2! 🎉", 'success');
       town.wasX2 = t.x2;
-      if (fresh) town.me.fuel = Math.min(town.me.fuel, t.fuel);
       Object.assign(town.me, { x2: t.x2, rent: t.rent, kit: t.kit || {} });
-      if (fresh && !town.fuelInit) { town.me.fuel = t.fuel; town.fuelSent = t.fuel; town.fuelInit = true; }
       if (!t.rent && town.hadRent) me.rentBike = false;
       if (me.car === 'bike' && !economy.cars.includes('bike') && !t.rent && town.hadRent) {
         me.car = null;
@@ -8379,29 +8372,8 @@ import * as THREE from 'three';
       const u = rig && rig.car && rig.car.userData;
       if (u && u.rotor) u.rotor.rotation.y += dt * 30;
     });
-    // benzin
-    const car = carInfo();
-    if (car && !FREE_FUEL.includes(car.style) && !FREE_FUEL.includes(car.id) && me.moving !== false) {
-      const sp = Math.hypot(me.vx || 0, me.vz || 0);
-      if (sp > 5) {
-        const before = town.me.fuel;
-        town.me.fuel = Math.max(0, town.me.fuel - (sp * dt) / 420);
-        if (before > 15 && town.me.fuel <= 15) toast("⛽ Benzin kam qoldi! Eng yaqin shoxobcha: Menyu → Yangi shahar → Benzin", 'warn');
-        if (before > 0 && town.me.fuel <= 0) toast("⛽ Benzin tugadi! Mashina juda sekin yuradi — shoxobchaga boring", 'warn');
-      }
-    }
-    if (now - town.fuelAt > 15000 && Math.abs(town.fuelSent - town.me.fuel) > 0.5) {
-      town.fuelAt = now;
-      town.fuelSent = town.me.fuel;
-      api('/api/game/fuel', { method: 'POST', body: { fuel: Math.round(town.me.fuel * 10) / 10 } }).catch(() => {});
-    }
     if (now - town.lastTown > 60000) { town.lastTown = now; loadTown(); }
     updateTownHud();
-  }
-  function townSpeed(car) {
-    if (!car) return 1;
-    if (!FREE_FUEL.includes(car.style) && !FREE_FUEL.includes(car.id) && town.me.fuel <= 0) return 0.18;
-    return 1;
   }
 
   // ---- Kamera: attraksion, minora, selfi ----
@@ -8456,10 +8428,8 @@ import * as THREE from 'three';
       hud.id = 'town-hud';
       document.body.append(hud);
     }
-    const car = carInfo();
     const parts = [];
     if (town.me.x2) parts.push('📚 x2');
-    if (car && !FREE_FUEL.includes(car.style) && !FREE_FUEL.includes(car.id)) parts.push(`⛽ ${Math.round(town.me.fuel)}%`);
     if (town.me.rent) parts.push(`🚲 ${Math.ceil(town.me.rent / 60)} daq`);
     if (town.hunt) parts.push(`🗺️ ${town.hunt}`);
     if (town.zone) parts.push(`🚩 ${town.zone.mine}/${town.zone.need} s`);
@@ -8492,7 +8462,6 @@ import * as THREE from 'three';
     }
     if (twNear(S.island_land, 160) && !car) return { kind: 'fun', d: 1, text: '🛫 Aeroportga qaytish', act: () => twPost('/api/game/island/back', {}, () => toast('Aeroportga qaytdingiz ✈️')) };
     if (!car && twNear(world.airport.gate, 200)) return { kind: 'fun', d: 1, text: `🏝️ Orolga uchish (${formatNumber(3000)} so'm)`, act: () => twPost('/api/game/island/go', {}, () => toast("Orolga uchdingiz! 🏝️ Palma tagida kokos bor", 'success')) };
-    for (const f of T.fuel) if (twNear(f, 130)) return { kind: 'fun', d: 1, text: `⛽ Benzin quyish (${Math.round(town.me.fuel)}%)`, act: fillFuel };
     for (const b of T.bikes) if (!car && twNear(b, 120)) return { kind: 'fun', d: 1, text: `🚲 Velosiped ijarasi — ${formatNumber(500)} so'm / 10 daqiqa`, act: rentBike };
     if (car) return null;
     const P = T.places;
@@ -8555,14 +8524,6 @@ import * as THREE from 'three';
     return s;
   }
 
-  function fillFuel() {
-    twPost('/api/game/fuel/fill', {}, (d) => {
-      town.me.fuel = 100;
-      town.fuelSent = 100;
-      sound.cash();
-      toast(`⛽ Bak to'ldi — ${formatNumber(d.price)} so'm`, 'success');
-    });
-  }
   function rentBike() {
     twPost('/api/game/rentbike', {}, () => {
       me.rentBike = true;
@@ -8751,19 +8712,17 @@ import * as THREE from 'three';
       const go = (pt, label) => () => { setGuide(pt.x, pt.y, label); closeSheet(); };
       const T = TW();
       const S = T.spots;
-      const nearestFuel = () => T.fuel.reduce((a, f) => (Math.hypot(f.x - me.x, f.y - me.y) < Math.hypot(a.x - me.x, a.y - me.y) ? f : a));
       sec('🏡 Uy', [
         ['home', "Hovli: bog' va uyqu", "Daraxt eking, uxlang 😴", () => openTw('home')],
         ['store', 'Bozor rastasi', "Meva va narsalarni sotish 🛒", openMarket],
         ['book', 'Kundalik', "O'yindagi kunlaringiz 📔", () => openTw('diary')],
-        ['star', 'Holatim', 'Benzin, ochko, sertifikatlar', () => openTw('me2')],
+        ['star', 'Holatim', 'Ochko, sertifikatlar', () => openTw('me2')],
       ]);
       sec('🏙️ Joylar', [
         ['map-pin', "Istirohat bog'i", 'Charxpalak, karusel, tungi bozor', go(S.wheel, "Istirohat bog'i")],
         ['map-pin', "Tog' va g'or", "Chang'i, ko'pkari, xazina", go(T.places.cave.door, "G'or")],
         ['map-pin', 'Plyaj', 'Dengiz, qasr, suv osti kemasi', go(S.sun, 'Plyaj')],
         ['plane', 'Orol', 'Aeroportdan samolyotda 🏝️', go(world.airport.gate, 'Aeroport (orolga)')],
-        ['map-pin', 'Benzin', "Eng yaqin shoxobcha ⛽", () => { const f = nearestFuel(); setGuide(f.x, f.y, 'Benzin'); closeSheet(); }],
       ]);
       sec("🎲 O'yinlar", [
         ['target', 'Shaxmat', "Do'st bilan ♟️", () => openTw('invite', { game: 'chess' })],
@@ -8848,9 +8807,8 @@ import * as THREE from 'three';
       setHead('star', 'Holatim', '');
       const d = st.data;
       if (!d) return;
-      [[`⛽ Benzin: ${Math.round(town.me.fuel)}%`, 'Shoxobchalarda quyiladi (velosiped, ot, gilam — benzinsiz)'],
-        [`🎯 Ochko: ${d.points}`, 'Poygalarga tikish uchun, har kuni +100'],
-        [`📜 Sertifikatlar: ${d.certs.length}`, 'Kutubxonada kitob o\'qib oling'],
+      [[`🎯 Ochko: ${d.points}`, 'Poygalarga tikish uchun, har kuni +100'],
+        [`📜 Sertifikatlar: ${d.certs.length}`, 'Kitob o\'qib oling'],
         [`🏮 Uy bezaklari: ${d.decor.length}`, 'Kod topshiriqlari uchun'],
         [`🚀 Oy bazasi: ${d.base ? 'bor' : "yo'q"} · Mars: ${d.mars} marta`, ''],
         [town.me.x2 ? '📚 Bugun darsga keldingiz: daromad x2!' : '📚 Darsga kelgan kuningiz daromad x2 bo\'ladi', '']].forEach(([a, b]) => body.append(row2(a, b)));

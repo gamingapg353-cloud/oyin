@@ -6251,6 +6251,10 @@ button.hud-online:hover {
   pointer-events: none;
 }
 
+.town-hud:empty {
+  display: none;
+}
+
 .tw-big {
   min-height: 72px;
   font-size: 22px;
