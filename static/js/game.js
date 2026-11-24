@@ -34,6 +34,7 @@ import * as THREE from 'three';
   const others = new Map();      // key -> {name, avatar, x, y, tx, ty, dir, car, taxi, rig}
   const held = new Map();        // bosib turilgan harakatlar ('up'...)
   const touch = { up: false, down: false, left: false, right: false };
+  const dirPointers = new Map(); // barmoq (pointerId) -> bosilgan yo'nalish
   const JUMP_SPEED = 330;
   const GRAVITY = 980;
   let selectedCar = null;
@@ -622,6 +623,49 @@ import * as THREE from 'three';
     return g;
   }
 
+  // Giperkar (Ferrari, McLaren, Koenigsegg): juda past, uzun burun, katta qanot va yon chiziqlar
+  function carHyper(color, stripe = '#0f172a', wing = true) {
+    const g = new THREE.Group();
+    const paint = mat(color, { roughness: 0.2, metalness: 0.6 });
+    const black = mat('#0f172a', { roughness: 0.4 });
+    g.add(profile([[37, 4.5], [37, 7], [18, 11], [0, 17.5], [-18, 17], [-37, 12.5], [-37, 4.5]], 35, paint));
+    g.add(profile([[16, 11.6], [4, 18.6], [-12, 18.4], [-20, 15.5]], 27, DARK_GLASS()));
+    g.add(box(4, 0.4, 70, mat(stripe, { roughness: 0.3 }), 0, 17.8, 0));          // o'rtadagi chiziq
+    g.add(box(34, 1, 5, black, 0, 4.4, 36));                                       // old lab
+    if (wing) {
+      g.add(box(36, 1.2, 7, black, 0, 22, -32));
+      [-1, 1].forEach((s) => g.add(box(1.2, 8, 3, black, s * 9, 17.5, -32)));
+    }
+    [-1, 1].forEach((s) => {
+      g.add(box(1, 6, 16, black, s * 17.6, 9.5, -8));                               // havo olgich
+      g.add(box(8, 1.2, 1, glow('#f8fafc', 1.2), s * 12, 8.2, 36.6));
+      g.add(box(30, 1, 1, glow('#ef4444', 0.9), 0, 11.5, -37.3));
+      const pipe = cyl(1.8, 1.8, 2, CHROME(), s * 4, 7, -37.5, 6);
+      pipe.rotation.x = Math.PI / 2;
+      g.add(pipe);
+    });
+    g.userData = { ...addWheels(g, [[-17, 22], [17, 22], [-17, -22], [17, -22]], 7, 6), roof: 19 };
+    return g;
+  }
+  const carFerrari = (color) => carHyper(color, '#facc15');
+  const carMcLaren = (color) => carHyper(color, '#0f172a');
+  const carKoenig = (color) => carHyper(color, '#2563eb');
+
+  // Kibertrak: burchakli po'lat uchburchak kuzov, old va orqada butun eni bo'ylab nur chiziq
+  function carCyber(color) {
+    const g = new THREE.Group();
+    const steel = mat(color, { roughness: 0.35, metalness: 0.45 });
+    g.add(profile([[38, 8], [38, 15], [2, 29], [-38, 19], [-38, 8]], 36, steel));
+    const shield = box(30, 0.6, 24, DARK_GLASS(), 0, 22.5, 19);
+    shield.rotation.x = 0.37;
+    g.add(shield);
+    g.add(box(34, 1.2, 0.8, glow('#f8fafc', 1.5), 0, 14.4, 38.4));
+    g.add(box(34, 1.2, 0.8, glow('#ef4444', 1.3), 0, 18, -38.4));
+    g.add(box(36, 3, 76, mat('#1f2937', { roughness: 0.8 }), 0, 6.5, 0));            // pastki qora qism
+    g.userData = { ...addWheels(g, [[-18, 23], [18, 23], [-18, -23], [18, -23]], 9, 7), roof: 29 };
+    return g;
+  }
+
   // Uchadigan Tesla: po'lat burchakli kuzov, nurli chiziqlar. Uchganda g'ildiraklar
   // gorizontal "dvigatel"ga aylanadi, qanotlar chiqadi, pastdan nur taraladi.
   function carTesla(color) {
@@ -733,11 +777,12 @@ import * as THREE from 'three';
     return g;
   }
 
-  const CAR_BUILDERS = { bmw: carBMW, mercedes: carG, lambo: carLambo, tesla: carTesla, damas: carVan, plane: carPlane, bus: carBus };
+  const CAR_BUILDERS = { bmw: carBMW, mercedes: carG, lambo: carLambo, tesla: carTesla, damas: carVan, plane: carPlane, bus: carBus,
+    ferrari: carFerrari, mclaren: carMcLaren, koenig: carKoenig, cyber: carCyber };
   // tune — garajdagi o'zgarishlar: rang va neon chiroq
   function makeCar(id, tune = null) {
     const info = carsById[id] || catalog.cars[0];
-    const byStyle = { sedan: carBMW, suv: carG, super: carLambo, fly: carTesla, van: carVan, plane: carPlane, bus: carBus };
+    const byStyle = { sedan: carBMW, suv: carG, super: carLambo, hyper: carHyper, cyber: carCyber, fly: carTesla, van: carVan, plane: carPlane, bus: carBus };
     const car = (CAR_BUILDERS[info.id] || byStyle[info.style] || carBMW)((tune && tune.color) || info.color);
     if (tune && tune.neon) {
       const neon = new THREE.Mesh(new THREE.PlaneGeometry(46, info.style === 'bus' ? 112 : 82), new THREE.MeshBasicMaterial({
@@ -1453,10 +1498,13 @@ import * as THREE from 'three';
       const a = (i / 26) * Math.PI * 2;
       const rx = W / 2 + Math.cos(a) * (W * 0.5 + 1700 + rnd() * 600);
       const rz = H / 2 + Math.sin(a) * (H * 0.5 + 1700 + rnd() * 600);
-      const hill = new THREE.Mesh(new THREE.ConeGeometry(500 + rnd() * 500, 300 + rnd() * 500, 7), hillMat);
+      const rad = 500 + rnd() * 500;
+      const hill = new THREE.Mesh(new THREE.ConeGeometry(rad, 300 + rnd() * 500, 7), hillMat);
       hill.position.set(rx, 120, rz);
       hill.rotation.y = rnd() * Math.PI;
-      scene.add(hill);
+      // Yangi shahar (va boshqa hududlar) ustiga tushadigan tepalik qo'yilmaydi
+      const near = (r) => Math.hypot(Math.max(r.x - rx, 0, rx - r.x - r.w), Math.max(r.y - rz, 0, rz - r.y - r.h)) < rad + 80;
+      if (!townAreas().some(near)) scene.add(hill);
     }
   }
 
@@ -1814,9 +1862,9 @@ import * as THREE from 'three';
     taxiCardKey = '';
   }
 
-  function setGuide(x, y, label) {
+  function setGuide(x, y, label, follow = null) {
     guideView = dropBeacon(guideView);
-    guide = x === undefined ? null : { x, y, label };
+    guide = x === undefined ? null : { x, y, label, follow };
     if (guide) guideView = makeBeacon(x, y, '#3b82f6', 70);
     taxiCardKey = '';
   }
@@ -2034,6 +2082,15 @@ import * as THREE from 'three';
       }
     });
 
+    // Kuzatilayotgan do'st yurgan bo'lsa — nur ham u bilan birga ko'chadi
+    if (guide && guide.follow) {
+      const f = others.get(guide.follow);
+      if (!f) {
+        toast(`${guide.label.replace("Do'st: ", '')} o'yindan chiqdi`);
+        setGuide();
+      } else if (Math.hypot(f.tx - guide.x, f.ty - guide.y) > 30) setGuide(f.tx, f.ty, guide.label, guide.follow);
+    }
+    document.querySelectorAll('#friends .friend').forEach((r) => r.classList.toggle('is-on', Boolean(guide && guide.follow && r.dataset.key === guide.follow)));
     $('online-count').textContent = others.size + 1;
     const sig = [...others.values()].map((p) => `${p.name}|${p.avatar}`).join(',');
     if (sig === friendsSig) return;
@@ -2056,6 +2113,21 @@ import * as THREE from 'three';
         av.style.setProperty('--avatar', avatarColor(p.name));
       }
       row.append(av, el('span', '', p.name));
+      // Bosilsa — do'st qayerdaligini ko'rsatamiz (ko'k nur va strelka u bilan birga yuradi)
+      const key = [...others.entries()].find(([, o]) => o === p)?.[0];
+      row.title = "Qayerdaligini ko'rsatish";
+      row.dataset.key = key;
+      row.addEventListener('click', () => {
+        const f = others.get(key);
+        if (!f) return toast(`${p.name} o'yindan chiqdi`);
+        if (guide && guide.follow === key) {
+          setGuide();
+          return toast("Yo'l ko'rsatkich o'chirildi");
+        }
+        setGuide(f.tx, f.ty, `Do'st: ${f.name}`, key);
+        const d = Math.round(Math.hypot(f.tx - me.x, f.ty - me.y) / 10);
+        toast(`${f.name} shu yerda — ko'k nur bo'ylab boring (${d} m)`, 'success');
+      });
       box2.append(row);
     });
   }
@@ -2598,6 +2670,7 @@ import * as THREE from 'three';
   function closeSheet() {
     if (sheetState && sheetState.kind === 'looks' && me) setRigLooks(me.rig, me.looks);
     sheetState = null;
+    releaseAll();
     clearTimeout(quizTimer);
     sheet.hidden = true;
     sheetBackdrop.hidden = true;
@@ -3439,6 +3512,19 @@ import * as THREE from 'three';
     return av;
   }
 
+  async function divorce(p) {
+    if (!confirm(`${p.name} bilan ajrashasizmi? Ismlar tepasidagi 💍 uzuk yo'qoladi.`)) return;
+    try {
+      await api('/api/game/divorce', { method: 'POST', body: {} });
+      toast(`${p.name} bilan ajrashdingiz 💔`);
+      const o = [...others.values()].find((x) => x.name === p.name);
+      if (o) o.ring = false;
+      openPeople();
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+
   async function openPeople() {
     const st = { kind: 'people', list: null };
     openSheet(st);
@@ -3476,10 +3562,12 @@ import * as THREE from 'three';
         gift.append(icon('sparkles'));
         gift.addEventListener('click', () => openSheet({ kind: 'gift', person: p }));
         row.append(give, gift);
-        const ring = el('button', 'btn btn--ghost btn--icon', '💍');
+        const ring = el('button', 'btn btn--ghost btn--icon', p.spouse ? '💔' : '💍');
         ring.type = 'button';
-        ring.title = "To'y taklif qilish";
-        ring.addEventListener('click', () => propose(p));
+        ring.title = p.spouse ? 'Ajrashish' : "To'y taklif qilish";
+        ring.setAttribute('aria-label', ring.title);
+        ring.addEventListener('click', () => (p.spouse ? divorce(p) : propose(p)));
+        if (p.spouse) info.append(el('small', 'person__spouse', "💍 Turmush o'rtog'ingiz"));
         const write = el('button', 'btn btn--ghost btn--icon');
         write.type = 'button';
         write.title = 'Xabar yozish';
@@ -3688,6 +3776,7 @@ import * as THREE from 'three';
 
   function releaseAll() {
     held.clear();
+    dirPointers.clear();
     driftHeld = false;
     Object.keys(touch).forEach((k) => { touch[k] = false; });
     document.querySelectorAll('.dpad__btn.is-down').forEach((b) => b.classList.remove('is-down'));
@@ -3724,7 +3813,7 @@ import * as THREE from 'three';
       return;
     }
     if (sheetState || e.target.closest?.('input, textarea, select')) return;
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' || e.key === '/') {
       e.preventDefault();
       $('chat-input').focus();
       return;
@@ -3790,13 +3879,47 @@ import * as THREE from 'three';
     }
   });
 
+  // Har bir barmoq qaysi yo'nalishni bosib turganini eslab qolamiz: barmoq qayerda
+  // ko'tarilsa ham (tugma yashirilsa, oyna ochilsa ham) yo'nalish albatta qo'yib yuboriladi.
+  const freeDir = (dir) => {
+    if ([...dirPointers.values()].includes(dir)) return;
+    touch[dir] = false;
+    document.querySelectorAll(`[data-dir="${dir}"]`).forEach((b) => b.classList.remove('is-down'));
+  };
+  const dropPointer = (e) => {
+    const dir = dirPointers.get(e.pointerId);
+    if (dir === undefined) return;
+    dirPointers.delete(e.pointerId);
+    freeDir(dir);
+  };
+  ['pointerup', 'pointercancel'].forEach((t) => window.addEventListener(t, dropPointer, true));
   document.querySelectorAll('[data-dir]').forEach((btn) => {
     const dir = btn.dataset.dir;
-    const on = (e) => { e.preventDefault(); touch[dir] = true; btn.classList.add('is-down'); };
-    const off = () => { touch[dir] = false; btn.classList.remove('is-down'); };
+    const on = (e) => {
+      e.preventDefault();
+      dirPointers.set(e.pointerId, dir);
+      touch[dir] = true;
+      btn.classList.add('is-down');
+    };
     btn.addEventListener('pointerdown', on);
-    ['pointerup', 'pointerleave', 'pointercancel', 'lostpointercapture'].forEach((t) => btn.addEventListener(t, off));
+    ['pointerup', 'pointerleave', 'pointercancel', 'lostpointercapture'].forEach((t) => btn.addEventListener(t, dropPointer));
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
   });
+  // Ehtiyot: barmoq yo'q-u, yo'nalish bosilgan bo'lib qolsa — qo'yib yuboramiz
+  setInterval(() => {
+    if (!dirPointers.size && (touch.up || touch.down || touch.left || touch.right)) {
+      Object.keys(touch).forEach((k) => { touch[k] = false; });
+      document.querySelectorAll('.dpad__btn.is-down').forEach((b) => b.classList.remove('is-down'));
+    }
+  }, 400);
+  // Oyna (alert/confirm/prompt) ochilganda keyup yo'qoladi — avval hammasini qo'yib yuboramiz
+  ['alert', 'confirm', 'prompt'].forEach((name) => {
+    const orig = window[name].bind(window);
+    window[name] = (...args) => { releaseAll(); return orig(...args); };
+  });
+  window.addEventListener('focus', releaseAll);
+  window.addEventListener('pagehide', releaseAll);
+  document.addEventListener('focusin', (e) => { if (e.target.closest?.('input, textarea, select, [contenteditable]')) releaseAll(); });
   document.querySelectorAll('[data-jump]').forEach((btn) => {
     btn.addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
   });
@@ -3883,8 +4006,37 @@ import * as THREE from 'three';
     chatLine.timer = setTimeout(() => $('chat').classList.remove('is-active'), 9000);
   }
 
+  // Telefonda chat Roblox kabi 💬 tugmasi orqasida yashirin: bosilsa ochiladi, yana bosilsa yopiladi
+  let chatUnread = 0;
+  function chatPanelOpen() {
+    return $('chat').classList.contains('is-shown');
+  }
+  function setChatShown(on) {
+    $('chat').classList.toggle('is-shown', on);
+    const b = $('btn-chat');
+    b.classList.toggle('is-on', on);
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', on ? 'Chatni yopish' : 'Chatni ochish');
+    if (on) {
+      chatUnread = 0;
+      const log = $('chat-log');
+      log.scrollTop = log.scrollHeight;
+    } else if (document.activeElement === $('chat-input')) $('chat-input').blur();
+    $('chat-badge').hidden = !chatUnread;
+    $('chat-badge').textContent = chatUnread > 9 ? '9+' : chatUnread;
+  }
+  $('btn-chat').addEventListener('click', () => {
+    setChatShown(!chatPanelOpen());
+    $('btn-chat').blur();
+  });
+
   function addChat(list) {
     (list || []).forEach((m) => {
+      if (m.id && !chatShown.has(m.id) && chatSince && me && m.key !== me.key && !chatPanelOpen()) {
+        chatUnread += 1;
+        $('chat-badge').hidden = false;
+        $('chat-badge').textContent = chatUnread > 9 ? '9+' : chatUnread;
+      }
       chatLine(m);
       chatSince = Math.max(chatSince, m.id);
     });
@@ -3956,7 +4108,11 @@ import * as THREE from 'three';
       if (!handleAuthError(err)) toast(err.message, 'warn');
     }
   });
-  $('chat-input').addEventListener('focus', () => { releaseAll(); $('chat').classList.add('is-open'); });
+  $('chat-input').addEventListener('focus', () => {
+    releaseAll();
+    $('chat').classList.add('is-open');
+    if (!chatPanelOpen()) setChatShown(true);
+  });
   $('chat-input').addEventListener('blur', () => $('chat').classList.remove('is-open'));
   $('chat-input').addEventListener('keydown', (e) => {
     if (mentionKey(e)) return;
@@ -8268,6 +8424,52 @@ import * as THREE from 'three';
     scene.add(g);
   }
 
+  // Yangi shahar: osmono'par binolar, keng ko'chalar, neon yozuvlar
+  function buildNewCity(C) {
+    const R = C.rect;
+    const g = new THREE.Group();
+    g.add(flat(R.w, R.h, mat('#b5b0a8', { roughness: 1 }), R.x + R.w / 2, R.y + R.h / 2, 0.15));
+    const sidewalk = mat('#9ca3af', { roughness: 1 });
+    const asphalt = mat('#2b2f38', { roughness: 0.95 });
+    const dash = mat('#facc15', { roughness: 1 });
+    C.roads.forEach((r) => {
+      const horiz = r.w > r.h;
+      g.add(flat(r.w + (horiz ? 0 : 16), r.h + (horiz ? 16 : 0), sidewalk, r.x + r.w / 2, r.y + r.h / 2, 0.25));
+      g.add(flat(r.w, r.h, asphalt, r.x + r.w / 2, r.y + r.h / 2, 0.45));
+      const len = horiz ? r.w : r.h;
+      for (let d = 30; d < len - 30; d += 70) {
+        g.add(horiz ? flat(36, 3, dash, r.x + d, r.y + r.h / 2, 0.6) : flat(3, 36, dash, r.x + r.w / 2, r.y + d, 0.6));
+      }
+    });
+    // Chorrahalar
+    C.roads.filter((r) => r.w > r.h).forEach((h) => C.roads.filter((r) => r.h > r.w).forEach((v) => g.add(flat(v.w, h.h, asphalt, v.x + v.w / 2, h.y + h.h / 2, 0.75))));
+    // Osmono'par binolar: shisha, nurli derazalar qatorlari, tepada qizil chiroq
+    const glass = mat('#9fd6ff', { roughness: 0.08, metalness: 0.6 });
+    C.towers.forEach((t, i) => {
+      const cx = t.x + t.w / 2;
+      const cz = t.y + t.h / 2;
+      g.add(box(t.w, t.hgt, t.h, mat(t.color, { roughness: 0.35, metalness: 0.35 }), cx, t.hgt / 2, cz));
+      const win = glow(i % 2 ? '#fde68a' : '#a5f3fc', 0.55);
+      for (let y = 22; y < t.hgt - 10; y += 22) {
+        g.add(box(t.w - 16, 7, 1, win, cx, y, t.y + t.h + 0.6));
+        g.add(box(1, 7, t.h - 16, win, t.x - 0.6, y, cz), box(1, 7, t.h - 16, win, t.x + t.w + 0.6, y, cz));
+      }
+      g.add(box(t.w - 30, 10, t.h - 30, glass, cx, t.hgt + 5, cz));
+      g.add(cyl(1.5, 1.5, 40, mat('#94a3b8'), cx, t.hgt + 30, cz, 6), box(6, 6, 6, glow('#ef4444', 1.5), cx, t.hgt + 52, cz));
+      // Bino oldida fonar va daraxtcha
+      g.add(cyl(1.6, 1.6, 34, mat('#334155'), t.x + 10, 17, t.y + t.h + 30, 6), box(8, 3, 8, glow('#fef9c3', 1.2), t.x + 10, 35, t.y + t.h + 30));
+    });
+    // Kirish darvozalari: eski ko'chalardan shimolga chiqishda
+    [4280, 5060].forEach((x) => {
+      const cx = x + 40;
+      g.add(box(6, 110, 6, mat('#1e1b4b'), cx - 58, 55, -30), box(6, 110, 6, mat('#1e1b4b'), cx + 58, 55, -30));
+      g.add(placeSign('🏙️ YANGI SHAHAR', 300, 40, '#7c3aed', cx, 118, -30));
+      g.add(box(122, 3, 4, glow('#e879f9', 1.4), cx, 96, -30));
+    });
+    g.add(placeSign('🏎️ SUPERKARLAR — AVTOSALONDA', 360, 36, '#b91c1c', 5100, 70, -1240));
+    scene.add(g);
+  }
+
   function buildTown() {
     const T = TW();
     if (!T) return;
@@ -8277,6 +8479,7 @@ import * as THREE from 'three';
     ground({ x: T.beach.x, y: T.beach.y, w: T.beach.w, h: T.sea.y - T.beach.y }, '#fde68a');
     scene.add(flat(T.sea.w, T.sea.h, mat('#0ea5e9', { roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.85 }), T.sea.x + T.sea.w / 2, T.sea.y + T.sea.h / 2, 0.5));
     ground(T.island, '#fcd34d');
+    if (T.city) buildNewCity(T.city);
     scene.add(flat(2600, 2600, mat('#0284c7', { roughness: 0.2, transparent: true, opacity: 0.9 }), T.island.x + T.island.w / 2, T.island.y + T.island.h / 2, 0.1));
     scene.add(placeSign("🎡 ISTIROHAT BOG'I", 260, 34, '#15803d', 60, 80, 420, Math.PI / 2));
     scene.add(placeSign("⛰️ TOG' VA KO'PKARI", 260, 34, '#4d7c0f', 60, 80, 2700, Math.PI / 2));
@@ -8422,11 +8625,11 @@ import * as THREE from 'three';
   function townSolids() {
     const T = TW();
     if (!T) return [];
-    return town.siteViews.map((v) => ({ x: T.sites[v.slot].x - 48, y: T.sites[v.slot].y - 16, w: 96, h: 34, top: 70 })).concat(Object.entries(T.places).filter(([id]) => id !== 'nightmarket').map(([, r]) => ({ x: r.x, y: r.y, w: r.w, h: r.h, top: r.hgt + 10 })));
+    return (T.city ? T.city.towers.map((t) => ({ x: t.x, y: t.y, w: t.w, h: t.h, top: t.hgt })) : []).concat(town.siteViews.map((v) => ({ x: T.sites[v.slot].x - 48, y: T.sites[v.slot].y - 16, w: 96, h: 34, top: 70 }))).concat(Object.entries(T.places).filter(([id]) => id !== 'nightmarket').map(([, r]) => ({ x: r.x, y: r.y, w: r.w, h: r.h, top: r.hgt + 10 })));
   }
   const townAreas = () => {
     const T = TW();
-    return T ? [T.park, T.mount, T.beach, T.island] : [];
+    return T ? [T.park, T.mount, T.beach, T.island, ...(T.city ? [T.city.rect] : [])] : [];
   };
 
   // ---- Shahar holati (haykal, reyting, klan uylari, bezaklar, hududlar) — har daqiqada ----

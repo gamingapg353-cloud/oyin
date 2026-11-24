@@ -118,6 +118,16 @@ CARS = [  # narxi bo'yicha (Avtosalonda shu tartibda)
      "color": "#facc15", "style": "super"},
     {"id": "bugatti", "name": "Bugatti Chiron", "price": 600000, "speed": 2.8, "fare": 1.9,
      "color": "#1e40af", "style": "super"},
+    {"id": "cyber", "name": "Kibertrak", "price": 350000, "speed": 2.3, "fare": 1.7,
+     "color": "#cbd5e1", "style": "cyber"},
+    {"id": "ferrari", "name": "Ferrari SF90", "price": 400000, "speed": 2.6, "fare": 1.8,
+     "color": "#dc2626", "style": "hyper"},
+    {"id": "mclaren", "name": "McLaren P1", "price": 450000, "speed": 2.65, "fare": 1.8,
+     "color": "#f97316", "style": "hyper"},
+    {"id": "rolls", "name": "Rolls-Royce Cullinan", "price": 500000, "speed": 2.3, "fare": 2.4,
+     "color": "#1e1b4b", "style": "suv"},
+    {"id": "koenig", "name": "Koenigsegg Jesko", "price": 900000, "speed": 3.1, "fare": 2.0,
+     "color": "#f8fafc", "style": "hyper"},
     {"id": "carpet", "name": "Uchar gilam", "price": 800000, "speed": 2.6, "fare": 0,
      "color": "#b91c1c", "style": "carpet", "flies": True},
     {"id": "tesla", "name": "Tesla (uchadigan)", "price": 1000000, "speed": 3.0, "fare": 2.2,
@@ -125,6 +135,7 @@ CARS = [  # narxi bo'yicha (Avtosalonda shu tartibda)
     {"id": "plane", "name": "Samolyot", "price": 3000000, "speed": 4.0, "fare": 2.6,
      "color": "#f8fafc", "style": "plane", "flies": True, "cruise": 420},
 ]
+CARS.sort(key=lambda c: c["price"])
 CARS_BY_ID = {car["id"]: car for car in CARS}  # eski mashinalar core.init_db da ko'chiriladi
 
 
@@ -244,6 +255,9 @@ def _make_plots() -> list[dict]:
     for row_y, gate in ((2470, "bottom"), (2760, "top"), (3230, "bottom"), (3520, "top")):
         blocks = (470, 1250, 2030, 3590, 4370, 5150, 5930) if row_y in (2760, 3230) else             (470, 1250, 2030, 2810, 3590, 4370, 5150, 5930)
         row(row_y, gate, blocks)
+    # Yangi shahar (shimoli-sharq, y < 0): to'rt qator, eski ko'chalar davomida
+    for row_y, gate in ((-1190, "bottom"), (-900, "top"), (-570, "bottom"), (-280, "top")):
+        row(row_y, gate, (3590, 4370, 5150, 5930))
     return plots
 
 
@@ -1058,7 +1072,10 @@ def api_people():
         online = {k for k, p in _live.items() if now - p["t"] < ONLINE_SECONDS}
     import portal
     deco = portal.deco_map(db)
-    people = [{**p, "online": p["key"] in online, "me": p["key"] == me, "deco": deco.get(p["key"])} for p in _all_people(db)]
+    mine = db.execute("SELECT spouse FROM game_players WHERE player_key = ?", (me,)).fetchone()
+    spouse = mine["spouse"] if mine else None
+    people = [{**p, "online": p["key"] in online, "me": p["key"] == me, "deco": deco.get(p["key"]),
+               "spouse": bool(spouse) and p["key"] == spouse} for p in _all_people(db)]
     people.sort(key=lambda p: (not p["me"], not p["online"], p["name"].lower()))
     return jsonify(people=people)
 

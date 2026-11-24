@@ -121,6 +121,15 @@ MOUNT = {"x": -1400, "y": 2150, "w": 1500, "h": 1550}          # g'arb: tog', ko
 BEACH = {"x": 5450, "y": 3700, "w": 1150, "h": 1000}           # janubi-sharq: plyaj va dengiz
 BEACH_SEA = {"x": 5450, "y": 4250, "w": 1150, "h": 450}
 ISLAND = {"x": 8600, "y": 1400, "w": 900, "h": 900}            # faqat samolyotda boriladi
+# Yangi shahar: shimoli-sharq (y < 0), eski vertikal ko'chalar shu yerga davom etadi.
+# Pastki 60 birligi asosiy xarita bilan ustma-ust — chegarasiz o'tiladi.
+CITY = {"x": 3500, "y": -1450, "w": 3220, "h": 1510}
+CITY_ROADS = ([{"x": 3500, "y": y, "w": 3220, "h": game.ROAD} for y in (-1000, -380)]
+              + [{"x": x, "y": -1450, "w": game.ROAD, "h": 1450} for x in (3500, 4280, 5060, 5840)])
+_TOWER_COLORS = ("#1e3a8a", "#0f766e", "#7c3aed", "#be123c", "#0369a1", "#334155")
+CITY_TOWERS = [{"x": bx + 20 + j * 230, "y": -1425, "w": 180, "h": 150, "hgt": 170 + (i * 7 + j * 3) % 5 * 45,
+                "color": _TOWER_COLORS[(i * 3 + j) % len(_TOWER_COLORS)]}
+               for i, bx in enumerate((3590, 4370, 5150, 5930)) for j in range(3)]
 
 TOWN_PLACES = {
     # istirohat bog'i
@@ -152,10 +161,11 @@ game.CARS_BY_ID["heli"] = game.CARS[[c["id"] for c in game.CARS].index("heli")]
 game.WORLD_DATA.update(
     town={"park": PARK, "mount": MOUNT, "beach": BEACH, "sea": BEACH_SEA, "island": ISLAND,
           "places": TOWN_PLACES, "spots": SPOTS, "kopkari": KOPKARI, "bikes": BIKES, "clan_slots": CLAN_SLOTS,
-          "zones": ZONES},
+          "zones": ZONES,
+          "city": {"rect": CITY, "roads": CITY_ROADS, "towers": CITY_TOWERS}},
     cpraces={k: {"name": v["name"], "points": v["points"]} for k, v in gc.CPRACES.items()},
 )
-game.EXTRA_AREAS = [PARK, MOUNT, BEACH, ISLAND]
+game.EXTRA_AREAS = [PARK, MOUNT, BEACH, ISLAND, CITY]
 
 ITEMS_NEW = {
     "olma": {"name": "Olma", "icon": "🍎", "sell": 600}, "uzum": {"name": "Uzum", "icon": "🍇", "sell": 500},
