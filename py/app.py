@@ -29,6 +29,7 @@ import game
 import game_social
 import game_fun
 import game_trade
+import game_plus
 import learn
 import portal
 import tts
@@ -92,6 +93,7 @@ app.register_blueprint(learn.bp)
 app.register_blueprint(portal.bp)
 app.register_blueprint(tts.bp)
 app.register_blueprint(game_trade.bp)
+app.register_blueprint(game_plus.bp)
 app.after_request(portal.after_request)
 
 

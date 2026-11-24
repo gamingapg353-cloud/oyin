@@ -386,6 +386,9 @@ def init_db() -> None:
         db.executescript(SCHEMA)
         import extras, game_life, game_city, game_town, game_trade, learn, portal  # panel qo'shimchalari va o'yindagi yangi jadvallar
         db.executescript(extras.SCHEMA + game_life.SCHEMA + game_city.SCHEMA + game_town.SCHEMA + learn.SCHEMA + portal.SCHEMA + game_trade.SCHEMA)
+        import game_plus
+        db.executescript(game_plus.SCHEMA)
+        game_plus.upgrade(db)
         # Eski bazada yangi ustunlar bo'lmasa — qo'shamiz
         columns = {row[1] for row in db.execute("PRAGMA table_info(users)")}
         if "score" not in columns:

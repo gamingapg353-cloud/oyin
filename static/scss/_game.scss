@@ -3133,3 +3133,155 @@ button.hud-online {
     color: #111827;
   }
 }
+
+// ---------------- Yangi shahar qo'shimchalari ----------------
+.drift-card {
+  position: fixed;
+  top: 132px;
+  left: 50%;
+  z-index: 30;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.92);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  transform: translateX(-50%);
+  pointer-events: none;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.decree-bar {
+  position: fixed;
+  top: 72px;
+  left: 50%;
+  z-index: 31;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: unquote("min(560px, calc(100% - 28px))");
+  padding: 10px 12px;
+  border: 1px solid #fbbf24;
+  border-radius: 14px;
+  background: rgba(69, 26, 3, 0.92);
+  color: #fef3c7;
+  font-size: 14px;
+  transform: translateX(-50%);
+
+  span {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.decree-bar__x {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  color: inherit;
+  cursor: pointer;
+}
+
+.decree-note {
+  padding: 10px 12px;
+  border-left: 3px solid #f59e0b;
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-style: italic;
+}
+
+.cand-program {
+  display: block;
+  margin-top: 2px;
+  color: var(--text);
+  white-space: normal;
+}
+
+.cand-input,
+.code-area {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  font: inherit;
+}
+
+.code-area {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+}
+
+.facade-preview {
+  width: 100%;
+  max-width: 360px;
+  height: 216px;
+  border: 2px solid var(--border, #334155);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.pet-care {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+
+.pet-bar {
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.3);
+
+  span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #22c55e;
+
+    &.is-low {
+      background: #ef4444;
+    }
+
+    &.is-xp {
+      background: #f59e0b;
+    }
+  }
+}
+
+.look-dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 3px;
+
+  i {
+    width: 14px;
+    height: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    border-radius: 50%;
+  }
+}
+
+.room-guest {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  &[hidden] {
+    display: none;
+  }
+}

@@ -43,7 +43,7 @@ def _prev_month() -> str:
 
 def _tally(db, month: str) -> list:
     return db.execute(
-        "SELECT c.player_key, c.at, (SELECT COUNT(*) FROM game_votes v WHERE v.month = c.month AND v.cand = c.player_key) AS votes "
+        "SELECT c.player_key, c.at, c.program, (SELECT COUNT(*) FROM game_votes v WHERE v.month = c.month AND v.cand = c.player_key) AS votes "
         "FROM game_candidates c WHERE c.month = ? ORDER BY votes DESC, c.at", (month,)).fetchall()
 
 
@@ -79,7 +79,7 @@ def api_election():
         mayor={"key": mk, "name": people.get(mk, {}).get("name", "?"), "avatar": people.get(mk, {}).get("avatar")} if mk else None,
         am_mayor=mk == key, can_salary=mk == key and not paid,
         candidates=[{"key": r["player_key"], "name": people.get(r["player_key"], {}).get("name", "?"),
-                     "avatar": people.get(r["player_key"], {}).get("avatar"), "votes": r["votes"],
+                     "avatar": people.get(r["player_key"], {}).get("avatar"), "votes": r["votes"], "program": r["program"] or "",
                      "me": r["player_key"] == key} for r in rows],
         my_vote=vote["cand"] if vote else None, running=any(r["player_key"] == key for r in rows),
         fee=RUN_FEE, salary=MAYOR_SALARY)
@@ -95,14 +95,21 @@ def api_election_run():
     db = get_db()
     game.ensure_player(db, key)
     month = month_id()
+    program = " ".join(str((request.get_json(silent=True) or {}).get("program") or "").split())[:300]
     if db.execute("SELECT 1 FROM game_candidates WHERE month = ? AND player_key = ?", (month, key)).fetchone():
+        if program:  # nomzod dasturini yangilash
+            db.execute("UPDATE game_candidates SET program = ? WHERE month = ? AND player_key = ?", (program, month, key))
+            db.commit()
+            return api_election()
         return jsonify(error="Siz allaqachon nomzodsiz"), 400
+    if len(program) < 10:
+        return jsonify(error="Dasturingizni yozing: saylansangiz nima qilasiz? (kamida 10 harf)"), 400
 
     def change(row, money):
         if money < RUN_FEE:
             raise game.GameError(f"Nomzod bo'lish {_money(RUN_FEE)} so'm turadi")
-        return -RUN_FEE, lambda: db.execute("INSERT INTO game_candidates (month, player_key, at) VALUES (?, ?, ?)",
-                                            (month, key, time.time()))
+        return -RUN_FEE, lambda: db.execute("INSERT INTO game_candidates (month, player_key, at, program) VALUES (?, ?, ?, ?)",
+                                            (month, key, time.time(), program))
 
     _, err = gs._change(db, key, change)
     if err:

@@ -572,7 +572,7 @@ def api_looks():
     me = game.player_key(current_user())
     db = get_db()
     row = game.ensure_player(db, me)
-    return jsonify(looks=game.player_looks(row), options=game.LOOKS)
+    return jsonify(looks=game.player_looks(row), options=game.LOOKS, **game.WARDROBE(db, me))
 
 
 @bp.post("/api/game/looks")
@@ -588,6 +588,9 @@ def api_looks_save():
         looks[k] = v
     db = get_db()
     game.ensure_player(db, me)
+    locked = game.LOOK_GUARD(db, me, looks)
+    if locked:
+        return jsonify(error=locked), 400
     db.execute("UPDATE game_players SET looks = ? WHERE player_key = ?", (json.dumps(looks), me))
     db.commit()
     return jsonify(looks=looks)
@@ -1257,6 +1260,9 @@ NEON_PRICE = 15000
 PAINT_COLORS = ["#dc2626", "#f97316", "#facc15", "#16a34a", "#14b8a6", "#2563eb", "#7c3aed", "#ec4899",
                 "#f8fafc", "#9ca3af", "#111827", "#78350f"]
 NEON_COLORS = ["#22d3ee", "#a855f7", "#22c55e", "#f43f5e", "#facc15", "#3b82f6"]
+RIM_PRICE = 8000          # disklar rangi (tyuning ustaxonasi)
+TINT_PRICE = 6000         # oynalarni qoraytirish
+RIM_COLORS = ["#e5e7eb", "#facc15", "#111827", "#dc2626", "#2563eb", "#a855f7", "#22c55e"]
 
 
 def speed_price(car_id: str, level: int) -> int:
@@ -1274,9 +1280,10 @@ def _garage_json(db, key: str):
         t = tuning.get(cid, {})
         lvl = int(t.get("speed", 0) or 0)
         cars.append({"id": cid, "name": game.CARS_BY_ID[cid]["name"], "color": t.get("color"), "neon": t.get("neon"),
+                     "rims": t.get("rims"), "tint": bool(t.get("tint")),
                      "speed": lvl, "next_price": speed_price(cid, lvl + 1) if lvl < game.TUNE_MAX_SPEED else None})
     return jsonify(cars=cars, tuning=tuning, colors=PAINT_COLORS, neons=NEON_COLORS, paint_price=PAINT_PRICE,
-                   neon_price=NEON_PRICE, step=game.TUNE_SPEED_STEP, max=game.TUNE_MAX_SPEED,
+                   neon_price=NEON_PRICE, rims=RIM_COLORS, rim_price=RIM_PRICE, tint_price=TINT_PRICE, step=game.TUNE_SPEED_STEP, max=game.TUNE_MAX_SPEED,
                    economy=game.economy_json(db, row))
 
 
@@ -1317,6 +1324,17 @@ def api_garage_change():
                 t["neon"] = value
             else:
                 raise game.GameError("Neon rangini tanlang")
+        elif action == "rims":
+            if value not in RIM_COLORS:
+                raise game.GameError("Disk rangini tanlang")
+            price = RIM_PRICE
+            t["rims"] = value
+        elif action == "tint":
+            price = 0 if t.get("tint") else TINT_PRICE
+            if t.get("tint"):
+                t.pop("tint", None)
+            else:
+                t["tint"] = True
         elif action == "speed":
             lvl = int(t.get("speed", 0) or 0)
             if lvl >= game.TUNE_MAX_SPEED:

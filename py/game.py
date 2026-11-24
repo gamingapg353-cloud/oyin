@@ -488,7 +488,7 @@ def _others(me: str, now: float) -> list[dict]:
          "looks": p.get("looks") or {}, "clan": p.get("clan"), "pose": p.get("pose"),
          "drift": p.get("drift", False), "tune": p.get("tune"), "para": p.get("para", False),
          "ring": p.get("ring", False), "dirt": round(p.get("dirt", 0), 2), "pet": p.get("pet"), "boat": p.get("boat", False),
-         "spider": p.get("spider", False), "web": p.get("web"),
+         "spider": p.get("spider", False), "web": p.get("web"), "ex": PLAYER_EXTRA.get(key),
          "emote": p["emote"]["e"] if p.get("emote") and now - p["emote"]["t"] < 4 else None}
         for key, p in _live.items()
         if key != me and now - p["t"] < ONLINE_SECONDS
@@ -657,14 +657,19 @@ SECURITY = lambda user, action: None   # classroom.guard: boshqa qurilmadan xavf
 MENTION = lambda user, text, only=None: 0   # classroom.mention: chatdagi @eslatish
 RACE_AREA_KEYS: set = set()  # poygadagilar — trassada yura oladi
 _teleports: dict = {}        # player_key -> (x, y, dir): keyingi sinxronda shu joyga ko'chiriladi
+PLAYER_EXTRA: dict = {}     # game_plus: o'yinchi haqida qo'shimcha (uy hayvoni darajasi, hiylasi)
+ROOF_TOP = lambda x, y: 0   # game_plus: shu nuqtadagi osmono'par tomi balandligi (lift bilan chiqiladi)
 SYNC_HOOKS: list = []   # game_social qo'shadi: hook(db, key, row, now, response)
 LOOKS = {
     "skin": ["#f0c08a", "#e0a96d", "#c68642", "#8d5524", "#ffdbac"],
     "hair": ["#2b2b2b", "#6b3f1d", "#d4a017", "#b91c1c", "#f8fafc", "#7c3aed", "#2563eb"],
     "shirt": ["#2563eb", "#dc2626", "#16a34a", "#f59e0b", "#7c3aed", "#ec4899", "#0f172a", "#f8fafc", "#14b8a6"],
     "pants": ["#1f2937", "#1e3a8a", "#78350f", "#4b5563", "#f5f5f4", "#166534"],
-    "hat": ["", "cap", "hat", "beanie", "crown"],
+    "hat": ["", "cap", "hat", "beanie", "crown", "cowboy", "helmet", "tiara", "party", "chef"],
+    "glasses": ["", "sun", "round", "star", "heart"],
 }
+WARDROBE = lambda db, key: {}            # game_plus: kiyim do'konidan olinganlar va narxlar
+LOOK_GUARD = lambda db, key, looks: None  # game_plus: sotib olinmagan kiyim bo'lsa — xato matni
 
 
 def player_looks(row) -> dict:
@@ -807,11 +812,15 @@ def api_sync():
     flying = bool(car and CARS_BY_ID[car].get("flies"))
     prev0 = _live.get(key)
     para = (not car and bool(data.get("para")) and prev0 is not None
-            and (prev0.get("para") or (prev0.get("car") in CARS_BY_ID and CARS_BY_ID[prev0["car"]].get("flies") and prev0.get("h", 0) > 150)))
+            and (prev0.get("para") or (prev0.get("car") in CARS_BY_ID and CARS_BY_ID[prev0["car"]].get("flies") and prev0.get("h", 0) > 150)
+                 or (not prev0.get("car") and prev0.get("h", 0) > 100 and ROOF_TOP(prev0["x"], prev0["y"]) > 0)))  # tomdan sakrash
     if para and prev0:
         height = min(height, prev0.get("h", 0))  # parashyutda faqat pastga tushiladi
     spider = bool(row["spider"]) and not car
-    height = min(max(height, 0), FLY_HEIGHT + 20 if (flying or para or spider) else 120)
+    cap = FLY_HEIGHT + 20 if (flying or para or spider) else 120
+    if not car:
+        cap = max(cap, ROOF_TOP(x, y) + 5, prev0.get("h", 0) if para and prev0 else 0)  # osmono'par tomida turish
+    height = min(max(height, 0), cap)
     world_rect = {"x": 0, "y": 0, "w": WORLD_W, "h": WORLD_H}
     areas = [TRACK["rect"]] if key in RACE_AREA_KEYS else [world_rect, AIRPORT["rect"], AQUA["rect"], ZOO["rect"], PORT["rect"], RIVER["rect"], MAZE_RECT, *EXTRA_AREAS]
     inside_rect = lambda a: a["x"] + 10 <= x <= a["x"] + a["w"] - 10 and a["y"] + 10 <= y <= a["y"] + a["h"] - 10
@@ -870,7 +879,7 @@ def api_sync():
                       "car": car, "t": now, "name": user["name"], "avatar": user["avatar"],
                       "looks": looks, "clan": clan, "pose": pose,
                       "drift": bool(data.get("drift")) and bool(car),
-                      "tune": {k: v for k, v in tuning.get(car, {}).items() if k in ("color", "neon")} if car else None}
+                      "tune": {k: v for k, v in tuning.get(car, {}).items() if k in ("color", "neon", "rims", "tint")} if car else None}
         passengers, players, ride = _passenger_list(), _others(key, now), _ride_json(key)
         gifts = _gifts.pop(key, [])
         chat_since, voice_since = _int(data.get("chat_since")), _int(data.get("voice_since"))

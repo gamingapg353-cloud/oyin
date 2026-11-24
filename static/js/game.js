@@ -35,6 +35,7 @@ import * as THREE from 'three';
   const held = new Map();        // bosib turilgan harakatlar ('up'...)
   const touch = { up: false, down: false, left: false, right: false };
   const dirPointers = new Map(); // barmoq (pointerId) -> bosilgan yo'nalish
+  const plus = { bugs: [], bugViews: [], facades: new Map(), decree: null }; // yangi shahar qo'shimchalari
   const JUMP_SPEED = 330;
   const GRAVITY = 980;
   let selectedCar = null;
@@ -423,6 +424,26 @@ import * as THREE from 'three';
       const top = mesh(new THREE.SphereGeometry(9.7, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('#2563eb'), 0, 57, 0);
       top.scale.y = 1.25;
       g.add(top, mesh(new THREE.SphereGeometry(3, 10, 8), mat('#f8fafc'), 0, 69.5, 0));
+    } else if (kind === 'cowboy') {
+      const brown = mat('#92400e');
+      g.add(cyl(17, 17, 1.2, brown, 0, 61, 0, 24), cyl(8.4, 9.4, 9, brown, 0, 66, 0, 20), cyl(9.5, 9.5, 2, mat('#451a03'), 0, 62.6, 0, 20));
+      g.add(box(3, 2, 12, mat('#78350f'), 0, 70.6, 0));
+    } else if (kind === 'helmet') {
+      const shell = mesh(new THREE.SphereGeometry(10.6, 20, 14, 0, Math.PI * 2, 0, Math.PI / 1.7), mat('#dc2626', { metalness: 0.3, roughness: 0.3 }), 0, 55.5, 0);
+      g.add(shell, box(15, 5, 2, mat('#0f172a', { metalness: 0.5, roughness: 0.1 }), 0, 56.5, 9.8), box(2.4, 12, 20, mat('#f8fafc'), 0, 62, 0));
+    } else if (kind === 'tiara') {
+      const gold = mat('#fde047', { metalness: 0.85, roughness: 0.2 });
+      const band = new THREE.Mesh(new THREE.TorusGeometry(8.2, 0.8, 6, 24, Math.PI), gold);
+      band.rotation.x = -Math.PI / 2;
+      band.position.set(0, 63.5, 0);
+      g.add(band, mesh(new THREE.OctahedronGeometry(2.4), glow('#f472b6', 0.8), 0, 66.5, 8, false));
+      [-1, 1].forEach((k) => g.add(mesh(new THREE.ConeGeometry(1.2, 4, 5), gold, k * 5, 66, 6.4)));
+    } else if (kind === 'party') {
+      g.add(mesh(new THREE.ConeGeometry(6, 16, 16), mat('#a855f7'), 0, 71, 0), mesh(new THREE.SphereGeometry(2.2, 10, 8), mat('#facc15'), 0, 80, 0),
+        cyl(6.2, 6.2, 1.6, mat('#22d3ee'), 0, 64.5, 0, 16));
+    } else if (kind === 'chef') {
+      const white = mat('#f8fafc', { roughness: 1 });
+      g.add(cyl(9.2, 9.2, 7, white, 0, 64, 0, 18), mesh(new THREE.SphereGeometry(11, 16, 12), white, 0, 72, 0));
     } else if (kind === 'crown') {
       const gold = mat('#facc15', { metalness: 0.8, roughness: 0.25 });
       g.add(cyl(8.6, 8.6, 5, gold, 0, 64, 0, 20));
@@ -431,6 +452,31 @@ import * as THREE from 'three';
         const spike = mesh(new THREE.ConeGeometry(2, 5, 6), gold, Math.sin(a) * 8, 69, Math.cos(a) * 8);
         g.add(spike, mesh(new THREE.SphereGeometry(1.1, 8, 6), glow(i % 2 ? '#ef4444' : '#22d3ee', 0.6), Math.sin(a) * 8.7, 64, Math.cos(a) * 8.7, false));
       }
+    }
+    return g;
+  }
+
+  // Kiyim do'koni: ko'zoynaklar
+  function makeGlasses(kind) {
+    const g = new THREE.Group();
+    const z = 8.4;
+    if (kind === 'sun') {
+      const black = mat('#0f172a', { metalness: 0.6, roughness: 0.1 });
+      g.add(box(5, 3, 0.8, black, -3.2, 56.4, z), box(5, 3, 0.8, black, 3.2, 56.4, z), box(2, 0.7, 0.6, black, 0, 57.4, z));
+    } else if (kind === 'round') {
+      const frame = mat('#1f2937');
+      [-3.2, 3.2].forEach((x) => g.add(mesh(new THREE.TorusGeometry(2.3, 0.45, 6, 18), frame, x, 56.2, z)));
+      g.add(box(2, 0.5, 0.5, frame, 0, 56.4, z));
+    } else if (kind === 'star' || kind === 'heart') {
+      const col = kind === 'star' ? glow('#facc15', 0.6) : glow('#f472b6', 0.6);
+      [-3.4, 3.4].forEach((x) => {
+        const a = box(4, 4, 0.8, col, x, 56.4, z);
+        a.rotation.z = Math.PI / 4;
+        g.add(a);
+        if (kind === 'star') g.add(box(4, 4, 0.8, col, x, 56.4, z + 0.1));
+        else [-1, 1].forEach((k) => g.add(mesh(new THREE.SphereGeometry(1.5, 8, 6), col, x + k * 1.2, 57.8, z, false)));
+      });
+      g.add(box(2, 0.6, 0.6, mat('#1f2937'), 0, 57, z));
     }
     return g;
   }
@@ -463,12 +509,13 @@ import * as THREE from 'three';
     const armL = arm(-1);
     const armR = arm(1);
     g.add(mesh(new THREE.SphereGeometry(8.5, 18, 14), skin, 0, 55, 0)); // bosh
-    if (L.hat !== 'beanie' && L.hat !== 'cap') {
+    if (!['beanie', 'cap', 'helmet', 'chef'].includes(L.hat)) {
       g.add(mesh(new THREE.SphereGeometry(9, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2.1), mat(L.hair || '#2b2b2b'), 0, 56.5, -0.6));
     }
     if (L.hat) g.add(makeHat(L.hat));
     const eye = new THREE.SphereGeometry(1.3, 8, 6);
     g.add(mesh(eye, mat('#111111'), -3, 56, 7.6, false), mesh(eye, mat('#111111'), 3, 56, 7.6, false));
+    if (L.glasses) g.add(makeGlasses(L.glasses));
     g.userData = { legL, legR, armL, armR };
     return g;
   }
@@ -544,7 +591,9 @@ import * as THREE from 'three';
       const pod = new THREE.Group();
       pod.position.set(x, r, z);
       const spin = new THREE.Group();
-      spin.add(mesh(tire, mat('#111827', { roughness: 0.9 })), mesh(rim, CHROME(), 0, 0, 0, false),
+      const rimMesh = mesh(rim, CHROME(), 0, 0, 0, false);
+      rimMesh.userData.rim = true; // tyuning: disk rangi
+      spin.add(mesh(tire, mat('#111827', { roughness: 0.9 })), rimMesh,
         box(w + 0.8, r * 1.15, 1.6, mat('#64748b', { metalness: 0.6, roughness: 0.4 })));
       pod.add(spin);
       g.add(pod);
@@ -792,6 +841,16 @@ import * as THREE from 'three';
       neon.position.y = 1.4;
       car.add(neon);
     }
+    // Tyuning ustaxonasi: disklar rangi va oynalarni qoraytirish
+    if (tune && (tune.rims || tune.tint)) {
+      const glassA = GLASS();
+      const glassB = DARK_GLASS();
+      car.traverse((o) => {
+        if (!o.isMesh) return;
+        if (tune.rims && o.userData.rim) o.material = mat(tune.rims, { metalness: 0.75, roughness: 0.25 });
+        else if (tune.tint && (o.material === glassA || o.material === glassB)) o.material = mat('#020617', { roughness: 0.05, metalness: 0.7 });
+      });
+    }
     return car;
   }
 
@@ -889,7 +948,7 @@ import * as THREE from 'three';
     const target = Math.PI / 2 - (p.dir || 0);
     rig.heading = lerpAngle(rig.heading, target, Math.min(1, dt * 12));
     const carId = car ? car.id : null;
-    const carKey = carId ? `${carId}|${p.tune ? `${p.tune.color || ''}|${p.tune.neon || ''}` : ''}` : null;
+    const carKey = carId ? `${carId}|${p.tune ? `${p.tune.color || ''}|${p.tune.neon || ''}|${p.tune.rims || ''}|${p.tune.tint ? 1 : ''}` : ''}` : null;
     if (carKey !== rig.carKey) {
       if (rig.car) {
         rig.holder.remove(rig.car);
@@ -2060,7 +2119,7 @@ import * as THREE from 'three';
         tx: p.x, ty: p.y, th: p.h || 0, dir: p.dir, car: p.car, taxi: p.taxi, name: p.name, avatar: p.avatar,
         seat: p.seat || null, pose: p.pose || null, clan: p.clan || null, drift: Boolean(p.drift), tune: p.tune || null,
         emote: p.emote || null, para: Boolean(p.para), ring: Boolean(p.ring), dirt: p.dirt || 0, pet: p.pet || null, boat: Boolean(p.boat),
-        act: p.act || null, spoiler: Boolean(p.spoiler), horn: p.horn || null, deco: p.deco || null,
+        act: p.act || null, spoiler: Boolean(p.spoiler), horn: p.horn || null, deco: p.deco || null, ex: p.ex || null,
       });
       setRigLooks(o.rig, p.looks);
     });
@@ -2396,6 +2455,7 @@ import * as THREE from 'three';
       me.moving = true;
     }
     driftFx(dt, car);
+    arenaTick(dt);
     if (me.para) {
       // Parashyut: sekin tushadi
       me.h = Math.max(0, me.h - 75 * dt);
@@ -2425,6 +2485,20 @@ import * as THREE from 'three';
         me.vh -= GRAVITY * dt;
         me.h = Math.max(floor, me.h + me.vh * dt);
         if (me.h === floor) me.vh = 0;
+      }
+    } else if (me.roofT && !me.seat) {
+      // Osmono'par tomida: tom ustida turadi, chetidan chiqsa — parashyut ochiladi
+      const floor = topUnder(me.x, me.y, 10);
+      if (!floor && me.h > 110) {
+        me.roofT = null;
+        me.para = true;
+        me.vh = 0;
+        toast("Tomdan sakradingiz — parashyut ochildi! 🪂", 'success');
+      } else {
+        me.vh -= GRAVITY * dt;
+        me.h = Math.max(floor, me.h + me.vh * dt);
+        if (me.h === floor) me.vh = 0;
+        if (!floor && me.h === 0) me.roofT = null;
       }
     } else if (me.h > 0 || me.vh > 0) {
       // Sakrash: tepaga tezlik, keyin tortishish pastga tushiradi
@@ -3573,7 +3647,13 @@ import * as THREE from 'three';
         write.title = 'Xabar yozish';
         write.append(icon('message'));
         write.addEventListener('click', () => openChat(p));
-        row.append(write, ring);
+        const homeInv = el('button', 'btn btn--ghost btn--icon', '🏠');
+        homeInv.type = 'button';
+        homeInv.title = 'Uyimga mehmonga chaqirish';
+        homeInv.setAttribute('aria-label', homeInv.title);
+        homeInv.addEventListener('click', () => api('/api/game/home/invite', { method: 'POST', body: { to: p.key } })
+          .then(() => toast(`${p.name}ga taklif yuborildi 🏠 U kelsa, uyingizda birga o'ynaysiz`, 'success')).catch(said));
+        row.append(write, ring, homeInv);
         if (p.online) {
           const duel = el('button', 'btn btn--ghost btn--icon');
           duel.type = 'button';
@@ -3788,7 +3868,7 @@ import * as THREE from 'three';
       toggleFly(); // Teslada — uchish/qo'nish
       return;
     }
-    if (me.h - (me.spider ? topUnder(me.x, me.y, 10) : 0) > 0.5) return;
+    if (me.h - (me.spider || me.roofT ? topUnder(me.x, me.y, 10) : 0) > 0.5) return;
     me.vh = JUMP_SPEED;
   }
 
@@ -4557,6 +4637,7 @@ import * as THREE from 'three';
     }
     if (slip > 0.25) {
       driftTime += dt;
+      arenaDrift(dt, speed, slip);
       if (Math.random() < 0.7) smokeAt(me.x, me.y, me.dir);
       const now = performance.now();
       if (now - screechAt > 180) {
@@ -4567,6 +4648,61 @@ import * as THREE from 'three';
       if (driftTime > 1.2) floatText(`DRIFT ${driftTime.toFixed(1).replace('.', ',')} s!`, me.x, me.y, me.rig.root.position.y + 20);
       driftTime = 0;
     }
+  }
+
+  // Drift trassasida (yangi shahar) har drift — ochko; ochkolar pulga aylanadi
+  const arena = { pts: 0, secs: 0, last: 0, sentAt: 0, card: null };
+  function inDriftArena() {
+    const T = TW();
+    const D = T && T.city && T.city.drift;
+    return Boolean(D && me.x > D.x && me.x < D.x + D.w && me.y > D.y && me.y < D.y + D.h);
+  }
+  function arenaCard(text) {
+    if (!arena.card) {
+      arena.card = el('div', 'drift-card');
+      arena.card.hidden = true;
+      document.body.append(arena.card);
+    }
+    arena.card.hidden = !text;
+    if (text && arena.card.textContent !== text) arena.card.textContent = text;
+  }
+  function arenaDrift(dt, speed, slip) {
+    if (!inDriftArena()) return;
+    arena.pts += dt * (speed / 9) * (1 + Math.min(slip, 1.2));
+    arena.last = performance.now();
+  }
+  async function arenaSend() {
+    const pts = Math.floor(arena.pts);
+    const secs = arena.secs;
+    arena.pts = 0;
+    arena.secs = 0;
+    arena.sentAt = performance.now();
+    if (pts < 5) return;
+    try {
+      const d = await api('/api/game/drift', { method: 'POST', body: { points: pts, secs } });
+      localVersion += 1;
+      setEconomy(d.economy);
+      if (d.pay) sound.cash();
+      toast(`🏁 Drift: ${formatNumber(d.points)} ochko${d.pay ? ` → +${formatNumber(d.pay)} so'm` : ' (bugungi pul chegarasi tugadi)'}${d.record ? ' — yangi rekord! 🏆' : ''}`, 'success');
+    } catch (err) {
+      if (!handleAuthError(err)) toast(err.message, 'warn');
+    }
+  }
+  function arenaTick(dt) {
+    const car = me && me.car ? carInfo() : null;
+    const inside = Boolean(car && !car.flies && inDriftArena());
+    if (!inside) {
+      if (arena.pts >= 5) arenaSend();
+      arena.pts = 0;
+      arena.secs = 0;
+      arenaCard('');
+      return;
+    }
+    arena.secs += dt;
+    const now = performance.now();
+    // 3 soniya drift bo'lmasa yoki 25 soniyada bir — ochkolar yuboriladi
+    if (arena.pts >= 5 && (now - arena.last > 3000 || now - arena.sentAt > 25000)) arenaSend();
+    arenaCard(arena.pts >= 1 ? `🏁 DRIFT: ${formatNumber(Math.floor(arena.pts))} ochko` : '🏁 Drift trassasi — Shift bosib keskin buriling!');
   }
 
   function toggleDrift() {
@@ -4815,7 +4951,25 @@ import * as THREE from 'three';
       speed.append(priceButton(`+${Math.round(d.step * 100)}% tezlik`, car.next_price,
         () => garageCall(st, { action: 'speed' }, 'Dvigatel kuchaytirildi!')));
     } else speed.append(el('small', '', 'Eng yuqori daraja'));
-    body.append(paint, neon, speed);
+    // Disklar va tonirovka (tyuning ustaxonasi)
+    const rims = el('div', 'looks-row');
+    rims.append(el('strong', '', `Disklar rangi — ${formatNumber(d.rim_price || 0)} so'm`));
+    const rw = el('div', 'swatches');
+    (d.rims || []).forEach((col) => {
+      const b = el('button', `swatch${car.rims === col ? ' is-on' : ''}`);
+      b.type = 'button';
+      b.style.setProperty('--sw', col);
+      b.setAttribute('aria-label', `Disk ${col}`);
+      b.addEventListener('click', () => garageCall(st, { action: 'rims', value: col }, "Yangi disklar qo'yildi!"));
+      rw.append(b);
+    });
+    rims.append(rw);
+    const tint = el('div', 'looks-row');
+    tint.append(el('strong', '', `Oynalarni qoraytirish (tonirovka)${car.tint ? ' — bor ✓' : ''}`));
+    tint.append(car.tint
+      ? actionBtn('x', 'Olib tashlash', () => garageCall(st, { action: 'tint' }, 'Tonirovka olib tashlandi'), 'btn btn--ghost btn--sm')
+      : priceButton('Qoraytirish', d.tint_price || 0, () => garageCall(st, { action: 'tint' }, 'Oynalar qoraytirildi 😎'), 'btn--sm'));
+    body.append(paint, neon, rims, tint, speed);
   }
 
   // ---------------- Avtobus ishi ----------------
@@ -5733,6 +5887,14 @@ import * as THREE from 'three';
   // ---------------- Parashyut ----------------
   let canopy = null;
   function jumpParachute() {
+    if (!me.car && me.roofT && me.h > 100) {
+      me.roofT = null;
+      me.para = true;
+      me.vh = 0;
+      sound.door();
+      toast("Parashyut ochildi! 🪂 Pastga sekin tushasiz", 'success');
+      return;
+    }
     if (!me.car || !carInfo().flies || me.h < 200) return;
     me.car = null; // samolyot sizniki bo'lib qoladi
     me.fly = false;
@@ -6577,6 +6739,15 @@ import * as THREE from 'three';
     }
     if (!rig.petView) return;
     rig.petView.visible = rig.root.visible && !p.car && !p.boat;
+    // Daraja oshgani sari hayvon kattalashadi; hiyla — 3 soniya
+    const ex = p.ex || {};
+    const lv = ex.pl || 1;
+    if (ex.pt && ex.pt[1] !== rig.petTrickAt) {
+      rig.petTrickAt = ex.pt[1];
+      rig.petTrick = { k: ex.pt[0], t0: performance.now() };
+    }
+    const tr = rig.petTrick && performance.now() - rig.petTrick.t0 < 3000 ? rig.petTrick : null;
+    rig.petView.scale.set(0.85 + lv * 0.1, (0.85 + lv * 0.1) * (tr && tr.k === 'sit' ? 0.7 : 1), 0.85 + lv * 0.1);
     const back = rig.heading - Math.PI;
     const side = kind === 'parrot' ? 0 : 18;
     const tx = rig.root.position.x + Math.sin(back) * 26 + Math.cos(back) * side;
@@ -6588,6 +6759,12 @@ import * as THREE from 'three';
     pv.z += (tz - pv.z) * k;
     pv.y = kind === 'parrot' ? rig.root.position.y + 62 + Math.sin(performance.now() / 300) * 4 : rig.root.position.y;
     if (moved > 3) rig.petView.rotation.y = Math.atan2(tx - pv.x, tz - pv.z);
+    if (tr) {
+      const e = (performance.now() - tr.t0) / 1000;
+      if (tr.k === 'jump') pv.y += Math.abs(Math.sin(e * 6)) * 18;
+      else if (tr.k === 'spin') rig.petView.rotation.y = e * 9;
+      else if (tr.k === 'dance') { rig.petView.rotation.z = Math.sin(e * 10) * 0.4; pv.y += Math.abs(Math.sin(e * 10)) * 6; }
+    } else rig.petView.rotation.z = 0;
     const t = performance.now() / 90;
     const u = rig.petView.userData;
     if (u.legs) u.legs.forEach((l, i) => { l.rotation.x = moved > 3 ? Math.sin(t + i * Math.PI) * 0.6 : 0; });
@@ -6615,6 +6792,7 @@ import * as THREE from 'three';
     const st = { kind: 'pets', v: 0, data: null };
     openSheet(st);
     loadInto(st, '/api/game/pet', (d) => { st.data = d; });
+    api('/api/game/pet/care').then((d) => { st.care = d.care; st.v += 1; if (sheetState === st) renderSheet(); }).catch(() => {});
   }
   function renderPetsSheet(body, st) {
     setHead('home', 'Uy hayvoni', "Orqangizdan yuradi — hamma ko'radi");
@@ -6643,6 +6821,50 @@ import * as THREE from 'three';
       list.append(r);
     });
     body.append(list);
+    const care = st.data.pet ? st.care : null;
+    if (care) {
+      const petCall = (url, b, ok) => api(url, { method: 'POST', body: b }).then((x) => {
+        if (x.care) st.care = x.care;
+        if (x.economy) { localVersion += 1; setEconomy(x.economy); }
+        st.v += 1;
+        if (ok) ok(x);
+        renderSheet();
+      }).catch(said);
+      const box2 = el('div', 'pet-care');
+      box2.append(el('h3', 'life-h3', `${care.name || PET_NAMES[st.data.pet]} · ${care.level}-daraja`));
+      const bar = (label, pct, cls) => {
+        const w = el('div', 'pet-bar');
+        const f = el('span', cls);
+        f.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+        w.append(f);
+        return [el('small', '', label), w];
+      };
+      const nextXp = care.next;
+      box2.append(...bar(`🍖 To'qlik: ${care.food}%`, care.food, care.food < 30 ? 'is-low' : ''),
+        ...bar(nextXp ? `⭐ Tajriba: ${care.xp} / ${nextXp} (sayr qiling — piyoda yuring)` : `⭐ Eng yuqori daraja! (${care.xp})`, nextXp ? (care.xp / nextXp) * 100 : 100, 'is-xp'));
+      if (care.food < 30) box2.append(el('p', 'sheet-note', "Hayvoningiz och — och hayvon sayrdan o'rganmaydi va hiyla ko'rsatmaydi."));
+      box2.append(priceButton(`🍖 Ovqat berish`, care.food_price, () => petCall('/api/game/pet/feed', {}, () => toast('Mazza qilib yedi! 🐾', 'success'))));
+      const nameRow = el('div', 'bank-actions');
+      const nameIn = el('input', 'input-plain');
+      nameIn.maxLength = 16;
+      nameIn.placeholder = 'Ism qo\'ying (masalan: Bobik)';
+      nameIn.value = care.name || '';
+      nameRow.append(nameIn, actionBtn('check', 'Saqlash', () => petCall('/api/game/pet/name', { name: nameIn.value }, () => toast('Ism qo\'yildi 🐾', 'success')), 'btn btn--ghost btn--sm'));
+      box2.append(nameRow, el('small', '', 'Hiylalar (hamma ko\'radi):'));
+      const tr = el('div', 'chips');
+      care.tricks.forEach((t) => {
+        const b = el('button', 'chip', `${t.open ? '' : '🔒 '}${t.name}${t.open ? '' : ` (${t.level}-daraja)`}`);
+        b.type = 'button';
+        b.disabled = !t.open;
+        b.addEventListener('click', () => api('/api/game/pet/trick', { method: 'POST', body: { trick: t.id } }).then(() => {
+          me.ex = { ...(me.ex || {}), pt: [t.id, Date.now() / 1000] };
+          closeSheet();
+        }).catch(said));
+        tr.append(b);
+      });
+      box2.append(tr);
+      body.append(box2);
+    }
     if (st.data.pet) {
       body.append(actionBtn('x', "Hayvonni qo'yib yuborish", async () => {
         await api('/api/game/pet', { method: 'POST', body: { kind: '' } }).catch(() => null);
@@ -6817,7 +7039,29 @@ import * as THREE from 'three';
     stage = s2;
     if (s2 && (!before || before.key !== s2.key) && !s2.me) toast(`🎤 ${s2.name} sahnaga chiqdi! Bog'dagi sahnaga keling`, 'success');
   }
+  let stageBeams = null;
+  function stageLights() {
+    const S = world.places.stage;
+    if (!stageBeams) {
+      stageBeams = new THREE.Group();
+      ['#f472b6', '#22d3ee', '#facc15'].forEach((c, i) => {
+        const beam = new THREE.Mesh(new THREE.ConeGeometry(28, 140, 18, 1, true), new THREE.MeshBasicMaterial({
+          color: c, transparent: true, opacity: 0.18, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+        }));
+        beam.position.set(S.x + 20 + i * ((S.w - 40) / 2), 80, S.y + S.h / 2);
+        stageBeams.add(beam);
+      });
+      stageBeams.visible = false;
+      scene.add(stageBeams);
+    }
+    stageBeams.visible = Boolean(stage);
+    if (stage) {
+      const t = performance.now() / 700;
+      stageBeams.children.forEach((b, i) => { b.rotation.z = Math.sin(t + i * 2) * 0.35; b.rotation.x = Math.cos(t * 0.8 + i) * 0.25; });
+    }
+  }
   function updateStageUi() {
+    stageLights();
     const sp = world.places.stage.spot;
     const near = stage && !stage.me && Math.hypot(sp.x - me.x, sp.y - me.y) < 650;
     $('btn-clap').hidden = !near;
@@ -7106,13 +7350,34 @@ import * as THREE from 'three';
       const r = el('div', 'car-row');
       const info = el('div', 'car-row__info');
       info.append(el('strong', '', `${c.name}${c.me ? ' (siz)' : ''}`), el('small', '', `${c.votes} ovoz`));
+      if (c.program) info.append(el('small', 'cand-program', `📋 ${c.program}`));
       r.append(info);
       if (d.my_vote === c.key) r.append(el('span', 'chip', '✓ Ovozingiz'));
       else if (!d.my_vote && !c.me) r.append(actionBtn('vote', 'Ovoz berish', () => post('/api/game/election/vote', { key: c.key }), 'btn btn--primary btn--sm'));
       body.append(r);
     });
-    if (!d.running && !IS_OWNER) {
-      body.append(priceButton("Nomzod bo'lish", d.fee, () => post('/api/game/election/run')));
+    if (!IS_OWNER) {
+      const prog = el('textarea', 'input-plain cand-input');
+      prog.maxLength = 300;
+      prog.rows = 3;
+      prog.placeholder = d.running ? "Dasturingizni yangilang…" : "Dasturingiz: saylansangiz nima qilasiz? Masalan: har kuni farmon bilan musobaqa e'lon qilaman…";
+      prog.value = st.program || '';
+      prog.addEventListener('input', () => { st.program = prog.value; });
+      body.append(el('h3', 'life-h3', d.running ? '📋 Dasturim' : "🗳️ Nomzod bo'lish"), prog);
+      if (d.running) body.append(actionBtn('check', 'Dasturni saqlash', () => post('/api/game/election/run', { program: st.program || '' }), 'btn btn--ghost btn--block'));
+      else body.append(priceButton("Nomzod bo'lish", d.fee, () => post('/api/game/election/run', { program: st.program || '' })));
+    }
+    // Hokim farmoni: rais kuniga bir marta butun shaharga e'lon yozadi
+    body.append(el('h3', 'life-h3', '📜 Hokim farmoni'));
+    if (plus.decree) body.append(el('p', 'decree-note', `«${plus.decree.text}» — ${plus.decree.name}`));
+    else body.append(el('p', 'sheet-note', "Bugun farmon yo'q."));
+    if (d.am_mayor && !plus.decree) {
+      const dec = el('textarea', 'input-plain cand-input');
+      dec.maxLength = 160;
+      dec.rows = 2;
+      dec.placeholder = "Masalan: Bugun soat 18:00 da drift trassasida musobaqa! 🏁";
+      body.append(dec, actionBtn('megaphone', "Farmonni e'lon qilish", () => api('/api/game/decree', { method: 'POST', body: { text: dec.value } })
+        .then((x) => { plus.decree = x.decree; showDecree(x.decree, true); st.v += 1; renderSheet(); }).catch(said), 'btn btn--primary btn--block'));
     }
   }
 
@@ -8467,7 +8732,39 @@ import * as THREE from 'three';
       g.add(box(122, 3, 4, glow('#e879f9', 1.4), cx, 96, -30));
     });
     g.add(placeSign('🏎️ SUPERKARLAR — AVTOSALONDA', 360, 36, '#b91c1c', 5100, 70, -1240));
+    // Lift eshiklari
+    C.towers.forEach((t) => {
+      g.add(box(40, 44, 2, glow('#fde68a', 0.35), t.door.x, 22, t.y + t.h + 1.2));
+      g.add(placeSign(`🛗 ${Math.round(t.hgt / 3.5)} qavat`, 70, 14, '#0f172a', t.door.x, 54, t.y + t.h + 2));
+    });
     scene.add(g);
+    Object.entries(C.places || {}).forEach(([id, r]) => twBuilding(`city_${id}`, r));
+    // Drift trassasi: keng asfalt maydon, konuslar va shinalar
+    const D = C.drift;
+    if (D) {
+      const dg = new THREE.Group();
+      dg.add(flat(D.w + 30, D.h + 30, mat('#ef4444', { roughness: 1 }), D.x + D.w / 2, D.y + D.h / 2, 0.3));
+      dg.add(flat(D.w, D.h, mat('#1f2329', { roughness: 0.9 }), D.x + D.w / 2, D.y + D.h / 2, 0.5));
+      const cone = new THREE.ConeGeometry(7, 20, 10);
+      for (let i = 0; i < 4; i += 1) {
+        const cx = D.x + D.w * (0.2 + i * 0.2);
+        const cz = D.y + D.h / 2;
+        for (let k = 0; k < 10; k += 1) {
+          const a = (k / 10) * Math.PI * 2;
+          dg.add(mesh(cone, mat(k % 2 ? '#f97316' : '#f8fafc'), cx + Math.cos(a) * 110, 10, cz + Math.sin(a) * 110));
+        }
+      }
+      const tire = new THREE.TorusGeometry(9, 4, 6, 12);
+      for (let x = D.x + 20; x < D.x + D.w; x += 60) {
+        [D.y - 8, D.y + D.h + 8].forEach((z) => {
+          const t2 = mesh(tire, mat('#111827'), x, 4, z);
+          t2.rotation.x = Math.PI / 2;
+          dg.add(t2);
+        });
+      }
+      dg.add(placeSign('🏁 DRIFT TRASSASI', 320, 40, '#dc2626', D.x + D.w / 2, 70, D.y + D.h + 30));
+      scene.add(dg);
+    }
   }
 
   function buildTown() {
@@ -8625,7 +8922,7 @@ import * as THREE from 'three';
   function townSolids() {
     const T = TW();
     if (!T) return [];
-    return (T.city ? T.city.towers.map((t) => ({ x: t.x, y: t.y, w: t.w, h: t.h, top: t.hgt })) : []).concat(town.siteViews.map((v) => ({ x: T.sites[v.slot].x - 48, y: T.sites[v.slot].y - 16, w: 96, h: 34, top: 70 }))).concat(Object.entries(T.places).filter(([id]) => id !== 'nightmarket').map(([, r]) => ({ x: r.x, y: r.y, w: r.w, h: r.h, top: r.hgt + 10 })));
+    return (T.city ? T.city.towers.map((t) => ({ x: t.x, y: t.y, w: t.w, h: t.h, top: t.hgt })).concat(Object.values(T.city.places || {}).map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h, top: r.hgt + 10 }))) : []).concat(town.siteViews.map((v) => ({ x: T.sites[v.slot].x - 48, y: T.sites[v.slot].y - 16, w: 96, h: 34, top: 70 }))).concat(Object.entries(T.places).filter(([id]) => id !== 'nightmarket').map(([, r]) => ({ x: r.x, y: r.y, w: r.w, h: r.h, top: r.hgt + 10 })));
   }
   const townAreas = () => {
     const T = TW();
@@ -8961,6 +9258,52 @@ import * as THREE from 'three';
     if (hud.textContent !== text) hud.textContent = text;
   }
 
+  // ---- Yangi shahar: lift, tyuning, ko'rgazma, hokimlik, kiyim do'koni, buzilgan joylar ----
+  function plusSpot(car, T) {
+    const C = T.city;
+    if (!C) return null;
+    if (me.roofT && !car) return { kind: 'fun', d: 0, text: '🛗 Lift bilan pastga tushish (P — parashyutda sakrash)', act: liftDown };
+    if (!car) {
+      for (const b of plus.bugs) if (!b.fixed && twNear(b, 130)) return { kind: 'fun', d: 0, text: `🐞 ${b.label} — kodini tuzatish`, act: () => openTw('bugfix', { i: b.i }) };
+    }
+    const P = C.places || {};
+    if (P.tuning && twNear(P.tuning.door, car ? 160 : 95)) return { kind: 'fun', d: 1, text: '🔧 Tyuning ustaxonasi (disk, tonirovka, dvigatel)', act: openGarage };
+    if (car) return null;
+    if (P.show && twNear(P.show.door, 95)) return { kind: 'fun', d: 1, text: "🏆 Ko'rgazma zali — mashina va moda ko'rgazmasi", act: () => openTw('show', { k: 'car' }) };
+    if (P.hokim && twNear(P.hokim.door, 95)) return { kind: 'fun', d: 1, text: '🏛️ Hokimlik — saylov va farmon', act: openElection };
+    if (P.clothes && twNear(P.clothes.door, 95)) return { kind: 'fun', d: 1, text: "👕 Kiyim do'koni", act: () => openTw('clothes') };
+    for (const t of C.towers) if (twNear(t.door, 85)) return { kind: 'fun', d: 1, text: `🛗 Lift — ${Math.round(t.hgt / 3.5)}-qavat tomiga chiqish`, act: () => liftUp(t) };
+    return null;
+  }
+  async function liftUp(t) {
+    try {
+      const d = await api('/api/game/lift', { method: 'POST', body: { tower: t.id } });
+      me.x = d.x;
+      me.y = d.y;
+      me.h = d.h;
+      me.vh = 0;
+      me.roofT = t;
+      sound.ding();
+      toast('Tomdasiz! 🏙️ Chetidan sakrasangiz yoki P bossangiz — parashyut. F — lift bilan pastga', 'success');
+    } catch (err) {
+      said(err);
+    }
+  }
+  async function liftDown() {
+    const t = me.roofT;
+    if (!t) return;
+    try {
+      const d = await api('/api/game/lift', { method: 'POST', body: { tower: t.id, down: true } });
+      me.roofT = null;
+      me.x = d.x;
+      me.y = d.y;
+      me.h = 0;
+      me.vh = 0;
+    } catch (err) {
+      said(err);
+    }
+  }
+
   // ---- F tugmasi ----
   function townSpot(car) {
     const T = TW();
@@ -8968,6 +9311,8 @@ import * as THREE from 'three';
     const S = T.spots;
     if (town.cam && town.cam.kind !== 'selfie') return { kind: 'fun', d: 0, text: 'Tushish ✋', act: () => { town.cam = null; camReady = false; } };
     if (town.boss && town.boss.hp > 0 && twNear(town.boss, 420)) return { kind: 'fun', d: 0, text: '👾 Bossga hujum (savol)', act: () => openTw('boss') };
+    const ps = plusSpot(car, T);
+    if (ps) return ps;
     const u = town.uloq;
     if (u && car && car.id === 'horse') {
       if (u.holder === me.key && twNear(S.kopkari_goal, 100)) return { kind: 'fun', d: 0, text: 'Uloqni qozonga tashlash! 🐎', act: () => twPost('/api/game/kopkari/score', {}, (d) => { sound.cash(); toast(`Uloq qozonda! +${formatNumber(d.pay)} so'm 🏆`, 'success'); }) };
@@ -9175,7 +9520,164 @@ import * as THREE from 'three';
   // =====================================================================
   //  Oynalar
   // =====================================================================
+  // ---------------- Yangi shahar qo'shimchalari: bug ovchisi, kod fasadi, farmon ----------------
+  function plusStart() {
+    const tick = () => {
+      api('/api/game/bughunt').then((d) => setBugs(d.spots || [])).catch(() => {});
+      api('/api/game/facades').then((d) => setFacades(d.facades || [])).catch(() => {});
+    };
+    tick();
+    setInterval(tick, 60000);
+  }
+  function setBugs(list) {
+    const sig = list.map((b) => `${b.i}:${b.fixed || ''}`).join();
+    if (sig === plus.bugSig) return;
+    plus.bugSig = sig;
+    plus.bugs = list;
+    plus.bugViews.forEach((v) => {
+      dropBeacon(v.beacon);
+      scene.remove(v.label);
+      v.label.material.map.dispose();
+      v.label.material.dispose();
+    });
+    plus.bugViews = list.filter((b) => !b.fixed).map((b) => {
+      const label = makeLabel(`🐞 ${b.label}`, 'rgba(185,28,28,.92)');
+      label.position.set(b.x, 95, b.y);
+      scene.add(label);
+      return { beacon: makeBeacon(b.x, b.y, '#ef4444', 46), label };
+    });
+  }
+
+  // HTML/CSS ni rasmga aylantiramiz (SVG foreignObject) — skriptlar ishlamaydi, tashqi fayllar yuklanmaydi
+  async function htmlCanvas(html, css, W = 360, H = 216) {
+    const doc = document.implementation.createHTMLDocument('');
+    doc.body.innerHTML = html;
+    doc.body.querySelectorAll('script, iframe, object, embed, link, img, video, audio, form, input').forEach((n) => n.remove());
+    const wrap = doc.createElement('div');
+    wrap.className = 'fxb';
+    wrap.setAttribute('style', `width:${W}px;height:${H}px;overflow:hidden;background:#ffffff;color:#111827;font-family:Arial,sans-serif;font-size:14px;padding:8px;box-sizing:border-box`);
+    const st = doc.createElement('style');
+    st.textContent = String(css).replace(/@import[^;]*;?/gi, '').replace(/url\([^)]*\)/gi, 'none').replace(/\b(html|body)\b/g, '.fxb');
+    wrap.append(st, ...doc.body.childNodes);
+    const xml = new XMLSerializer().serializeToString(wrap);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject width="100%" height="100%">${xml}</foreignObject></svg>`;
+    const img = new Image();
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0);
+    g.getImageData(0, 0, 1, 1); // brauzer rasmni "iflos" desa — xato, pastda oddiy yozuv
+    return c;
+  }
+  function plainCanvas(text, W = 360, H = 216) {
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const g = c.getContext('2d');
+    g.fillStyle = '#0f172a';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#93c5fd';
+    g.font = 'bold 26px Arial';
+    g.textAlign = 'center';
+    g.fillText('🖥️ Kod fasadi', W / 2, H / 2 - 10);
+    g.fillStyle = '#e2e8f0';
+    g.font = '20px Arial';
+    g.fillText(text, W / 2, H / 2 + 24);
+    return c;
+  }
+  async function facadeBoard(f) {
+    const pl = world.plots[f.plot];
+    if (!pl) return null;
+    let canvas;
+    try {
+      canvas = await htmlCanvas(f.html, f.css);
+    } catch (e) {
+      canvas = plainCanvas(f.name);
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const g = new THREE.Group();
+    const bottom = pl.gate === 'bottom';
+    const x = pl.x + pl.w - 48;
+    const z = bottom ? pl.y + pl.h - 14 : pl.y + 14;
+    const dark = mat('#0f172a');
+    g.add(cyl(1.6, 1.6, 44, dark, x - 34, 22, z, 6), cyl(1.6, 1.6, 44, dark, x + 34, 22, z, 6));
+    g.add(box(80, 50, 2, dark, x, 60, z + (bottom ? -1.2 : 1.2)));
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(76, 45.6), new THREE.MeshBasicMaterial({ map: tex }));
+    screen.position.set(x, 60, z);
+    if (!bottom) screen.rotation.y = Math.PI;
+    g.add(screen);
+    const label = makeLabel(`🖥️ ${f.name}`, 'rgba(15,23,42,.85)');
+    label.scale.multiplyScalar(0.6);
+    label.position.set(x, 94, z);
+    g.add(label);
+    scene.add(g);
+    return g;
+  }
+  function setFacades(list) {
+    const seen = new Set();
+    list.forEach((f) => {
+      seen.add(f.key);
+      const sig = `${f.plot}|${f.at}`;
+      const cur = plus.facades.get(f.key);
+      if (cur && cur.sig === sig) return;
+      if (cur && cur.group) { scene.remove(cur.group); disposeTree(cur.group); }
+      const entry = { sig, group: null, data: f };
+      plus.facades.set(f.key, entry);
+      facadeBoard(f).then((g) => {
+        if (plus.facades.get(f.key) !== entry) { if (g) { scene.remove(g); disposeTree(g); } return; }
+        entry.group = g;
+      });
+    });
+    [...plus.facades.keys()].forEach((k) => {
+      if (seen.has(k)) return;
+      const cur = plus.facades.get(k);
+      if (cur.group) { scene.remove(cur.group); disposeTree(cur.group); }
+      plus.facades.delete(k);
+    });
+  }
+
+  // Hokim farmoni — ekran tepasida lenta (yopsa, shu farmon qayta chiqmaydi)
+  function showDecree(d, force = false) {
+    if (!d) return;
+    let seen = '';
+    try { seen = localStorage.getItem('decree_seen') || ''; } catch (e) { seen = ''; }
+    if (!force && seen === String(d.at)) return;
+    let bar = $('decree-bar');
+    if (!bar) {
+      bar = el('div', 'decree-bar');
+      bar.id = 'decree-bar';
+      document.body.append(bar);
+    }
+    bar.replaceChildren();
+    const x = el('button', 'decree-bar__x', '✕');
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Yopish');
+    x.addEventListener('click', () => {
+      bar.hidden = true;
+      try { localStorage.setItem('decree_seen', String(d.at)); } catch (e) { /* xotira yo'q */ }
+    });
+    bar.append(el('strong', '', '📜 Hokim farmoni'), el('span', '', `«${d.text}» — ${d.name}`), x);
+    bar.hidden = false;
+  }
+
+  const showSwatch = (color) => {
+    const sw = el('span', 'car-row__swatch');
+    sw.style.setProperty('--car', color || '#94a3b8');
+    return sw;
+  };
+
   const TW_LOAD = {
+    show: (st) => twLoad(st, `/api/game/show/${st.k}`, (d) => d.show),
+    clothes: (st) => twLoad(st, '/api/game/looks'),
+    bugs: (st) => twLoad(st, '/api/game/bughunt', (d) => { setBugs(d.spots || []); return d; }),
+    bugfix: (st) => { api('/api/game/bughunt').then((d) => { setBugs(d.spots || []); st.data = (d.spots || []).find((b) => b.i === st.i) || null; st.code = st.data ? st.data.code : ''; twRe(st); }).catch(said); },
+    facade: (st) => twLoad(st, '/api/game/facades', (d) => { const mine = (d.facades || []).find((f) => f.me); st.html = mine ? mine.html : '<h1>Mening uyim</h1>\n<p>Xush kelibsiz! 👋</p>'; st.css = mine ? mine.css : 'h1 { color: #2563eb; }\np { font-size: 18px; }'; return d; }),
+    concert: (st) => twLoad(st, '/api/game/stage/top'),
+    drift: (st) => twLoad(st, '/api/game/drift'),
     site: (st) => twLoad(st, `/api/sites/${st.key}`),
     shop: (st) => twLoad(st, `/api/game/shops/${st.plot}`),
     shops: (st) => twLoad(st, '/api/game/shops'),
@@ -9229,6 +9731,201 @@ import * as THREE from 'three';
   }
 
   const TW_VIEWS = {
+    // ---- Haftalik ko'rgazmalar: mashina va moda ----
+    show(body, st) {
+      const d = st.data;
+      setHead('star', d ? d.title : "Ko'rgazma", d ? `Hafta g'olibiga ${formatNumber(d.prize)} so'm · ${d.days_left} kun qoldi` : 'Yuklanmoqda…');
+      const tabs = el('div', 'chips');
+      [['car', '🚗 Mashina'], ['look', '👕 Moda']].forEach(([k, label]) => {
+        const b = el('button', `chip${st.k === k ? ' is-on' : ''}`, label);
+        b.type = 'button';
+        b.addEventListener('click', () => openTw('show', { k }));
+        tabs.append(b);
+      });
+      body.append(tabs);
+      if (!d) return;
+      if (d.last) body.append(el('p', 'sheet-note', `🏆 O'tgan hafta g'olibi: ${d.last.name} (${d.last.votes} ovoz)`));
+      body.append(el('p', 'sheet-note', st.k === 'car'
+        ? "Mashinangizni (garajdagi rang, disk, neon bilan) ko'rgazmaga qo'ying. Har kim bitta ovoz beradi — ovozni o'zgartirsa bo'ladi."
+        : "Hozirgi kiyimingiz bilan qatnashing. Eng chiroyli kiyinganga ovoz bering!"));
+      const post = (url, b) => api(url, { method: 'POST', body: b }).then((x) => { st.data = x.show; twRe(st); }).catch(said);
+      if (!IS_OWNER) {
+        if (st.k === 'car') {
+          const mine = (economy.cars || []).filter((c) => carsById[c] && !carsById[c].flies);
+          if (!mine.length) body.append(el('p', 'sheet-note', "Qatnashish uchun mashina kerak (Avtosalon)."));
+          else {
+            const sel = el('select', 'input-plain');
+            mine.forEach((c) => { const o = el('option', '', carsById[c].name); o.value = c; sel.append(o); });
+            const row = el('div', 'bank-actions');
+            row.append(sel, actionBtn('trophy', d.entered ? 'Almashtirish' : "Ko'rgazmaga qo'yish", () => post(`/api/game/show/car/enter`, { car: sel.value }), 'btn btn--primary btn--sm'));
+            body.append(row);
+          }
+        } else {
+          body.append(actionBtn('trophy', d.entered ? "Kiyimimni yangilash" : 'Hozirgi kiyimim bilan qatnashish', () => post('/api/game/show/look/enter', {}), 'btn btn--primary btn--block'));
+        }
+      }
+      body.append(el('h3', 'life-h3', `Ishtirokchilar (${d.entries.length})`));
+      if (!d.entries.length) body.append(el('p', 'sheet-note', "Hali hech kim yo'q — birinchi bo'ling!"));
+      d.entries.forEach((e, i) => {
+        const x = e.data;
+        let title;
+        let sub;
+        let color;
+        if (st.k === 'car') {
+          title = `${x.name}`;
+          color = x.color;
+          sub = [x.neon ? 'neon' : '', x.rims ? 'disk' : '', x.tint ? 'tonirovka' : '', x.speed ? `+${x.speed} dvigatel` : ''].filter(Boolean).join(', ') || 'zavod holatida';
+        } else {
+          title = "Kiyim";
+          color = x.shirt;
+          sub = [x.hat ? HAT_NAMES[x.hat] : '', x.glasses ? `${GLASSES_NAMES[x.glasses]} ko'zoynak` : ''].filter(Boolean).join(', ') || 'oddiy';
+        }
+        const r = row2(`${i === 0 && e.votes ? '🥇 ' : ''}${e.name}${e.me ? ' (siz)' : ''} — ${title}`, `${sub} · ${e.votes} ovoz`);
+        r.prepend(showSwatch(color));
+        if (st.k === 'look') {
+          const mini = el('span', 'look-dots');
+          [x.hair, x.shirt, x.pants].forEach((c) => { const dot = el('i'); dot.style.background = c || '#94a3b8'; mini.append(dot); });
+          r.querySelector('.car-row__info').append(mini);
+        }
+        if (d.my_vote === e.key) r.append(el('span', 'chip', '✓ Ovozingiz'));
+        else if (!e.me) r.append(sm('vote', 'Ovoz', () => post(`/api/game/show/${st.k}/vote`, { key: e.key })));
+        body.append(r);
+      });
+    },
+
+    // ---- Kiyim do'koni ----
+    clothes(body, st) {
+      setHead('store', "👕 Kiyim do'koni", "Maxsus shapka va ko'zoynaklar — sotib olib, «Ko'rinishim» da kiying");
+      const d = st.data;
+      if (!d) return;
+      const owned = new Set(d.owned || []);
+      Object.entries(d.prices || {}).forEach(([item, price]) => {
+        const has = owned.has(item);
+        const r = row2(`${item.startsWith('hat') ? '🎩' : '🕶️'} ${d.names[item]}`, has ? 'Sizda bor ✓' : `${formatNumber(price)} so'm`);
+        if (has) r.append(sm('user', 'Kiyish', () => openLooks(), false));
+        else {
+          r.append(priceButton('Olish', price, () => api('/api/game/clothes/buy', { method: 'POST', body: { item } }).then((x) => {
+            localVersion += 1;
+            setEconomy(x.economy);
+            d.owned = x.owned;
+            sound.cash();
+            toast(`${d.names[item]} — sizniki! «Ko'rinishim» da kiying 👕`, 'success');
+            twRe(st);
+          }), 'btn--sm'));
+        }
+        body.append(r);
+      });
+      body.append(actionBtn('user', "Ko'rinishimni o'zgartirish", () => openLooks(), 'btn btn--ghost btn--block'),
+        actionBtn('star', "Moda ko'rgazmasiga qatnashish", () => openTw('show', { k: 'look' }), 'btn btn--ghost btn--block'));
+    },
+
+    // ---- Bug ovchisi ----
+    bugs(body, st) {
+      setHead('bot', '🐞 Bug ovchisi', "Har kuni shaharda 3 ta narsa buziladi — kodini birinchi tuzatgan pul oladi");
+      const d = st.data;
+      if (!d) return;
+      body.append(el('p', 'sheet-note', `Har bir tuzatish — +${formatNumber(d.pay)} so'm. Qizil nurga boring va F bosing.`));
+      d.spots.forEach((b) => {
+        const r = row2(b.label, b.fixed ? `✅ Tuzatildi — ${b.fixed}` : `${b.lang}: ${b.title}`);
+        if (!b.fixed) r.append(sm('navigation', "Yo'l", () => { setGuide(b.x, b.y, b.label); closeSheet(); }));
+        body.append(r);
+      });
+    },
+    bugfix(body, st) {
+      const b = st.data;
+      setHead('bot', b ? b.label : '🐞 Buzilgan joy', b ? `${b.lang}: ${b.title}` : 'Yuklanmoqda…');
+      if (!b) return;
+      if (b.fixed) { body.append(el('p', 'kitchen__ok', `✅ Buni ${b.fixed} tuzatib bo'ldi. Boshqa buzilgan joyni qidiring!`)); return; }
+      body.append(el('p', 'sheet-note', `Vazifa: ${b.want}. Kodda bitta xato bor — faqat shuni tuzating.`));
+      const ta = el('textarea', 'input-plain code-area');
+      ta.rows = 7;
+      ta.spellcheck = false;
+      ta.value = st.code;
+      ta.addEventListener('input', () => { st.code = ta.value; });
+      body.append(ta);
+      if (st.missing && st.missing.length) {
+        const ul = el('ul', 'kitchen__bad');
+        st.missing.forEach((m) => ul.append(el('li', '', m)));
+        body.append(ul);
+      }
+      body.append(actionBtn('check', 'Tekshirish', () => api(`/api/game/bughunt/${b.i}`, { method: 'POST', body: { code: st.code } }).then((x) => {
+        if (x.ok) {
+          localVersion += 1;
+          setEconomy(x.economy);
+          sound.cash();
+          toast(`Tuzatdingiz! ${b.label.replace(/^\S+\s/, '')} endi ishlaydi. +${formatNumber(x.pay)} so'm 🐞`, 'success');
+          plus.bugSig = '';
+          api('/api/game/bughunt').then((z) => setBugs(z.spots || [])).catch(() => {});
+          closeSheet();
+        } else {
+          st.missing = x.missing;
+          twRe(st);
+        }
+      }).catch(said), 'btn btn--primary btn--block'));
+    },
+
+    // ---- Kod fasadi ----
+    facade(body, st) {
+      setHead('file', '🖥️ Uy fasadi (kod)', "Hovlingiz oldidagi ekranda — hamma ko'radi");
+      if (!st.data) return;
+      body.append(el('p', 'sheet-note', "HTML va CSS yozing (JavaScript ishlamaydi). Ekran o'lchami 360×216. Saqlasangiz, 1 daqiqa ichida hamma ko'radi."));
+      const prev = el('iframe', 'code-preview facade-preview');
+      prev.setAttribute('sandbox', '');
+      prev.title = "Ko'rinishi";
+      const draw = () => { prev.srcdoc = `<!doctype html><meta charset="utf-8"><style>body{margin:0;padding:8px;font-family:Arial,sans-serif;font-size:14px}${(st.css || '').replace(/<\/style/gi, '')}</style>${st.html || ''}`; };
+      const area = (key, label, rows) => {
+        const ta = el('textarea', 'input-plain code-area');
+        ta.rows = rows;
+        ta.spellcheck = false;
+        ta.value = st[key];
+        ta.setAttribute('aria-label', label);
+        ta.addEventListener('input', () => { st[key] = ta.value; draw(); });
+        body.append(el('small', '', label), ta);
+      };
+      area('html', 'HTML', 5);
+      area('css', 'CSS', 4);
+      draw();
+      body.append(el('small', '', "Ko'rinishi:"), prev);
+      const row = el('div', 'bank-actions');
+      row.append(actionBtn('check', 'Saqlash', () => api('/api/game/facade', { method: 'POST', body: { html: st.html, css: st.css } }).then(() => {
+        toast("Saqlandi! Hovlingiz oldidagi ekranga qarang 🖥️", 'success');
+        api('/api/game/facades').then((d) => setFacades(d.facades || [])).catch(() => {});
+        if (economy.home !== null && economy.home !== undefined) { const g = plotGate(world.plots[economy.home]); setGuide(g.x, g.y, 'Uyim (fasad)'); }
+        closeSheet();
+      }).catch(said)), actionBtn('trash', "O'chirish", () => api('/api/game/facade', { method: 'POST', body: { html: '', css: '' } }).then(() => {
+        api('/api/game/facades').then((d) => setFacades(d.facades || [])).catch(() => {});
+        closeSheet();
+      }).catch(said), 'btn btn--ghost'));
+      body.append(row);
+    },
+
+    // ---- Konsert ----
+    concert(body, st) {
+      setHead('mic', '🎤 Konsert sahnasi', "Bog'dagi sahna: chiqing, mikrofonni yoqing (V) — qarsak uchun pul");
+      const d = st.data;
+      if (!d) return;
+      body.append(el('p', 'sheet-note', d.stage ? `Hozir sahnada: ${d.stage.name} · 👏 ${d.stage.claps}` : "Hozir sahna bo'sh — siz chiqing!"));
+      const sp = world.places.stage.spot;
+      body.append(actionBtn('navigation', "Sahnaga yo'l", () => { setGuide(sp.x, sp.y, 'Sahna'); closeSheet(); }, 'btn btn--primary btn--block'));
+      body.append(el('h3', 'life-h3', "🏆 Eng ko'p qarsak olganlar"));
+      if (!d.top.length) body.append(el('p', 'sheet-note', "Hali rekord yo'q."));
+      d.top.forEach((t, i) => body.append(row2(`${['🥇', '🥈', '🥉'][i] || `${i + 1}.`} ${t.name}`, `👏 ${t.claps} qarsak`)));
+    },
+
+    // ---- Drift trassasi ----
+    drift(body, st) {
+      setHead('car', '🏁 Drift trassasi', 'Yangi shaharning eng tepasida');
+      const d = st.data;
+      if (!d) return;
+      body.append(el('p', 'sheet-note', `Mashinada maydonga kiring, Shift (yoki DRIFT) bosib keskin buriling. Ochkolar pulga aylanadi: bugun ${formatNumber(d.paid)} / ${formatNumber(d.cap)} so'm. Rekordingiz: ${formatNumber(d.best)} ochko.`));
+      const T = TW();
+      const D = T.city.drift;
+      body.append(actionBtn('navigation', "Trassaga yo'l", () => { setGuide(D.x + D.w / 2, D.y + D.h - 40, 'Drift trassasi'); closeSheet(); }, 'btn btn--primary btn--block'));
+      body.append(el('h3', 'life-h3', '🏆 Rekordlar'));
+      if (!d.top.length) body.append(el('p', 'sheet-note', "Hali rekord yo'q — birinchi bo'ling!"));
+      d.top.forEach((t, i) => body.append(row2(`${['🥇', '🥈', '🥉'][i] || `${i + 1}.`} ${t.name}`, `${formatNumber(t.best)} ochko`)));
+    },
+
     // ---- Saytlar ko'chasi: saytga kirish ----
     site(body, st) {
       const d = st.data;
@@ -9386,6 +10083,17 @@ import * as THREE from 'three';
       const go = (pt, label) => () => { setGuide(pt.x, pt.y, label); closeSheet(); };
       const T = TW();
       const S = T.spots;
+      sec('🌆 Yangi shahar (shimoli-sharq)', [
+        ['star', "Ko'rgazmalar", "Mashina va moda — hafta g'olibiga sovrin 🏆", () => openTw('show', { k: 'car' })],
+        ['store', "Kiyim do'koni", "Shapka va ko'zoynaklar 👕", () => openTw('clothes')],
+        ['hammer', 'Tyuning', 'Disk, tonirovka, dvigatel 🔧', openGarage],
+        ['car', 'Drift trassasi', 'Drift — ochko va pul 🏁', () => openTw('drift')],
+        ['bot', 'Bug ovchisi', `Shaharda buzilgan joylar: ${plus.bugs.filter((b) => !b.fixed).length} 🐞`, () => openTw('bugs')],
+        ['file', 'Uy fasadi (kod)', "Hovlingiz ekraniga HTML/CSS 🖥️", () => openTw('facade')],
+        ['mic', 'Konsert', "Sahna va eng ko'p qarsak olganlar 🎤", () => openTw('concert')],
+        ['vote', 'Hokimlik', 'Saylov, dastur va farmon 🏛️', openElection],
+        ['map-pin', "Osmono'parlar", "Liftda tomga chiqing, parashyutda tushing 🛗", go(T.city.towers[0].door, "Osmono'par lifti")],
+      ]);
       sec('🏡 Uy', [
         ['home', "Hovli: bog' va uyqu", "Daraxt eking, uxlang 😴", () => openTw('home')],
         ['store', 'Bozor rastasi', "Meva va narsalarni sotish 🛒", openMarket],
@@ -11144,8 +11852,9 @@ import * as THREE from 'three';
   }
 
   // --- Ko'rinish ---
-  const LOOK_LABELS = [['skin', 'Teri rangi'], ['hair', 'Soch'], ['shirt', "Ko'ylak"], ['pants', 'Shim'], ['hat', 'Shapka']];
-  const HAT_NAMES = { '': "Yo'q", cap: 'Kepka', hat: 'Shlyapa', beanie: 'Qishki shapka', crown: 'Toj' };
+  const LOOK_LABELS = [['skin', 'Teri rangi'], ['hair', 'Soch'], ['shirt', "Ko'ylak"], ['pants', 'Shim'], ['hat', 'Shapka'], ['glasses', "Ko'zoynak"]];
+  const HAT_NAMES = { '': "Yo'q", cap: 'Kepka', hat: 'Shlyapa', beanie: 'Qishki shapka', crown: 'Toj', cowboy: 'Kovboy', helmet: "Dubulg'a", tiara: 'Malika toji', party: 'Bayram', chef: 'Oshpaz' };
+  const GLASSES_NAMES = { '': "Yo'q", sun: 'Quyosh', round: 'Dumaloq', star: 'Yulduz', heart: 'Yurak' };
 
   function openLooks() {
     const st = { kind: 'looks', data: null, v: 0, pick: {} };
@@ -11153,7 +11862,7 @@ import * as THREE from 'three';
     loadInto(st, '/api/game/looks', (d) => {
       st.data = d;
       const o = d.options;
-      st.pick = { skin: o.skin[0], hair: o.hair[0], shirt: o.shirt[0], pants: o.pants[0], hat: '', ...d.looks };
+      st.pick = { skin: o.skin[0], hair: o.hair[0], shirt: o.shirt[0], pants: o.pants[0], hat: '', glasses: '', ...d.looks };
     });
   }
 
@@ -11164,12 +11873,16 @@ import * as THREE from 'three';
     LOOK_LABELS.forEach(([k, label]) => {
       const sec = el('div', 'looks-row');
       sec.append(el('strong', '', label));
-      const list = el('div', k === 'hat' ? 'chips' : 'swatches');
-      st.data.options[k].forEach((v) => {
+      const chipKind = k === 'hat' || k === 'glasses';
+      const list = el('div', chipKind ? 'chips' : 'swatches');
+      (st.data.options[k] || []).forEach((v) => {
         const on = (st.pick[k] || '') === v;
         let b;
-        if (k === 'hat') {
-          b = el('button', `chip${on ? ' is-on' : ''}`, HAT_NAMES[v] || v);
+        if (chipKind) {
+          const item = `${k}:${v}`;
+          const locked = st.data.prices && st.data.prices[item] && !(st.data.owned || []).includes(item);
+          b = el('button', `chip${on ? ' is-on' : ''}`, `${locked ? '🔒 ' : ''}${(k === 'hat' ? HAT_NAMES : GLASSES_NAMES)[v] || v}`);
+          if (locked) b.title = `Kiyim do'konida — ${formatNumber(st.data.prices[item])} so'm (kiyib ko'rish mumkin)`;
         } else {
           b = el('button', `swatch${on ? ' is-on' : ''}`);
           b.style.setProperty('--sw', v);
@@ -11188,6 +11901,11 @@ import * as THREE from 'three';
       body.append(sec);
     });
     preview();
+    const lockedPick = LOOK_LABELS.some(([k]) => st.data.prices && st.data.prices[`${k}:${st.pick[k]}`] && !(st.data.owned || []).includes(`${k}:${st.pick[k]}`));
+    if (lockedPick) {
+      body.append(el('p', 'sheet-note', "🔒 belgili kiyimni kiyib ko'ryapsiz — saqlash uchun Kiyim do'konidan (yangi shahar) sotib oling."),
+        actionBtn('store', "Kiyim do'koniga", () => openTw('clothes'), 'btn btn--ghost btn--block'));
+    }
     body.append(actionBtn('check', 'Saqlash', async () => {
       try {
         const d = await api('/api/game/looks', { method: 'POST', body: st.pick });
@@ -11655,6 +12373,22 @@ import * as THREE from 'three';
 
   function renderRoomUI() {
     const d = room.data;
+    const guestBar = $('room-guest') || (() => {
+      const b = el('div', 'room-guest');
+      b.id = 'room-guest';
+      $('room-ui').prepend(b);
+      return b;
+    })();
+    guestBar.replaceChildren();
+    guestBar.hidden = !d.host;
+    $('room-shop').hidden = Boolean(d.host);
+    if (d.host) {
+      guestBar.append(el('strong', '', `🏠 ${d.host.name}ning uyida mehmonsiz`));
+      [['chess', '♟️ Shaxmat'], ['domino', '🁫 Domino']].forEach(([game, label]) => {
+        guestBar.append(actionBtn('target', `${label} (${d.host.name} bilan)`, () => api('/api/game/table/invite', { method: 'POST', body: { to: d.host.key, game } })
+          .then(() => toast(`${d.host.name}ga taklif yuborildi — rozi bo'lsa o'yin ochiladi`, 'success')).catch(said), 'btn btn--primary btn--sm'));
+      });
+    }
     $('room-title').textContent = `${bName(d.kind, d.variant)} — ichkarisi`;
     $('room-sub').textContent = `${d.items.length} / ${d.room.max} ta narsa · sotib oling va polga qo'ying`;
     const shop = $('room-shop');
@@ -11825,6 +12559,9 @@ import * as THREE from 'three';
     }
     setMg(data.mg || null);
     setStage(data.stage || null);
+    if (data.pet_ex) me.ex = { ...data.pet_ex, pt: data.pet_ex.pt || (me.ex && me.ex.pt) || null };
+    if (data.pet_up) { sound.ding(); toast(`🐾 Uy hayvoningiz ${data.pet_up}-darajaga chiqdi! Yangi hiyla ochilgan bo'lishi mumkin`, 'success'); }
+    if (data.decree && (!plus.decree || plus.decree.at !== data.decree.at)) { plus.decree = data.decree; showDecree(data.decree); }
     setFlag(data.flag || null);
     setComet(data.comet || null);
     townSync(data, fresh);
@@ -11981,6 +12718,7 @@ import * as THREE from 'three';
       buildRiver();
       buildCity();
       buildTown();
+      plusStart();
       loadPet();
       initPhone();
       loadTuning();
