@@ -374,6 +374,28 @@
       row.append(who, st, pts, homeworkCell(u.homework));
       card.append(row);
     });
+    // Test boshlangan bo'lsa — pastda «Saqlash»: hammaga ball beriladi, test yopiladi
+    const tested = d.users.filter((u) => u.quiz);
+    if (tested.length) {
+      const open = tested.filter((u) => u.quiz.status !== 'done').length;
+      const save = el('button', 'btn btn--primary btn--lg att-save');
+      save.type = 'button';
+      save.append(icon('check'), el('span', '', `Saqlash — hammaga ball berish (${tested.length})`));
+      save.title = "To'g'ri javoblar soni har bir o'quvchiga ball bo'lib yoziladi";
+      save.addEventListener('click', async () => {
+        if (open && !window.confirm(`${open} ta o'quvchi hali tugatmagan. Saqlansa, ularning testi yopiladi va hozirgacha to'g'ri javoblari ball bo'ladi. Saqlaymizmi?`)) return;
+        save.disabled = true;
+        try {
+          const r = await api('/api/attendance/save', { method: 'POST', body: { day: att.day } });
+          await loadAttendance(att.day);
+          window.alert(`Saqlandi ✅ ${r.saved} ta o'quvchiga jami ${r.total} ball berildi`);
+        } catch (err) {
+          save.disabled = false;
+          if (!handleAuthError(err)) window.alert(err.message);
+        }
+      });
+      card.append(save);
+    }
     root.append(card);
   }
 

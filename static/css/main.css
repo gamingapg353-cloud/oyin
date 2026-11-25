@@ -2652,6 +2652,14 @@ a {
   background: var(--danger-soft);
 }
 
+.att-save {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+}
+
 .avatar {
   overflow: hidden;
 }

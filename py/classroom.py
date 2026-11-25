@@ -515,6 +515,33 @@ def api_attendance_quiz_all():
     return jsonify(ok=True, sent=len(rows))
 
 
+@bp.post("/api/attendance/save")
+@owner_required
+def api_attendance_save():
+    """«Saqlash»: shu kungi test natijalari hammaga ball bo'lib yoziladi, tugatilmagan savollar yopiladi."""
+    day = _day((request.get_json(silent=True) or {}).get("day"))
+    if not day:
+        return jsonify(error="Sanani tanlang"), 400
+    db = get_db()
+    saved, total = 0, 0
+    for q in db.execute("SELECT * FROM lesson_quiz WHERE day = ? ORDER BY id", (day,)).fetchall():
+        questions = json.loads(q["questions"])
+        answers = json.loads(q["answers"])
+        right = min(MAX_POINTS, sum(1 for k, a in enumerate(answers) if k < len(questions) and a == questions[k]["correct"]))
+        cur = db.execute("UPDATE attendance SET points = ?, updated_at = ? WHERE day = ? AND user_id = ? AND status != 'kelmadi'",
+                         (right, time.time(), day, q["user_id"]))
+        if q["status"] != "done":
+            db.execute("UPDATE lesson_quiz SET status = 'done' WHERE id = ?", (q["id"],))
+        if cur.rowcount:
+            saved += 1
+            total += right
+            notify(f"u{q['user_id']}", f"📝 Darsdagi test saqlandi: {right} ball", "/panel#rating")
+    db.commit()
+    if not saved:
+        return jsonify(error="Saqlanadigan test yo'q: avval «Boshlash» ni bosing"), 400
+    return jsonify(ok=True, saved=saved, total=total)
+
+
 def _my_quiz(db, user_id: int):
     return db.execute("SELECT * FROM lesson_quiz WHERE user_id = ? AND status != 'done' ORDER BY id DESC LIMIT 1",
                       (user_id,)).fetchone()
