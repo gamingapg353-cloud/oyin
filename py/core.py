@@ -366,11 +366,22 @@ def get_setting(key: str) -> str | None:
 
 
 def admin_ids() -> set:
-    """Owner «admin» qilgan o'quvchilar (id lar)."""
+    """Owner «admin» qilgan o'quvchilar va vaqtinchalik adminlar (haftaning eng zo'ri — 2 kun)."""
     try:
-        return {int(x) for x in json.loads(get_setting("admins") or "[]")}
+        ids = {int(x) for x in json.loads(get_setting("admins") or "[]")}
     except (ValueError, TypeError):
-        return set()
+        ids = set()
+    return ids | set(temp_admins())
+
+
+def temp_admins() -> dict:
+    """{id: tugash vaqti} — muddati o'tmaganlar."""
+    import time
+    try:
+        raw = json.loads(get_setting("admins_temp") or "{}")
+        return {int(k): float(v) for k, v in raw.items() if float(v) > time.time()}
+    except (ValueError, TypeError, AttributeError):
+        return {}
 
 
 def is_admin(user) -> bool:
@@ -492,7 +503,8 @@ def init_db() -> None:
         # Eski mashinalar (Jajji, Shamol, Chaqmoq, Bo'ron) -> yangilari (BMW, Mercedes, Lamborghini)
         old_cars = {"jajji": "bmw", "shamol": "mercedes", "chaqmoq": "lambo", "boron": "lambo"}
         known = {"bmw", "mercedes", "lambo", "tesla", "jiguli", "damas", "range", "porsche", "bugatti", "plane", "bus", "bike", "skate",
-                 "carpet", "horse", "heli", "cyber", "ferrari", "mclaren", "rolls", "koenig"}
+                 "carpet", "horse", "heli", "cyber", "ferrari", "mclaren", "rolls", "koenig",
+                 "maybach", "phantom", "revuelto", "pagani", "bolide"}
         for key, cars_json in db.execute("SELECT player_key, cars FROM game_players").fetchall():
             cars = json.loads(cars_json or "[]")
             new = []

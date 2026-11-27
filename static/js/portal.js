@@ -148,7 +148,7 @@
         bar.before(box);
       }
       box.replaceChildren(el('strong', '', `🏆 Haftaning eng zo'ri: ${top.name}${top.me ? ' (siz!)' : ''}`),
-        el('span', '', `Sovg'a: ${top.gift}. Har hafta boshida reytingdagi 1-o'ringa tasodifiy sovg'a beriladi.`));
+        el('span', '', `Sovg'a: ${top.gift}. Har dushanba reytingdagi 1-o'ringa tasodifiy sovg'a va 2 kunlik 🛡️ Adminlik beriladi.`));
     } catch { /* keyin */ }
   };
 

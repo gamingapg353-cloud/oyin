@@ -1048,7 +1048,9 @@ import * as THREE from 'three';
 
   // ---------------- Binolar ----------------
   // 1-qavat — turiga xos (hovli uy, do'kon, kafe, ofis vestibyuli), qolgan qavatlar — ustidagi minora
-  const GROUND_H = { uy: 32, magazin: 40, kafe: 40, ofis: 26 };
+  const GROUND_H = { uy: 32, magazin: 40, kafe: 40, ofis: 26, qasr: 32, savdo: 40, mehmonxona: 26 };
+  // Yangi qimmat binolar mavjud chizish usullaridan foydalanadi
+  const FAMILY = { qasr: 'uy', savdo: 'magazin', mehmonxona: 'ofis' };
   const TOWER = { uy: [110, 70], magazin: [108, 68], kafe: [96, 62], ofis: [100, 80] };
   // Har bir variantning ko'rinishi: devor, tom, minora (qavatlar) ranglari, peshtaxta yozuvi
   const STYLES = {
@@ -1070,6 +1072,24 @@ import * as THREE from 'three';
       burger: { wall: '#fff7ed', sign: 'BURGER', signBg: '#ea580c', signFg: '#ffffff', awnA: '#facc15', awnB: '#ea580c', tower: '#fed7aa', frame: '#c2410c', glass: '#fdba74', umbrella: '#facc15' },
       choyxona: { wall: '#ecfeff', sign: 'CHOYXONA', signBg: '#0f766e', signFg: '#ffffff', awnA: '#0f766e', awnB: '#ffffff', tower: '#ccfbf1', frame: '#115e59', glass: '#5eead4', umbrella: '#0f766e' },
     },
+    qasr: {
+      oltin: { wall: '#fefce8', roof: '#ca8a04', base: '#a16207', tower: '#fde68a', frame: '#facc15', glass: '#fef08a' },
+      marmar: { wall: '#ffffff', roof: '#1d4ed8', base: '#e5e7eb', tower: '#f8fafc', frame: '#cbd5e1', glass: '#93c5fd' },
+      sharq: { wall: '#f5f5f4', roof: '#0d9488', base: '#d6d3d1', tower: '#ccfbf1', frame: '#0f766e', glass: '#5eead4' },
+      shisha: { wall: '#bae6fd', roof: '#0f172a', base: '#334155', tower: '#e0f2fe', frame: '#0f172a', glass: '#38bdf8' },
+    },
+    savdo: {
+      mega: { wall: '#1e1b4b', sign: 'MEGA MALL', signBg: '#db2777', signFg: '#ffffff', awnA: '#db2777', awnB: '#1e1b4b', tower: '#312e81', frame: '#0f172a', glass: '#f9a8d4' },
+      atlas: { wall: '#f1f5f9', sign: 'ATLAS PLAZA', signBg: '#0f172a', signFg: '#facc15', awnA: '#0f172a', awnB: '#facc15', tower: '#e2e8f0', frame: '#334155', glass: '#93c5fd' },
+      galaxy: { wall: '#0f172a', sign: 'GALAXY', signBg: '#7c3aed', signFg: '#e0e7ff', awnA: '#7c3aed', awnB: '#0f172a', tower: '#1e293b', frame: '#020617', glass: '#a78bfa' },
+      oasis: { wall: '#ecfccb', sign: 'OASIS', signBg: '#15803d', signFg: '#ffffff', awnA: '#15803d', awnB: '#fef9c3', tower: '#d9f99d', frame: '#3f6212', glass: '#86efac', flowers: true },
+    },
+    mehmonxona: {
+      grand: { lobby: '#422006', sign: 'GRAND HOTEL', bigSign: '★★★★★ HOTEL', signBg: '#78350f', signFg: '#fde68a', tower: '#78350f', frame: '#1c1917', glass: '#fde68a', curtain: true },
+      sky: { lobby: '#0f172a', sign: 'SKY TOWER', bigSign: 'SKY HOTEL', signBg: '#0369a1', signFg: '#e0f2fe', tower: '#0c4a6e', frame: '#082f49', glass: '#7dd3fc', curtain: true },
+      resort: { lobby: '#134e4a', sign: 'RESORT', signBg: '#0d9488', signFg: '#ffffff', tower: '#115e59', frame: '#042f2e', glass: '#99f6e4', curtain: true },
+      plaza: { lobby: '#4c0519', sign: 'PLAZA HOTEL', signBg: '#9f1239', signFg: '#ffe4e6', tower: '#881337', frame: '#4c0519', glass: '#fda4af', curtain: true },
+    },
     ofis: {
       it: { lobby: '#334155', sign: 'IT PARK', bigSign: 'BIZNES MARKAZ', signBg: '#0f172a', signFg: '#93c5fd', tower: '#1e3a5f', frame: '#0f172a', glass: '#8fd3ff', curtain: true },
       bank: { lobby: '#422006', sign: 'BANK', signBg: '#1e3a8a', signFg: '#facc15', tower: '#1e3a8a', frame: '#0f172a', glass: '#fde68a', curtain: true },
@@ -1085,6 +1105,7 @@ import * as THREE from 'three';
   // Bino balandligi (uchadigan mashina undan baland uchishi kerak)
   function buildingTop(kind, level) {
     if (!kind || level < 1) return 0;
+    kind = FAMILY[kind] || kind;
     if (kind === 'ofis') return GROUND_H.ofis + level * FLOOR_H + 30;
     return GROUND_H[kind] + 4 + (level - 1) * FLOOR_H + 40;
   }
@@ -1381,6 +1402,7 @@ import * as THREE from 'three';
 
   function makeBuilding(kind, level, variant) {
     const st = styleOf(kind, variant);
+    kind = FAMILY[kind] || kind;
     if (kind === 'magazin') return buildShopBuilding(level, st);
     if (kind === 'kafe') return buildCafe(level, st);
     if (kind === 'ofis') return buildOffice(level, st);
@@ -9843,8 +9865,6 @@ import * as THREE from 'three';
       ta.value = st.code;
       ta.addEventListener('input', () => { st.code = ta.value; });
       body.append(ta);
-      // VS Code kabi yordamchi: teg/xususiyat takliflari, Emmet (div.box + Tab), qavslarni o'zi yopish
-      window.CodeHelp?.attach(ta, { mode: 'auto' });
       if (st.missing && st.missing.length) {
         const ul = el('ul', 'kitchen__bad');
         st.missing.forEach((m) => ul.append(el('li', '', m)));
@@ -9883,7 +9903,6 @@ import * as THREE from 'three';
         ta.setAttribute('aria-label', label);
         ta.addEventListener('input', () => { st[key] = ta.value; draw(); });
         body.append(el('small', '', label), ta);
-        window.CodeHelp?.attach(ta, { mode: key === 'css' ? 'css' : 'html', peers: () => (key === 'css' ? st.html : st.css) || '' });
       };
       area('html', 'HTML', 5);
       area('css', 'CSS', 4);

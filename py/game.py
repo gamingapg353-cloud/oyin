@@ -44,17 +44,23 @@ MAX_PRICE = 300000          # har turning eng yuqori qavati narxi
 # 1-qavat narxi (base) dan eng yuqori qavat narxi (MAX_PRICE) gacha teng o'sadi.
 # Har qavat o'z daromadini qo'shadi: qavat narxi / payback (so'm/soniya),
 # ya'ni qavat payback soniyada o'zini oqlaydi.
-BUILDINGS = {
-    "uy": {"name": "Uy", "color": "#d97757", "base": 40000, "payback": 10800, "max": 25,
+BUILDINGS = {  # payback qancha kichik bo'lsa — shuncha tez pul keltiradi; top_price — eng yuqori qavat narxi
+    "uy": {"name": "Uy", "color": "#d97757", "base": 40000, "payback": 7200, "max": 25,
            "about": "Turar joy. Eng arzoni."},
-    "magazin": {"name": "Magazin", "color": "#22c55e", "base": 50000, "payback": 10000, "max": 40,
+    "magazin": {"name": "Magazin", "color": "#22c55e", "base": 50000, "payback": 6800, "max": 40,
                 "about": "Pastda do'kon, tepada xonadonlar."},
-    "kafe": {"name": "Kafe", "color": "#f59e0b", "base": 60000, "payback": 9500, "max": 60,
+    "kafe": {"name": "Kafe", "color": "#f59e0b", "base": 60000, "payback": 6500, "max": 60,
              "about": "Pastda kafe, tepada mehmonxona. Daromadi yaxshi."},
-    "ofis": {"name": "Ofis", "color": "#3b82f6", "base": 70000, "payback": 9000, "max": MAX_LEVEL,
+    "ofis": {"name": "Ofis", "color": "#3b82f6", "base": 70000, "payback": 6000, "max": MAX_LEVEL,
              "about": "Shisha osmono'par: qimmatroq, lekin eng ko'p pul keltiradi."},
+    "qasr": {"name": "Qasr", "color": "#eab308", "base": 200000, "top_price": 1200000, "payback": 5000, "max": 12,
+             "about": "Hashamatli qasr: qimmat, lekin uylarning eng daromadlisi."},
+    "savdo": {"name": "Savdo markazi", "color": "#ec4899", "base": 250000, "top_price": 1500000, "payback": 4800, "max": 50,
+              "about": "Katta savdo markazi: ko'p xaridor — ko'p pul."},
+    "mehmonxona": {"name": "Mehmonxona", "color": "#8b5cf6", "base": 300000, "top_price": 2000000, "payback": 4500, "max": 80,
+                   "about": "Besh yulduzli mehmonxona: eng qimmat va eng ko'p pul keltiradi."},
 }
-BUILDING_ORDER = ["uy", "magazin", "kafe", "ofis"]
+BUILDING_ORDER = ["uy", "magazin", "kafe", "ofis", "qasr", "savdo", "mehmonxona"]
 
 # Har bir turning 4 ta varianti: narx va daromad bir xil, ko'rinishi va yozuvi boshqa
 VARIANTS = {
@@ -75,6 +81,24 @@ VARIANTS = {
         {"id": "pizza", "name": "Pitsa", "about": "Issiq pitsa pechdan."},
         {"id": "burger", "name": "Burger", "about": "Burger va kartoshka fri."},
         {"id": "choyxona", "name": "Choyxona", "about": "Palov, choy va somsa."},
+    ],
+    "qasr": [
+        {"id": "oltin", "name": "Oltin qasr", "about": "Oltin tom va oq devorlar."},
+        {"id": "marmar", "name": "Marmar villa", "about": "Oppoq marmar, ko'k tom."},
+        {"id": "sharq", "name": "Sharq saroyi", "about": "Feruza gumbaz uslubida."},
+        {"id": "shisha", "name": "Shisha villa", "about": "Butunlay oynadan, zamonaviy."},
+    ],
+    "savdo": [
+        {"id": "mega", "name": "Mega Mall", "about": "Hamma narsa bir joyda."},
+        {"id": "atlas", "name": "Atlas Plaza", "about": "Kiyim va texnika."},
+        {"id": "galaxy", "name": "Galaxy Center", "about": "Kino va o'yin zali bilan."},
+        {"id": "oasis", "name": "Oasis Market", "about": "Katta oziq-ovqat bozori."},
+    ],
+    "mehmonxona": [
+        {"id": "grand", "name": "Grand Hotel", "about": "Besh yulduzli, oltin chiroqlar."},
+        {"id": "sky", "name": "Sky Tower Hotel", "about": "Bulutlar ustidagi xonalar."},
+        {"id": "resort", "name": "Resort", "about": "Basseyn va dam olish."},
+        {"id": "plaza", "name": "Plaza Hotel", "about": "Shahar markazidagi mehmonxona."},
     ],
     "ofis": [
         {"id": "it", "name": "IT park", "about": "Dasturchilar ofisi."},
@@ -132,6 +156,16 @@ CARS = [  # narxi bo'yicha (Avtosalonda shu tartibda)
      "color": "#b91c1c", "style": "carpet", "flies": True},
     {"id": "tesla", "name": "Tesla (uchadigan)", "price": 1000000, "speed": 3.0, "fare": 2.2,
      "color": "#e5e7eb", "style": "fly", "flies": True},
+    {"id": "maybach", "name": "Mercedes-Maybach", "price": 1200000, "speed": 2.5, "fare": 3.0,
+     "color": "#1c1917", "style": "suv"},
+    {"id": "phantom", "name": "Rolls-Royce Phantom", "price": 1500000, "speed": 2.4, "fare": 3.4,
+     "color": "#312e81", "style": "sedan"},
+    {"id": "revuelto", "name": "Lamborghini Revuelto", "price": 2000000, "speed": 3.2, "fare": 2.4,
+     "color": "#84cc16", "style": "hyper"},
+    {"id": "pagani", "name": "Pagani Huayra", "price": 2500000, "speed": 3.3, "fare": 2.5,
+     "color": "#0ea5e9", "style": "hyper"},
+    {"id": "bolide", "name": "Bugatti Bolide", "price": 4000000, "speed": 3.5, "fare": 2.6,
+     "color": "#1d4ed8", "style": "hyper"},
     {"id": "plane", "name": "Samolyot", "price": 3000000, "speed": 4.0, "fare": 2.6,
      "color": "#f8fafc", "style": "plane", "flies": True, "cruise": 420},
 ]
@@ -161,13 +195,13 @@ def max_level(kind: str | None) -> int:
     return BUILDINGS[kind]["max"] if kind in BUILDINGS else MAX_LEVEL
 
 
-def _price(base: int, level: int, top: int) -> int:
-    value = base + (MAX_PRICE - base) * (level - 1) / (top - 1)
+def _price(base: int, level: int, top: int, top_price: int = MAX_PRICE) -> int:
+    value = base + (top_price - base) * (level - 1) / (top - 1)
     return int(round(value / 100.0)) * 100
 
 
 # PRICES[kind][L] — L-qavat narxi, INVESTED[kind][L] — 1..L qavatlarga jami sarflangan pul
-PRICES = {k: [0] + [_price(b["base"], lv, b["max"]) for lv in range(1, b["max"] + 1)] for k, b in BUILDINGS.items()}
+PRICES = {k: [0] + [_price(b["base"], lv, b["max"], b.get("top_price", MAX_PRICE)) for lv in range(1, b["max"] + 1)] for k, b in BUILDINGS.items()}
 INVESTED = {}
 for _kind, _prices in PRICES.items():
     _total, INVESTED[_kind] = 0, [0]

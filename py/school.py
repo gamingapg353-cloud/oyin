@@ -558,7 +558,7 @@ def api_order_status(oid: int):
 # --------------------------------------------------------------------------- #
 #  Tug'ilgan kun
 # --------------------------------------------------------------------------- #
-BDAY_BONUS = 5
+BDAY_BONUS = 1   # tug'ilgan kun egasiga sovg'a ball
 
 
 def _bday(value) -> str | None:
@@ -587,6 +587,22 @@ def api_birthday_set():
     return jsonify(ok=True, birthday=value or None)
 
 
+def pay_birthdays(db) -> list:
+    """Bugun tug'ilganlarga yiliga bir marta +1 ball va hammaga xabar (sahifa ochilmasa ham — portal tick)."""
+    today = date.today()
+    mmdd = today.strftime("%m-%d")
+    year = str(today.year)
+    rows = db.execute("SELECT id, name, avatar, bday_paid FROM users WHERE birthday = ?", (mmdd,)).fetchall()
+    for r in rows:
+        cur = db.execute("UPDATE users SET bday_paid = ?, score = score + ? WHERE id = ? AND COALESCE(bday_paid, '') != ?",
+                         (year, BDAY_BONUS, r["id"], year))
+        db.commit()
+        if cur.rowcount:
+            classroom.notify_all_users(f"🎂 Bugun {r['name']}ning tug'ilgan kuni! Tabriklang!", "/panel#games")
+            classroom.notify(f"u{r['id']}", f"🎂 Tug'ilgan kuningiz bilan! Sovg'a: +{BDAY_BONUS} ball")
+    return rows
+
+
 @bp.get("/api/birthdays/today")
 @login_required
 def api_birthdays_today():
@@ -594,13 +610,7 @@ def api_birthdays_today():
     today = date.today()
     mmdd = today.strftime("%m-%d")
     year = str(today.year)
-    rows = db.execute("SELECT id, name, avatar, bday_paid FROM users WHERE birthday = ?", (mmdd,)).fetchall()
-    for r in rows:
-        if r["bday_paid"] != year:  # yiliga bir marta: bonus va hammaga xabar
-            db.execute("UPDATE users SET bday_paid = ?, score = score + ? WHERE id = ?", (year, BDAY_BONUS, r["id"]))
-            db.commit()
-            classroom.notify_all_users(f"🎂 Bugun {r['name']}ning tug'ilgan kuni! Tabriklang!", "/panel#games")
-            classroom.notify(f"u{r['id']}", f"🎂 Tug'ilgan kuningiz bilan! Sovg'a: +{BDAY_BONUS} ball")
+    rows = pay_birthdays(db)
     return jsonify(people=[{"id": r["id"], "name": r["name"], "avatar": avatar_url(r["avatar"])} for r in rows])
 
 

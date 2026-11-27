@@ -794,6 +794,50 @@ def _give_gift(db, key: str, kind: str, value: str) -> str:
     return f"🖼️ «{portal.FRAMES[value][0]}» profil ramkasi"
 
 
+TEMP_ADMIN_SECS = 2 * 86400
+
+
+def _grant_temp_admin(db, user_id: int) -> None:
+    """Haftaning eng zo'ri 2 kun admin bo'ladi («Ball berish» bo'limi, «🛡️ Admin» unvoni)."""
+    from core import get_setting, set_setting
+    import portal
+    try:
+        raw = json.loads(get_setting("admins_temp") or "{}")
+    except ValueError:
+        raw = {}
+    raw[str(user_id)] = time.time() + TEMP_ADMIN_SECS
+    set_setting("admins_temp", json.dumps(raw))
+    key = f"u{user_id}"
+    portal._deco_row(db, key)
+    db.execute("UPDATE deco SET title = 'admin' WHERE user_key = ?", (key,))
+    db.commit()
+    portal.deco_map(db, True)
+
+
+def expire_temp_admins(db) -> None:
+    """Muddati o'tgan vaqtinchalik adminlikni olib tashlash (unvon ham)."""
+    from core import admin_ids, get_setting, set_setting
+    import portal
+    try:
+        raw = json.loads(get_setting("admins_temp") or "{}")
+    except ValueError:
+        raw = {}
+    gone = [k for k, v in raw.items() if float(v) <= time.time()]
+    if not gone:
+        return
+    for k in gone:
+        raw.pop(k)
+    set_setting("admins_temp", json.dumps(raw))
+    still = admin_ids()
+    for k in gone:
+        if int(k) not in still:
+            db.execute("UPDATE deco SET title = '' WHERE user_key = ? AND title = 'admin'", (f"u{k}",))
+            import classroom
+            classroom.notify(f"u{k}", "🛡️ 2 kunlik adminlik tugadi. Yana 1-o'ringa chiqing!", "/panel#rating")
+    db.commit()
+    portal.deco_map(db, True)
+
+
 def weekly_top_gift(db, rnd: random.Random | None = None) -> dict | None:
     """Shu haftada hali berilmagan bo'lsa — reytingdagi 1-o'ringa sovg'a."""
     from core import RATING_SQL
@@ -810,10 +854,12 @@ def weekly_top_gift(db, rnd: random.Random | None = None) -> dict | None:
         return None
     kind, value = _pick_gift(db, key, rnd or random.Random())
     text = _give_gift(db, key, kind, value)
+    _grant_temp_admin(db, top["id"])
+    text += " va 2 kunga 🛡️ Admin"
     db.execute("UPDATE weekly_top SET gift = ? WHERE week = ?", (text, week))
     db.commit()
     import classroom
-    classroom.notify(key, f"🏆 Siz reytingda 1-o'rindasiz! Haftalik sovg'a: {text}", "/panel#rating")
+    classroom.notify(key, f"🏆 Siz reytingda 1-o'rindasiz! Haftalik sovg'a: {text}. «Ball berish» bo'limi 2 kun ochiq", "/panel#rating")
     _announce("🏆 Haftaning eng zo'ri", f"{top['name']} reytingda 1-o'rinda — sovg'a: {text}!")
     return {"week": week, "key": key, "gift": text}
 
@@ -832,7 +878,10 @@ def api_weekly_top():
 
 def _tick(db) -> None:
     settle_shows(db)
+    expire_temp_admins(db)
     weekly_top_gift(db)
+    import school
+    school.pay_birthdays(db)
 
 
 import portal  # noqa: E402
