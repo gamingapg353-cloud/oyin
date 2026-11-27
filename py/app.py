@@ -20,6 +20,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import accounts
 import ai_check
 import config
+import core
 import exam
 import extras
 import game_life
@@ -148,6 +149,7 @@ def panel():
         "panel.html",
         user=user,
         is_owner=user["role"] == "owner",
+        is_admin=core.is_admin(user),
         ai_enabled=ai_check.ai_enabled(),
         max_score=config.HOMEWORK_MAX_SCORE,
         min_score=config.HOMEWORK_MIN_SCORE,

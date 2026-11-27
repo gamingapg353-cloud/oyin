@@ -23,7 +23,7 @@ import game_fun as gf
 import game_social as gs
 import homework
 import learn
-from core import RATING_SQL, ROOT_DIR, UPLOAD_DIR, current_user, get_db, get_setting, login_required, owner_required, set_setting
+from core import RATING_SQL, ROOT_DIR, UPLOAD_DIR, admin_ids, current_user, get_db, get_setting, login_required, owner_required, set_setting
 
 bp = Blueprint("portal", __name__)
 
@@ -429,7 +429,8 @@ def _stats(db, key: str) -> dict:
             "bug": done.get("bug", 0), "maket": done.get("maket", 0), "site": done.get("site", 0), "peer": one("SELECT COUNT(*) FROM peer_reviews WHERE reviewer = ?", key),
             "learned": one("SELECT SUM(n) FROM learn_daily WHERE user_key = ? AND kind = 'learned'", key),
             "project": one("SELECT COUNT(*) FROM project_members m JOIN projects p ON p.id = m.project_id WHERE m.user_key = ? AND p.points IS NOT NULL", key),
-            "first": int(bool(rating) and key == f"u{rating[0]['id']}" and rating[0]["total"] > 0), "owner": int(key == "owner")}
+            "first": int(bool(rating) and key == f"u{rating[0]['id']}" and rating[0]["total"] > 0), "owner": int(key == "owner"),
+            "admin": int(key.startswith("u") and key[1:].isdigit() and int(key[1:]) in admin_ids())}
 
 
 TITLES = {  # id: (unvon, shart matni, kalit, kerak)
@@ -439,6 +440,7 @@ TITLES = {  # id: (unvon, shart matni, kalit, kerak)
     "bug30": ("🐞 Xatolar qiroli", "30 ta xato topish", "bug", 30), "maket4": ("🎨 Dizayner", "4 ta maketni takrorlash", "maket", 4),
     "maket12": ("🎨 Rassom", "12 ta maketni takrorlash", "maket", 12), "site": ("🏪 Sayt egasi", "Saytini ko'chaga chiqarish", "site", 1),
     "peer10": ("⭐ Hakam", "10 ta ishga baho berish", "peer", 10), "learn20": ("📒 Tirishqoq", "20 ta xatosini to'g'rilash", "learned", 20),
+    "admin": ("🛡️ Admin", "Ustoz admin qilgan", "admin", 1),
     "team": ("👥 Jamoadosh", "Guruh loyihasini topshirish", "project", 1), "first": ("👑 Birinchi", "Reytingda 1-o'rin", "first", 1), "owner": ("👑 Owner", "Faqat owner", "owner", 1),
 }
 
@@ -481,7 +483,7 @@ def _deco_json(db, key: str) -> dict:
                        if k not in OWNER_FRAMES or key == "owner"],
             "colors": [{"id": k, "name": n, "price": p, "hex": h, "own": p == 0 or f"c:{k}" in owned} for k, (n, p, h) in COLORS.items()],
             "titles": [{"id": k, "name": n, "about": a, "own": kind is None or st[kind] >= need, "have": min(st[kind], need) if kind else 0, "need": need}
-                       for k, (n, a, kind, need) in TITLES.items() if k != "owner" or key == "owner"]}
+                       for k, (n, a, kind, need) in TITLES.items() if (k != "owner" or key == "owner") and (k != "admin" or st["admin"])]}
 
 
 @bp.get("/api/deco")
@@ -546,6 +548,36 @@ def _deco_hook(db, key: str, row, now: float, response: dict) -> None:
 
 
 game.SYNC_HOOKS.append(_deco_hook)
+
+
+@bp.get("/api/users/<int:user_id>/admin")
+@owner_required
+def api_user_admin(user_id: int):
+    return jsonify(admin=user_id in admin_ids())
+
+
+@bp.post("/api/users/<int:user_id>/admin")
+@owner_required
+def api_user_admin_set(user_id: int):
+    """O'quvchini admin qilish: «Ball berish» bo'limi ochiladi, unvoni — «🛡️ Admin»."""
+    on = bool(_json().get("on"))
+    db = get_db()
+    if not db.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
+        return _err("Bunday o'quvchi yo'q")
+    ids = admin_ids()
+    ids = ids | {user_id} if on else ids - {user_id}
+    set_setting("admins", json.dumps(sorted(ids)))
+    key = f"u{user_id}"
+    _deco_row(db, key)
+    if on:
+        db.execute("UPDATE deco SET title = 'admin' WHERE user_key = ?", (key,))
+    else:
+        db.execute("UPDATE deco SET title = '' WHERE user_key = ? AND title = 'admin'", (key,))
+    db.commit()
+    deco_map(db, True)
+    import classroom
+    classroom.notify(key, "🛡️ Ustoz sizni admin qildi — «Ball berish» bo'limi ochildi" if on else "Adminlik olib tashlandi", "/panel")
+    return jsonify(admin=on)
 
 
 def _forget(db, key: str) -> None:

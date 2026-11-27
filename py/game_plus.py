@@ -54,6 +54,9 @@ CREATE TABLE IF NOT EXISTS game_pet_care (
 CREATE TABLE IF NOT EXISTS game_decree (
     day TEXT PRIMARY KEY, player_key TEXT NOT NULL, text TEXT NOT NULL, at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS weekly_top (
+    week TEXT PRIMARY KEY, user_key TEXT NOT NULL, gift TEXT NOT NULL, at REAL NOT NULL
+);
 CREATE TABLE IF NOT EXISTS game_stage_best (
     player_key TEXT PRIMARY KEY, claps INTEGER NOT NULL DEFAULT 0, at REAL NOT NULL
 );
@@ -745,8 +748,91 @@ def _forget(db, key: str) -> None:
 game.FORGET_HOOKS.append(_forget)
 
 
+# --------------------------------------------------------------------------- #
+#  Hafta boshida reytingdagi 1-o'ringa tasodifiy sovg'a
+# --------------------------------------------------------------------------- #
+TOP_MONEY = (50000, 100000, 150000, 200000)
+TOP_CARS = ("porsche", "lambo", "cyber", "ferrari", "mclaren", "rolls")
+TOP_FRAMES = ("oltin", "olov", "muz", "kamalak", "neon")
+
+
+def _pick_gift(db, key: str, rnd: random.Random) -> tuple[str, str]:
+    """(turi, qiymat) — o'yinchida yo'q narsa tanlanadi, bo'lmasa pul."""
+    import portal
+    row = game.ensure_player(db, key)
+    options = [("money", str(rnd.choice(TOP_MONEY)))]
+    cars = [c for c in TOP_CARS if c in game.CARS_BY_ID and c not in json.loads(row["cars"] or "[]")]
+    if cars:
+        options.append(("car", rnd.choice(cars)))
+    clothes = [c for c in CLOTHES if c not in _owned(db, key)]
+    if clothes:
+        options.append(("clothes", rnd.choice(clothes)))
+    deco = portal._deco_row(db, key)
+    frames = [f for f in TOP_FRAMES if f"f:{f}" not in set(json.loads(deco["owned"] or "[]"))]
+    if frames:
+        options.append(("frame", rnd.choice(frames)))
+    return rnd.choice(options)
+
+
+def _give_gift(db, key: str, kind: str, value: str) -> str:
+    """Sovg'ani beradi va matnini qaytaradi."""
+    import portal
+    if kind == "money":
+        gs.add_money(db, key, int(value))
+        return f"{_money(int(value))} so'm o'yin puli"
+    if kind == "car":
+        row = gs._row(db, key)
+        cars = json.loads(row["cars"] or "[]")
+        if value not in cars:
+            db.execute("UPDATE game_players SET cars = ? WHERE player_key = ?", (json.dumps(cars + [value]), key))
+        return f"🚗 {game.CARS_BY_ID[value]['name']} mashinasi"
+    if kind == "clothes":
+        db.execute("INSERT OR IGNORE INTO game_wardrobe (player_key, item, at) VALUES (?, ?, ?)", (key, value, time.time()))
+        return f"👕 {CLOTHES[value][0]}"
+    owned = set(json.loads(portal._deco_row(db, key)["owned"] or "[]")) | {f"f:{value}"}
+    db.execute("UPDATE deco SET owned = ? WHERE user_key = ?", (json.dumps(sorted(owned)), key))
+    return f"🖼️ «{portal.FRAMES[value][0]}» profil ramkasi"
+
+
+def weekly_top_gift(db, rnd: random.Random | None = None) -> dict | None:
+    """Shu haftada hali berilmagan bo'lsa — reytingdagi 1-o'ringa sovg'a."""
+    from core import RATING_SQL
+    week = week_id()
+    if db.execute("SELECT 1 FROM weekly_top WHERE week = ?", (week,)).fetchone():
+        return None
+    top = db.execute(RATING_SQL).fetchone()
+    if not top or (top["total"] or 0) <= 0:
+        return None
+    key = f"u{top['id']}"
+    cur = db.execute("INSERT OR IGNORE INTO weekly_top (week, user_key, gift, at) VALUES (?, ?, '', ?)", (week, key, time.time()))
+    db.commit()
+    if not cur.rowcount:
+        return None
+    kind, value = _pick_gift(db, key, rnd or random.Random())
+    text = _give_gift(db, key, kind, value)
+    db.execute("UPDATE weekly_top SET gift = ? WHERE week = ?", (text, week))
+    db.commit()
+    import classroom
+    classroom.notify(key, f"🏆 Siz reytingda 1-o'rindasiz! Haftalik sovg'a: {text}", "/panel#rating")
+    _announce("🏆 Haftaning eng zo'ri", f"{top['name']} reytingda 1-o'rinda — sovg'a: {text}!")
+    return {"week": week, "key": key, "gift": text}
+
+
+@bp.get("/api/weekly-top")
+@login_required
+def api_weekly_top():
+    db = get_db()
+    r = db.execute("SELECT * FROM weekly_top WHERE gift != '' ORDER BY week DESC LIMIT 1").fetchone()
+    if not r:
+        return jsonify(top=None)
+    people = gs._people(db)
+    return jsonify(top={"week": r["week"], "name": people.get(r["user_key"], {}).get("name", "?"), "gift": r["gift"],
+                        "me": r["user_key"] == _me()})
+
+
 def _tick(db) -> None:
     settle_shows(db)
+    weekly_top_gift(db)
 
 
 import portal  # noqa: E402

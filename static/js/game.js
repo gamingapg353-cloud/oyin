@@ -9843,6 +9843,8 @@ import * as THREE from 'three';
       ta.value = st.code;
       ta.addEventListener('input', () => { st.code = ta.value; });
       body.append(ta);
+      // VS Code kabi yordamchi: teg/xususiyat takliflari, Emmet (div.box + Tab), qavslarni o'zi yopish
+      window.CodeHelp?.attach(ta, { mode: 'auto' });
       if (st.missing && st.missing.length) {
         const ul = el('ul', 'kitchen__bad');
         st.missing.forEach((m) => ul.append(el('li', '', m)));
@@ -9881,6 +9883,7 @@ import * as THREE from 'three';
         ta.setAttribute('aria-label', label);
         ta.addEventListener('input', () => { st[key] = ta.value; draw(); });
         body.append(el('small', '', label), ta);
+        window.CodeHelp?.attach(ta, { mode: key === 'css' ? 'css' : 'html', peers: () => (key === 'css' ? st.html : st.css) || '' });
       };
       area('html', 'HTML', 5);
       area('css', 'CSS', 4);

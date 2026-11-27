@@ -2660,6 +2660,21 @@ a {
   margin-top: 16px;
 }
 
+.weekly-top {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid #f59e0b;
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.weekly-top span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .avatar {
   overflow: hidden;
 }

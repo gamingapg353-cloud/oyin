@@ -230,6 +230,7 @@
     WEEK.forEach((w, i) => {
       const c = el('button', `chip${d.lesson_days.includes(i) ? ' is-on' : ''}`, w);
       c.type = 'button';
+      c.disabled = !isOwner; // dars kunlarini faqat ustoz o'zgartiradi
       c.addEventListener('click', async () => {
         const set = new Set(d.lesson_days);
         if (set.has(i)) set.delete(i); else set.add(i);
@@ -275,7 +276,7 @@
   function renderAttendance() {
     const root = $('att-root');
     const d = att.data;
-    $('att-extra').hidden = att.step !== 'date';
+    if ($('att-extra')) $('att-extra').hidden = att.step !== 'date'; // qo'shimcha ball — faqat owner
     if (att.step === 'date') {
       // 1-qadam: sana tanlanadi, pastda — «Ball berish» tugmasi
       const go = el('button', 'btn btn--primary btn--lg att-start');
@@ -399,7 +400,7 @@
     root.append(card);
   }
 
-  if (isOwner) {
+  if (isOwner || APP.admin) {
     viewLoaders.attendance = () => {
       loadAttendance();
       Oyin.loadPeople?.();

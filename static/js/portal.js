@@ -108,6 +108,17 @@
       root.append(a);
     }
     if (isOwner && uid) {
+      // Admin qilish: «Ball berish» bo'limi ochiladi, unvoni «🛡️ Admin»
+      const ad = card('Admin', 'shield');
+      const adBody = el('div', '');
+      ad.append(el('p', 'muted', "Admin o'quvchi «Ball berish» bo'limida davomat belgilaydi, test yuboradi va saqlaydi (o'ziga ball qo'ya olmaydi). Ismi ostida «🛡️ Admin» chiqadi."), adBody);
+      const drawAdmin = (on) => {
+        adBody.replaceChildren(el('p', '', on ? '🛡️ Bu o\'quvchi — admin' : 'Oddiy o\'quvchi'),
+          btn(on ? 'Adminlikni olib tashlash' : '🛡️ Admin qilish', on ? 'btn--ghost' : 'btn--primary', () => api(`/api/users/${uid}/admin`, { method: 'POST', body: { on: !on } })
+            .then((r) => drawAdmin(r.admin)).catch(fail)));
+      };
+      api(`/api/users/${uid}/admin`).then((r) => drawAdmin(r.admin)).catch(() => {});
+      root.append(ad);
       const c = card('Ota-ona uchun Telegram', 'send');
       c.append(el('p', 'muted', "Havolani ota-onaga yuboring: botni ochib «Start» bossa, har yakshanba hisobot boradi."));
       const out = el('div', '');
@@ -119,6 +130,26 @@
       }).catch(fail)), out);
       root.append(c);
     }
+  };
+
+  // ---- Reyting: haftaning eng zo'ri va uning sovg'asi ----
+  const prevRating = extra.rating;
+  extra.rating = async () => {
+    await prevRating?.();
+    const bar = $('rating-groups');
+    if (!bar) return;
+    let box = $('weekly-top');
+    try {
+      const { top } = await api('/api/weekly-top');
+      if (!top) { box?.remove(); return; }
+      if (!box) {
+        box = el('div', 'weekly-top');
+        box.id = 'weekly-top';
+        bar.before(box);
+      }
+      box.replaceChildren(el('strong', '', `🏆 Haftaning eng zo'ri: ${top.name}${top.me ? ' (siz!)' : ''}`),
+        el('span', '', `Sovg'a: ${top.gift}. Har hafta boshida reytingdagi 1-o'ringa tasodifiy sovg'a beriladi.`));
+    } catch { /* keyin */ }
   };
 
   // ================= 8. Baho berish =================

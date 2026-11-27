@@ -365,6 +365,32 @@ def get_setting(key: str) -> str | None:
     return row["value"] if row else None
 
 
+def admin_ids() -> set:
+    """Owner «admin» qilgan o'quvchilar (id lar)."""
+    try:
+        return {int(x) for x in json.loads(get_setting("admins") or "[]")}
+    except (ValueError, TypeError):
+        return set()
+
+
+def is_admin(user) -> bool:
+    return bool(user) and user.get("role") == "user" and user.get("id") in admin_ids()
+
+
+def staff_required(view):
+    """Owner yoki admin o'quvchi."""
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        user = current_user()
+        if not user:
+            return jsonify(error="Avval tizimga kiring"), 401
+        if user["role"] != "owner" and not is_admin(user):
+            return jsonify(error="Bu amal faqat owner yoki admin uchun"), 403
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
 def set_setting(key: str, value: str | None) -> None:
     db = get_db()
     if value is None:

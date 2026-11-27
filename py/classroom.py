@@ -18,7 +18,7 @@ from flask import Blueprint, g, jsonify, request, session
 
 import config
 import quiz
-from core import avatar_url, current_user, get_db, get_setting, login_required, owner_required, set_setting
+from core import avatar_url, current_user, get_db, get_setting, is_admin, login_required, owner_required, set_setting, staff_required
 
 bp = Blueprint("classroom", __name__)
 
@@ -400,7 +400,7 @@ def _quiz_state(db, user_id: int, day: str) -> dict | None:
 
 
 @bp.get("/api/attendance")
-@owner_required
+@staff_required
 def api_attendance():
     day = _day(request.args.get("day")) or date.today().isoformat()
     month = day[:7]
@@ -420,7 +420,7 @@ def api_attendance():
 
 
 @bp.post("/api/attendance")
-@owner_required
+@staff_required
 def api_attendance_set():
     data = request.get_json(silent=True) or {}
     day = _day(data.get("day"))
@@ -433,6 +433,8 @@ def api_attendance_set():
         return jsonify(error="Holat: keldi, kechikdi yoki kelmadi"), 400
     if isinstance(points, bool) or not isinstance(points, int) or not 0 <= points <= MAX_POINTS:
         return jsonify(error=f"Ball 0 dan {MAX_POINTS} gacha"), 400
+    if is_admin(current_user()) and current_user().get("id") == user_id:
+        return jsonify(error="Admin o'ziga ball qo'ya olmaydi"), 403
     db = get_db()
     if not db.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone():
         return jsonify(error="Bunday o'quvchi yo'q"), 404
@@ -467,7 +469,7 @@ _install()
 
 
 @bp.post("/api/attendance/quiz")
-@owner_required
+@staff_required
 def api_attendance_quiz():
     """«Boshlash»: o'quvchiga 5 ta HTML/CSS savol yuboriladi."""
     data = request.get_json(silent=True) or {}
@@ -498,7 +500,7 @@ def _send_quiz(db, user_id: int, day: str) -> None:
 
 
 @bp.post("/api/attendance/quiz-all")
-@owner_required
+@staff_required
 def api_attendance_quiz_all():
     """«Hammaga boshlash»: shu kuni kelgan (keldi/kechikdi) va hali savol olmaganlarning hammasiga yuboriladi."""
     day = _day((request.get_json(silent=True) or {}).get("day"))
@@ -516,7 +518,7 @@ def api_attendance_quiz_all():
 
 
 @bp.post("/api/attendance/save")
-@owner_required
+@staff_required
 def api_attendance_save():
     """«Saqlash»: shu kungi test natijalari hammaga ball bo'lib yoziladi, tugatilmagan savollar yopiladi."""
     day = _day((request.get_json(silent=True) or {}).get("day"))
